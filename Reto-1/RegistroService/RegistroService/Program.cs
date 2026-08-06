@@ -7,10 +7,6 @@ using Microsoft.AspNetCore.Diagnostics;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Configurar servicios de la aplicación
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
-
 // Registrar dependencias del dominio
 // La inyección de dependencias permite desacoplar la lógica de negocio de la presentación
 builder.Services.AddSingleton<IEmpleadoRepository, EmpleadoRepository>();
@@ -18,11 +14,6 @@ builder.Services.AddScoped<EmpleadoService>();
 
 var app = builder.Build();
 
-// Configurar la tubería de solicitud HTTP (HTTP request pipeline)
-if (app.Environment.IsDevelopment())
-{
-    app.MapOpenApi();
-}
 
 app.UseHttpsRedirection();
 
@@ -129,7 +120,6 @@ app.MapPost("/api/empleados", async (
     return Results.Ok(response);
 })
 .WithName("RegistrarEmpleado")
-.WithOpenApi()
 .Produces<EmpleadoResponse>(StatusCodes.Status200OK)
 .Produces(StatusCodes.Status400BadRequest)
 .Produces(StatusCodes.Status500InternalServerError);
@@ -163,7 +153,6 @@ app.MapGet("/api/empleados/{id}", async (
     return Results.Ok(response);
 })
 .WithName("ObtenerEmpleadoPorId")
-.WithOpenApi()
 .Produces<EmpleadoResponse>(StatusCodes.Status200OK)
 .Produces(StatusCodes.Status404NotFound)
 .Produces(StatusCodes.Status500InternalServerError);
