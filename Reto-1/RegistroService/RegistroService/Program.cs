@@ -61,6 +61,22 @@ app.UseExceptionHandler(exceptionHandlerApp =>
     });
 });
 
+// Middleware para capturar rutas no soportadas
+// Cualquier ruta o método HTTP no definido retorna 404 con mensaje específico
+app.Use(async (context, next) =>
+{
+    await next();
+    
+    if (context.Response.StatusCode == StatusCodes.Status404NotFound)
+    {
+        context.Response.ContentType = "application/json";
+        await context.Response.WriteAsJsonAsync(new
+        {
+            error = "Recurso no encontrado"
+        });
+    }
+});
+
 // ==================== ENDPOINTS DE EMPLEADOS ====================
 
 /// <summary>
@@ -92,8 +108,8 @@ app.UseExceptionHandler(exceptionHandlerApp =>
 /// <param name="service">Servicio de empleados (inyección de dependencias)</param>
 /// <param name="request">Datos del empleado a registrar</param>
 /// <param name="cancellationToken">Token de cancelación</param>
-/// <returns>201 Created con los datos del empleado registrado</returns>
-/// <response code="201">Empleado registrado exitosamente</response>
+/// <returns>200 OK con los datos del empleado registrado</returns>
+/// <response code="200">Empleado registrado exitosamente</response>
 /// <response code="400">Error de validación (email o numeroEmpleado duplicado, campos inválidos)</response>
 /// <response code="500">Error interno del servidor</response>
 app.MapPost("/api/empleados", async (
@@ -110,11 +126,11 @@ app.MapPost("/api/empleados", async (
     // Convertir entidad a DTO de respuesta
     var response = empleadoRegistrado.ToResponse();
 
-    return Results.Created($"/api/empleados/{response.Id}", response);
+    return Results.Ok(response);
 })
 .WithName("RegistrarEmpleado")
 .WithOpenApi()
-.Produces<EmpleadoResponse>(StatusCodes.Status201Created)
+.Produces<EmpleadoResponse>(StatusCodes.Status200OK)
 .Produces(StatusCodes.Status400BadRequest)
 .Produces(StatusCodes.Status500InternalServerError);
 
@@ -129,7 +145,7 @@ app.MapPost("/api/empleados", async (
 /// <param name="cancellationToken">Token de cancelación</param>
 /// <returns>200 OK con los datos del empleado, o 404 Not Found si no existe</returns>
 /// <response code="200">Empleado encontrado</response>
-/// <response code="404">Empleado no encontrado</response>
+/// <response code="404">Empleado no encontrado con mensaje exacto: "El empleado con id {id} no existe"</response>
 /// <response code="500">Error interno del servidor</response>
 app.MapGet("/api/empleados/{id}", async (
     EmpleadoService service,
@@ -140,7 +156,7 @@ app.MapGet("/api/empleados/{id}", async (
 
     if (empleado is null)
     {
-        return Results.NotFound(new { error = $"Empleado con ID '{id}' no encontrado." });
+        return Results.NotFound(new { error = $"El empleado con id {id} no existe" });
     }
 
     var response = empleado.ToResponse();
