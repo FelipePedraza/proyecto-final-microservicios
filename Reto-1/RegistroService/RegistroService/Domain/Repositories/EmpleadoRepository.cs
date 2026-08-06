@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Linq;
 using RegistroService.Domain.Entities;
 
 namespace RegistroService.Domain.Repositories;
