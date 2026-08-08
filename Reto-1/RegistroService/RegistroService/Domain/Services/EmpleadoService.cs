@@ -1,5 +1,4 @@
 using RegistroService.Domain.Entities;
-using RegistroService.Domain.Exceptions;
 using RegistroService.Domain.Repositories;
 
 namespace RegistroService.Domain.Services;
@@ -22,20 +21,8 @@ public sealed class EmpleadoService
     {
         ArgumentNullException.ThrowIfNull(empleado);
 
-        if (await _repository.ExisteEmailAsync(empleado.Email, cancellationToken))
-        {
-            throw new EmpleadoDuplicadoException("email", empleado.Email);
-        }
-
-        if (await _repository.ExisteNumeroEmpleadoAsync(
-                empleado.NumeroEmpleado,
-                cancellationToken))
-        {
-            throw new EmpleadoDuplicadoException(
-                "numeroEmpleado",
-                empleado.NumeroEmpleado);
-        }
-
+        // El repositorio realiza en una sola operación atómica las validaciones
+        // de unicidad y el registro, evitando carreras entre solicitudes.
         await _repository.RegistrarAsync(empleado, cancellationToken);
         return empleado;
     }

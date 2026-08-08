@@ -19,7 +19,7 @@
 
 ## 🔍 Implementación Detallada
 
-### 1. Endpoint POST /api/empleados
+### 1. Endpoint POST /empleados
 
 **Ubicación:** `Program.cs` líneas 115-135
 
@@ -42,7 +42,7 @@
   "area": "Tecnología",
   "departamentoId": "DEP-TI-001",
   "fechaIngreso": "2024-01-15",
-  "estado": 0
+  "estado": "ACTIVO"
 }
 ```
 
@@ -58,7 +58,7 @@
 
 ---
 
-### 2. Endpoint GET /api/empleados/{id}
+### 2. Endpoint GET /empleados/{id}
 
 **Ubicación:** `Program.cs` líneas 150-169
 
@@ -80,7 +80,7 @@
   "area": "Tecnología",
   "departamentoId": "DEP-TI-001",
   "fechaIngreso": "2024-01-15",
-  "estado": 0
+  "estado": "ACTIVO"
 }
 ```
 
@@ -111,10 +111,10 @@
 ```
 
 **Ejemplos de rutas que activan este middleware:**
-- `GET /api/empleados/extra`
+- `GET /empleados/extra`
 - `POST /api/invalid`
 - `PUT /empleados/123` (método no soportado)
-- `DELETE /api/empleados` (no definido)
+- `DELETE /empleados` (no definido)
 
 ---
 
@@ -151,15 +151,15 @@ RegistroService/
 
 ## 🔄 Flujo de Datos
 
-### POST /api/empleados
+### POST /empleados
 ```
-1. Cliente envía JSON con 9 campos (sin id, sin estado)
+1. Cliente envía JSON con 9 campos (incluye id y sin estado)
    ↓
 2. CreateEmpleadoRequest (DTO de entrada) recibe datos
    ↓
 3. MappingExtensions.ToEntity() convierte a Empleado:
-   - Genera ID único (Guid.NewGuid())
-   - Asigna Estado: ACTIVO (por defecto)
+   - Conserva el ID canónico recibido
+   - Conserva el id recibido y asigna Estado: ACTIVO (por defecto)
    ↓
 4. EmpleadoService.RegistrarAsync() valida:
    - ¿Email existe? → 400 Bad Request
@@ -172,7 +172,7 @@ RegistroService/
 7. Retorna 200 OK con 10 campos (incluyendo Id y Estado)
 ```
 
-### GET /api/empleados/{id}
+### GET /empleados/{id}
 ```
 1. Cliente envía GET con {id} en la ruta
    ↓
@@ -243,7 +243,7 @@ if (exception is EmpleadoDuplicadoException duplicado)
 
 ### Test 1: POST exitoso
 ```bash
-POST /api/empleados
+POST /empleados
 Content-Type: application/json
 
 {
@@ -263,7 +263,7 @@ Content-Type: application/json
 
 ### Test 2: POST con email duplicado
 ```bash
-POST /api/empleados
+POST /empleados
 (enviar mismo email dos veces)
 ```
 **Esperado:** 400 Bad Request + `{"error": "El email ya existe..."}`
@@ -272,7 +272,7 @@ POST /api/empleados
 
 ### Test 3: POST con numeroEmpleado duplicado
 ```bash
-POST /api/empleados
+POST /empleados
 (enviar mismo numeroEmpleado dos veces)
 ```
 **Esperado:** 400 Bad Request + `{"error": "El numero de empleado ya existe..."}`
@@ -281,7 +281,7 @@ POST /api/empleados
 
 ### Test 4: GET exitoso
 ```bash
-GET /api/empleados/{id}
+GET /empleados/{id}
 (donde {id} es un ID válido)
 ```
 **Esperado:** 200 OK + Datos del empleado
@@ -290,7 +290,7 @@ GET /api/empleados/{id}
 
 ### Test 5: GET con ID inexistente
 ```bash
-GET /api/empleados/invalid-id-xyz
+GET /empleados/invalid-id-xyz
 ```
 **Esperado:** 404 Not Found + `{"error": "El empleado con id invalid-id-xyz no existe"}`
 
@@ -300,7 +300,7 @@ GET /api/empleados/invalid-id-xyz
 ```bash
 GET /api/invalid
 POST /empleados/extra
-DELETE /api/empleados
+DELETE /empleados
 ```
 **Esperado:** 404 Not Found + `{"error": "Recurso no encontrado"}`
 
@@ -314,7 +314,7 @@ DELETE /api/empleados
 3. ✅ Línea 159: Mensaje exacto: `"El empleado con id {id} no existe"`
 
 ### En RegistroService.csproj
-1. ✅ Actualizado TargetFramework de net10.0 a net8.0 (compatibilidad)
+1. ✅ TargetFramework configurado en net10.0
 2. ✅ Actualizado Microsoft.AspNetCore.OpenApi de 10.0.10 a 8.0.0
 
 ---
@@ -351,8 +351,8 @@ DELETE /api/empleados
 
 | Aspecto | Detalle |
 |--------|---------|
-| **POST /api/empleados** | 200 OK + Email/numeroEmpleado únicos |
-| **GET /api/empleados/{id}** | 200 OK o 404 con mensaje exacto |
+| **POST /empleados** | 200 OK + Email/numeroEmpleado únicos |
+| **GET /empleados/{id}** | 200 OK o 404 con mensaje exacto |
 | **Rutas no soportadas** | 404 Not Found + "Recurso no encontrado" |
 | **Validaciones** | Middleware de excepciones + lógica en servicio |
 | **Puntuación esperada** | 2.0 pts (Criterios 1 y 2) |

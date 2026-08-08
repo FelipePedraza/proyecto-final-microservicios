@@ -7,6 +7,11 @@ namespace RegistroService.API.DTOs;
 public sealed class CreateEmpleadoRequest
 {
     /// <summary>
+    /// Identificador único del empleado.
+    /// </summary>
+    public string Id { get; set; } = null!;
+
+    /// <summary>
     /// Nombre del empleado.
     /// Campo requerido y no puede estar vacío.
     /// </summary>

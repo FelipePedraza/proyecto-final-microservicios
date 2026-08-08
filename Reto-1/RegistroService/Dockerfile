@@ -8,11 +8,11 @@
 #   docker run -p 8080:8080 servidor-empleados
 #
 # Prueba:
-#   curl http://localhost:8080/api/empleados/E001
+#   curl http://localhost:8080/empleados/E001
 # ==========================================================================
 
 # ---------- Etapa 1: Build (SDK completo, solo se usa para compilar) ----------
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 # Copiamos primero solo el .csproj para aprovechar la cache de capas de Docker:
@@ -31,7 +31,7 @@ RUN dotnet publish "RegistroService.csproj" \
     /p:UseAppHost=false
 
 # ---------- Etapa 2: Runtime (solo el ASP.NET runtime, imagen liviana) ----------
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
 
 # Copiamos únicamente los binarios publicados de la etapa anterior

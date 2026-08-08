@@ -15,8 +15,6 @@ builder.Services.AddScoped<EmpleadoService>();
 var app = builder.Build();
 
 
-app.UseHttpsRedirection();
-
 // Middleware de manejo global de excepciones
 // Captura excepciones del dominio y las convierte en respuestas HTTP apropiadas
 app.UseExceptionHandler(exceptionHandlerApp =>
@@ -25,53 +23,25 @@ app.UseExceptionHandler(exceptionHandlerApp =>
     {
         var exception = httpContext.Features.Get<IExceptionHandlerPathFeature>()?.Error;
 
-        if (exception is EmpleadoDuplicadoException duplicado)
+        if (exception is DomainException or ArgumentException)
         {
             httpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
-            httpContext.Response.ContentType = "application/json";
-
-            await httpContext.Response.WriteAsJsonAsync(new
-            {
-                error = duplicado.Message,
-                campo = duplicado.Campo,
-                valor = duplicado.Valor,
-                timestamp = DateTime.UtcNow
-            });
+            httpContext.Response.ContentType = "text/plain; charset=utf-8";
+            await httpContext.Response.WriteAsync(exception.Message);
             return;
         }
 
         // Manejar otras excepciones con un error genérico
         httpContext.Response.StatusCode = StatusCodes.Status500InternalServerError;
-        httpContext.Response.ContentType = "application/json";
-
-        await httpContext.Response.WriteAsJsonAsync(new
-        {
-            error = "Ocurrió un error interno del servidor.",
-            timestamp = DateTime.UtcNow
-        });
+        httpContext.Response.ContentType = "text/plain; charset=utf-8";
+        await httpContext.Response.WriteAsync("Ocurrió un error interno del servidor.");
     });
-});
-
-// Middleware para capturar rutas no soportadas
-// Cualquier ruta o método HTTP no definido retorna 404 con mensaje específico
-app.Use(async (context, next) =>
-{
-    await next();
-    
-    if (context.Response.StatusCode == StatusCodes.Status404NotFound)
-    {
-        context.Response.ContentType = "application/json";
-        await context.Response.WriteAsJsonAsync(new
-        {
-            error = "Recurso no encontrado"
-        });
-    }
 });
 
 // ==================== ENDPOINTS DE EMPLEADOS ====================
 
 /// <summary>
-/// POST /api/empleados - Registrar un nuevo empleado
+/// POST /empleados - Registrar un nuevo empleado
 /// </summary>
 /// <remarks>
 /// Registra un nuevo empleado en el sistema con los datos proporcionados.
@@ -85,6 +55,7 @@ app.Use(async (context, next) =>
 /// Ejemplo de solicitud:
 /// ```json
 /// {
+///   "id": "E001",
 ///   "nombre": "Juan",
 ///   "apellido": "Pérez",
 ///   "email": "juan.perez@company.com",
@@ -103,7 +74,7 @@ app.Use(async (context, next) =>
 /// <response code="200">Empleado registrado exitosamente</response>
 /// <response code="400">Error de validación (email o numeroEmpleado duplicado, campos inválidos)</response>
 /// <response code="500">Error interno del servidor</response>
-app.MapPost("/api/empleados", async (
+app.MapPost("/empleados", async (
     EmpleadoService service,
     CreateEmpleadoRequest request,
     CancellationToken cancellationToken) =>
@@ -125,7 +96,7 @@ app.MapPost("/api/empleados", async (
 .Produces(StatusCodes.Status500InternalServerError);
 
 /// <summary>
-/// GET /api/empleados/{id} - Obtener empleado por ID
+/// GET /empleados/{id} - Obtener empleado por ID
 /// </summary>
 /// <remarks>
 /// Obtiene la información completa de un empleado específico usando su identificador único.
@@ -137,7 +108,7 @@ app.MapPost("/api/empleados", async (
 /// <response code="200">Empleado encontrado</response>
 /// <response code="404">Empleado no encontrado con mensaje exacto: "El empleado con id {id} no existe"</response>
 /// <response code="500">Error interno del servidor</response>
-app.MapGet("/api/empleados/{id}", async (
+app.MapGet("/empleados/{id}", async (
     EmpleadoService service,
     string id,
     CancellationToken cancellationToken) =>
@@ -146,7 +117,9 @@ app.MapGet("/api/empleados/{id}", async (
 
     if (empleado is null)
     {
-        return Results.NotFound(new { error = $"El empleado con id {id} no existe" });
+        return Results.Text(
+            $"El empleado con id {id} no existe",
+            statusCode: StatusCodes.Status404NotFound);
     }
 
     var response = empleado.ToResponse();
@@ -157,4 +130,14 @@ app.MapGet("/api/empleados/{id}", async (
 .Produces(StatusCodes.Status404NotFound)
 .Produces(StatusCodes.Status500InternalServerError);
 
+// Cualquier ruta o método HTTP no soportado debe retornar el mensaje exacto del reto.
+app.MapFallback(() => Results.Text(
+    "Recurso no encontrado",
+    statusCode: StatusCodes.Status404NotFound));
+
 app.Run();
+
+// Hace visible el punto de entrada a las pruebas de integración.
+public partial class Program
+{
+}

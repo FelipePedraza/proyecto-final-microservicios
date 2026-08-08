@@ -1,12 +1,12 @@
-using System.Collections.Concurrent;
-using System.Linq;
 using RegistroService.Domain.Entities;
+using RegistroService.Domain.Exceptions;
 
 namespace RegistroService.Domain.Repositories;
 
 /// <summary>
 /// Implementación en memoria del repositorio de empleados.
-/// Utiliza ConcurrentDictionary para acceso thread-safe.
+/// Protege todas las operaciones con una sección crítica para garantizar
+/// atómicamente la unicidad del id, email y número de empleado.
 /// Esta implementación es válida para desarrollo y pruebas.
 /// </summary>
 public sealed class EmpleadoRepository : IEmpleadoRepository
@@ -14,7 +14,10 @@ public sealed class EmpleadoRepository : IEmpleadoRepository
     /// <summary>
     /// Almacenamiento en memoria de empleados. Key: ID del empleado, Value: Entidad Empleado.
     /// </summary>
-    private readonly ConcurrentDictionary<string, Empleado> _empleados = new();
+    private readonly Dictionary<string, Empleado> _empleados = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _emails = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _numerosEmpleado = new(StringComparer.Ordinal);
+    private readonly object _sync = new();
 
     /// <summary>
     /// Obtiene un empleado por su identificador único.
@@ -30,8 +33,13 @@ public sealed class EmpleadoRepository : IEmpleadoRepository
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         
-        var encontrado = _empleados.TryGetValue(id.Trim(), out var empleado);
-        return Task.FromResult(encontrado ? empleado : null);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        lock (_sync)
+        {
+            var encontrado = _empleados.TryGetValue(id.Trim(), out var empleado);
+            return Task.FromResult(encontrado ? empleado : null);
+        }
     }
 
     /// <summary>
@@ -47,10 +55,12 @@ public sealed class EmpleadoRepository : IEmpleadoRepository
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(email);
         
-        var emailNormalizado = email.Trim().ToLowerInvariant();
-        var existe = _empleados.Values.Any(e => e.Email == emailNormalizado);
-        
-        return Task.FromResult(existe);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        lock (_sync)
+        {
+            return Task.FromResult(_emails.Contains(email.Trim()));
+        }
     }
 
     /// <summary>
@@ -65,10 +75,12 @@ public sealed class EmpleadoRepository : IEmpleadoRepository
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(numeroEmpleado);
         
-        var numeroNormalizado = numeroEmpleado.Trim();
-        var existe = _empleados.Values.Any(e => e.NumeroEmpleado == numeroNormalizado);
-        
-        return Task.FromResult(existe);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        lock (_sync)
+        {
+            return Task.FromResult(_numerosEmpleado.Contains(numeroEmpleado.Trim()));
+        }
     }
 
     /// <summary>
@@ -83,8 +95,32 @@ public sealed class EmpleadoRepository : IEmpleadoRepository
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(empleado);
-        
-        _empleados.AddOrUpdate(empleado.Id, empleado, (_, __) => empleado);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        lock (_sync)
+        {
+            if (_empleados.ContainsKey(empleado.Id))
+            {
+                throw new EmpleadoDuplicadoException("id", empleado.Id);
+            }
+
+            if (_emails.Contains(empleado.Email))
+            {
+                throw new EmpleadoDuplicadoException("email", empleado.Email);
+            }
+
+            if (_numerosEmpleado.Contains(empleado.NumeroEmpleado))
+            {
+                throw new EmpleadoDuplicadoException(
+                    "numeroEmpleado",
+                    empleado.NumeroEmpleado);
+            }
+
+            _empleados.Add(empleado.Id, empleado);
+            _emails.Add(empleado.Email);
+            _numerosEmpleado.Add(empleado.NumeroEmpleado);
+        }
+
         return Task.CompletedTask;
     }
 }

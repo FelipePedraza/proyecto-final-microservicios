@@ -28,17 +28,17 @@ El `Dockerfile` y el `.dockerignore` se colocaron en `Reto-1/RegistroService/` (
 
 ### ✅ 1. Dockerfile configurado para C# (.NET SDK / Runtime)
 
-El proyecto usa **.NET 8** (`<TargetFramework>net8.0</TargetFramework>` en `RegistroService.csproj`), por lo que el Dockerfile usa las imágenes oficiales de Microsoft para esa versión:
+El proyecto usa **.NET 10** (`<TargetFramework>net10.0</TargetFramework>` en `RegistroService.csproj`), por lo que el Dockerfile usa las imágenes oficiales de Microsoft para esa versión:
 
 | Etapa | Imagen base | Propósito |
 |---|---|---|
-| `build` | `mcr.microsoft.com/dotnet/sdk:8.0` | Compilar y publicar el proyecto (incluye el compilador de C#, MSBuild, NuGet) |
-| `final` | `mcr.microsoft.com/dotnet/aspnet:8.0` | Ejecutar el binario ya publicado (solo el runtime de ASP.NET Core) |
+| `build` | `mcr.microsoft.com/dotnet/sdk:10.0` | Compilar y publicar el proyecto (incluye el compilador de C#, MSBuild, NuGet) |
+| `final` | `mcr.microsoft.com/dotnet/aspnet:10.0` | Ejecutar el binario ya publicado (solo el runtime de ASP.NET Core) |
 
 ### ✅ 2. Build multi-stage (multi-etapa)
 
 ```dockerfile
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 COPY ["RegistroService/RegistroService.csproj", "RegistroService/"]
@@ -48,14 +48,14 @@ COPY . .
 WORKDIR /src/RegistroService
 RUN dotnet publish "RegistroService.csproj" -c Release -o /app/publish /p:UseAppHost=false
 
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
 COPY --from=build /app/publish .
 ```
 
 **¿Por qué multi-stage?**
-- El SDK de .NET (`sdk:8.0`) pesa cerca de 800 MB porque incluye el compilador, herramientas de build y el runtime completo. No necesitamos nada de eso para *ejecutar* la aplicación, solo para *compilarla*.
-- La imagen `aspnet:8.0` contiene únicamente el runtime necesario para correr una app ASP.NET Core ya compilada — es mucho más liviana (~200 MB).
+- El SDK de .NET (`sdk:10.0`) pesa cerca de 800 MB porque incluye el compilador, herramientas de build y el runtime completo. No necesitamos nada de eso para *ejecutar* la aplicación, solo para *compilarla*.
+- La imagen `aspnet:10.0` contiene únicamente el runtime necesario para correr una app ASP.NET Core ya compilada — es mucho más liviana (~200 MB).
 - Con `COPY --from=build /app/publish .` copiamos solo los binarios ya publicados (`.dll`, `.json` de configuración, etc.) desde la etapa `build` hacia la etapa `final`, descartando el código fuente y el SDK completo en la imagen que finalmente se despliega.
 
 **¿Por qué copiar primero el `.csproj` y luego el resto del código?**
@@ -150,7 +150,7 @@ Con `-p 8080:8080`, el puerto `8080` del contenedor queda publicado en el puerto
 docker build -t servidor-empleados .
 docker run -p 8080:8080 servidor-empleados
 
-curl -X POST http://localhost:8080/api/empleados \
+curl -X POST http://localhost:8080/empleados \
   -H "Content-Type: application/json" \
   -d '{
     "id": "E001",
@@ -164,7 +164,7 @@ curl -X POST http://localhost:8080/api/empleados \
     "fechaIngreso": "2026-02-10"
   }'
 
-curl http://localhost:8080/api/empleados/E001
+curl http://localhost:8080/empleados/E001
 ```
 
 ---
@@ -186,15 +186,15 @@ curl http://localhost:8080/api/empleados/E001
 ## 📚 Tecnologías Utilizadas
 
 - **Docker** — Contenerización
-- **mcr.microsoft.com/dotnet/sdk:8.0** — Imagen oficial de Microsoft para compilar proyectos .NET 8
-- **mcr.microsoft.com/dotnet/aspnet:8.0** — Imagen oficial de Microsoft con el runtime de ASP.NET Core 8
+- **mcr.microsoft.com/dotnet/sdk:10.0** — Imagen oficial de Microsoft para compilar proyectos .NET 10
+- **mcr.microsoft.com/dotnet/aspnet:10.0** — Imagen oficial de Microsoft con el runtime de ASP.NET Core 8
 - **Multi-stage builds** — Patrón para reducir el tamaño de la imagen final
 
 ---
 
 ## 📌 Notas Importantes
 
-1. **Tamaño de la imagen**: al usar `aspnet:8.0` en lugar de `sdk:8.0` para la etapa final, la imagen resultante es significativamente más liviana, ya que no incluye herramientas de compilación ni el código fuente.
+1. **Tamaño de la imagen**: al usar `aspnet:10.0` en lugar de `sdk:10.0` para la etapa final, la imagen resultante es significativamente más liviana, ya que no incluye herramientas de compilación ni el código fuente.
 2. **Cache de capas**: el orden de las instrucciones `COPY` está optimizado para builds incrementales más rápidos.
 3. **Producción por defecto**: el contenedor arranca en modo `Production`, no `Development`, evitando exponer endpoints de diagnóstico como Swagger/OpenAPI innecesariamente.
 4. **Sin base de datos ni dependencias externas**: como el Reto 1 usa persistencia en memoria (`ConcurrentDictionary`), el contenedor no requiere variables de conexión ni servicios adicionales (a diferencia de retos futuros con message broker y bases de datos).

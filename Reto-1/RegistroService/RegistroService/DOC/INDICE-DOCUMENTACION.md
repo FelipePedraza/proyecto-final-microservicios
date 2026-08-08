@@ -177,8 +177,8 @@ c:\Users\DANIEL-PC\RiderProjects\proyecto-final-microservicios\
 
 ### Diagramas.md (22 KB)
 - Arquitectura en capas
-- Flujo POST /api/empleados
-- Flujo GET /api/empleados/{id}
+- Flujo POST /empleados
+- Flujo GET /empleados/{id}
 - Validación email duplicado
 - Validación numeroEmpleado duplicado
 - ConcurrentDictionary

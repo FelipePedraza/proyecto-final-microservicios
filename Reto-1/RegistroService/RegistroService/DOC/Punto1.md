@@ -306,7 +306,7 @@ public static class MappingExtensions
     public static Empleado ToEntity(this CreateEmpleadoRequest request)
     {
         return new Empleado(
-            id: Guid.NewGuid().ToString(),  // ← ID auto-generado
+            id: request.Id,  // ← ID canónico recibido
             nombre: request.Nombre,
             apellido: request.Apellido,
             email: request.Email,
@@ -335,13 +335,13 @@ public static class MappingExtensions
 
 ## 🛣️ Endpoints REST
 
-### POST /api/empleados - Registrar Empleado
+### POST /empleados - Registrar Empleado
 
 **Ruta:** `Program.cs` (línea ~82)
 
 **Solicitud:**
 ```http
-POST /api/empleados HTTP/1.1
+POST /empleados HTTP/1.1
 Content-Type: application/json
 
 {
@@ -394,13 +394,13 @@ Content-Type: application/json
 
 ---
 
-### GET /api/empleados/{id} - Obtener Empleado
+### GET /empleados/{id} - Obtener Empleado
 
 **Ruta:** `Program.cs` (línea ~113)
 
 **Solicitud:**
 ```http
-GET /api/empleados/550e8400-e29b-41d4-a716-446655440000 HTTP/1.1
+GET /empleados/550e8400-e29b-41d4-a716-446655440000 HTTP/1.1
 ```
 
 **Respuesta Exitosa (200 OK):**
@@ -516,8 +516,8 @@ public sealed class EmpleadoRepository : IEmpleadoRepository
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                     API REST                                │
-│        POST /api/empleados (CreateEmpleadoRequest)          │
-│        GET  /api/empleados/{id}                             │
+│        POST /empleados (CreateEmpleadoRequest)          │
+│        GET  /empleados/{id}                             │
 └──────────────────────┬──────────────────────────────────────┘
                        │
 ┌──────────────────────▼──────────────────────────────────────┐

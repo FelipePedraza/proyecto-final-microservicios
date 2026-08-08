@@ -1,5 +1,3 @@
-using RegistroService.Domain.Enums;
-
 namespace RegistroService.API.DTOs;
 
 /// <summary>
@@ -55,7 +53,7 @@ public sealed class EmpleadoResponse
     public DateOnly FechaIngreso { get; set; }
 
     /// <summary>
-    /// Estado actual del empleado en el sistema (Activo, EnVacaciones, Retirado).
+    /// Estado canónico del empleado (ACTIVO, EN_VACACIONES o RETIRADO).
     /// </summary>
-    public EstadoEmpleado Estado { get; set; }
+    public string Estado { get; set; } = null!;
 }

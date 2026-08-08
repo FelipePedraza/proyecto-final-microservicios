@@ -213,8 +213,8 @@ proyecto-final-microservicios/
 
 ### Bloque 7: Endpoints
 ```
-✓ POST /api/empleados
-✓ GET /api/empleados/{id}
+✓ POST /empleados
+✓ GET /empleados/{id}
 ✓ Inyección de dependencias
 ✓ Middleware de excepciones
 ```

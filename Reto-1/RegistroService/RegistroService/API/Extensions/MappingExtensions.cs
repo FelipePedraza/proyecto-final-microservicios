@@ -1,4 +1,5 @@
 using RegistroService.Domain.Entities;
+using RegistroService.Domain.Enums;
 using RegistroService.API.DTOs;
 
 namespace RegistroService.API.Extensions;
@@ -14,13 +15,13 @@ public static class MappingExtensions
     /// <param name="request">DTO con los datos de creación del empleado.</param>
     /// <returns>Entidad Empleado lista para ser procesada por el servicio.</returns>
     /// <remarks>
-    /// - El ID se genera automáticamente usando Guid.NewGuid()
+    /// - El ID lo proporciona el cliente como parte del modelo canónico
     /// - El estado se establece automáticamente como Activo
     /// </remarks>
     public static Empleado ToEntity(this CreateEmpleadoRequest request)
     {
         return new Empleado(
-            id: Guid.NewGuid().ToString(),
+            id: request.Id,
             nombre: request.Nombre,
             apellido: request.Apellido,
             email: request.Email,
@@ -50,7 +51,15 @@ public static class MappingExtensions
             Area = empleado.Area,
             DepartamentoId = empleado.DepartamentoId,
             FechaIngreso = empleado.FechaIngreso,
-            Estado = empleado.Estado
+            Estado = empleado.Estado.ToCanonicalValue()
         };
     }
+
+    private static string ToCanonicalValue(this EstadoEmpleado estado) => estado switch
+    {
+        EstadoEmpleado.Activo => "ACTIVO",
+        EstadoEmpleado.EnVacaciones => "EN_VACACIONES",
+        EstadoEmpleado.Retirado => "RETIRADO",
+        _ => throw new ArgumentOutOfRangeException(nameof(estado), estado, null)
+    };
 }

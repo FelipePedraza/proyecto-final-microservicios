@@ -10,8 +10,8 @@
 │                                                                   │
 │  ┌─────────────────────────────────────────────────────────────┐│
 │  │  HTTP Endpoints (Minimal APIs)                              ││
-│  │  ├─ POST   /api/empleados (CreateEmpleadoRequest)          ││
-│  │  └─ GET    /api/empleados/{id}                             ││
+│  │  ├─ POST   /empleados (CreateEmpleadoRequest)          ││
+│  │  └─ GET    /empleados/{id}                             ││
 │  └─────────────────────────────────────────────────────────────┘│
 │  ┌─────────────────────────────────────────────────────────────┐│
 │  │  DTOs (Data Transfer Objects)                               ││
@@ -80,12 +80,12 @@
 
 ---
 
-## 2. Flujo de Registro de Empleado (POST /api/empleados)
+## 2. Flujo de Registro de Empleado (POST /empleados)
 
 ```
 Cliente HTTP
     │
-    │ POST /api/empleados
+    │ POST /empleados
     │ {CreateEmpleadoRequest}
     │
     ▼
@@ -98,7 +98,7 @@ Cliente HTTP
 ┌─────────────────────────────────────┐
 │   MappingExtensions                 │
 │   Request.ToEntity()                │
-│   (Genera ID con Guid.NewGuid())    │
+│   (Conserva el ID recibido)    │
 └─────────────────────────────────────┘
     │
     ▼ (Empleado object)
@@ -170,7 +170,7 @@ Cliente HTTP
 ### Caso 1: Email Duplicado
 
 ```
-POST /api/empleados
+POST /empleados
 {
   "email": "juan.perez@company.com",
   ...
@@ -213,7 +213,7 @@ EmpleadoRepository.ExisteEmailAsync()
 ### Caso 2: NumeroEmpleado Duplicado
 
 ```
-POST /api/empleados
+POST /empleados
 {
   "numeroEmpleado": "EMP001",
   ...
@@ -256,7 +256,7 @@ EmpleadoService.RegistrarAsync()
 ```
 Cliente HTTP
     │
-    │ GET /api/empleados/550e8400-e29b-41d4-a716-446655440000
+    │ GET /empleados/550e8400-e29b-41d4-a716-446655440000
     │
     ▼
 ┌────────────────────────────────────────┐
@@ -372,7 +372,7 @@ CreateEmpleadoRequest (JSON entrada)
     │
     └─→ Empleado (Entidad de Dominio)
         │
-        ├─ Id: Guid.NewGuid().ToString()  ← Generado automáticamente
+        ├─ Id: request.Id  ← Proporcionado por el cliente
         ├─ Nombre: "Juan"
         ├─ Apellido: "Pérez"
         ├─ Email: "juan.perez@company.com"

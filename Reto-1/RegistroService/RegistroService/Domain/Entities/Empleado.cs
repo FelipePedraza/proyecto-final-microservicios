@@ -26,6 +26,11 @@ public sealed class Empleado
         Cargo = Requerido(cargo, nameof(cargo));
         Area = Requerido(area, nameof(area));
         DepartamentoId = Requerido(departamentoId, nameof(departamentoId));
+        if (fechaIngreso == default)
+        {
+            throw new ArgumentException("El valor es obligatorio.", nameof(fechaIngreso));
+        }
+
         FechaIngreso = fechaIngreso;
         Estado = EstadoEmpleado.Activo;
     }
