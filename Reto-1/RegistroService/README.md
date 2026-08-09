@@ -1,11 +1,52 @@
 # RegistroService — Reto 1
 
-Servicio web en ASP.NET Core para registrar empleados y consultarlos por su identificador.
-Los datos se conservan en memoria durante la ejecución de la aplicación.
+Microservicio web en ASP.NET Core Minimal APIs para registrar empleados y consultarlos por identificador. Los datos se conservan en memoria durante la ejecución.
+
+## Requisitos
+
+- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
+- Docker (opcional, para ejecutar en contenedor)
+
+## Estructura del proyecto
+
+```
+RegistroService/
+├── RegistroService/                     # Proyecto API
+│   ├── API/
+│   │   ├── DTOs/
+│   │   │   ├── CreateEmpleadoRequest.cs
+│   │   │   └── EmpleadoResponse.cs
+│   │   └── Extensions/
+│   │       └── MappingExtensions.cs
+│   ├── Domain/
+│   │   ├── Entities/Empleado.cs
+│   │   ├── Enums/EstadoEmpleado.cs
+│   │   ├── Exceptions/
+│   │   │   ├── DomainException.cs
+│   │   │   └── EmpleadoDuplicadoException.cs
+│   │   ├── Repositories/
+│   │   │   ├── IEmpleadoRepository.cs
+│   │   │   └── EmpleadoRepository.cs
+│   │   └── Services/EmpleadoService.cs
+│   ├── DOC/
+│   │   ├── README.md
+│   │   ├── Punto1.md
+│   │   ├── Punto2.md
+│   │   └── Punto3.md
+│   ├── Program.cs
+│   └── RegistroService.csproj
+├── RegistroService.Tests/               # Pruebas automatizadas
+│   ├── EmpleadosEndpointsTests.cs
+│   ├── EmpleadoServiceTests.cs
+│   ├── EmpleadoRepositoryTests.cs
+│   └── RegistroService.Tests.csproj
+├── Dockerfile
+└── .dockerignore
+```
 
 ## Ejecutar con Docker
 
-Desde esta carpeta:
+Desde la carpeta `Reto-1/RegistroService/`:
 
 ```bash
 docker build -t servidor-empleados .
@@ -14,7 +55,23 @@ docker run --rm -p 8080:8080 servidor-empleados
 
 La API queda disponible en `http://localhost:8080`.
 
+## Ejecutar sin Docker (dotnet run)
+
+Desde la carpeta `Reto-1/RegistroService/`:
+
+```bash
+dotnet run --project RegistroService/RegistroService.csproj
+```
+
+**Puertos por defecto (launchSettings.json):**
+- HTTP: `http://localhost:5080`
+- HTTPS: `https://localhost:7217`
+
+> Importante: Swagger/OpenAPI no está habilitado en `Program.cs`. No accede por `/swagger` ni `/openapi/v1.json`.
+
 ## Probar la API
+
+### Registrar empleado (POST /empleados)
 
 ```bash
 curl -X POST http://localhost:8080/empleados \
@@ -30,17 +87,105 @@ curl -X POST http://localhost:8080/empleados \
     "departamentoId": "IT",
     "fechaIngreso": "2026-02-10"
   }'
+```
 
+**Respuesta 200 OK:**
+```json
+{
+  "id": "E001",
+  "nombre": "Juan",
+  "apellido": "Pérez",
+  "email": "juan.perez@empresa.com",
+  "numeroEmpleado": "EMP-2026-001",
+  "cargo": "Desarrollador Senior",
+  "area": "Tecnología",
+  "departamentoId": "IT",
+  "fechaIngreso": "2026-02-10",
+  "estado": "ACTIVO"
+}
+```
+
+### Consultar empleado (GET /empleados/{id})
+
+```bash
 curl http://localhost:8080/empleados/E001
 ```
 
-## Ejecutar sin Docker
+**Respuesta 200 OK:** misma estructura que el POST.
 
-Requiere el SDK de .NET 10:
-
-```bash
-dotnet run --project RegistroService/RegistroService.csproj
+**Respuesta 404 (empleado no existe):**
 ```
+El empleado con id NO-EXISTE no existe
+```
+
+## Contratos de API
+
+| Método | Ruta | Descripción | Éxito | Error |
+|--------|------|-------------|-------|-------|
+| POST | `/empleados` | Registra un empleado | 200 OK + `EmpleadoResponse` | 400 Bad Request |
+| GET | `/empleados/{id}` | Consulta por ID | 200 OK + `EmpleadoResponse` | 404 Not Found |
+| * | Cualquier otra ruta | No soportado | — | 404 Not Found |
+
+### Esquema de request (POST /empleados)
+
+```json
+{
+  "id": "string (requerido)",
+  "nombre": "string (requerido, no vacío)",
+  "apellido": "string (requerido, no vacío)",
+  "email": "string (requerido, único, case-insensitive, se almacena en minúsculas)",
+  "numeroEmpleado": "string (requerido, único)",
+  "cargo": "string (requerido, no vacío)",
+  "area": "string (requerido, no vacío)",
+  "departamentoId": "string (requerido, no vacío)",
+  "fechaIngreso": "date (requerido, formato YYYY-MM-DD)"
+}
+```
+
+### Esquema de response
+
+```json
+{
+  "id": "string",
+  "nombre": "string",
+  "apellido": "string",
+  "email": "string (minúsculas)",
+  "numeroEmpleado": "string",
+  "cargo": "string",
+  "area": "string",
+  "departamentoId": "string",
+  "fechaIngreso": "date",
+  "estado": "ACTIVO | EN_VACACIONES | RETIRADO"
+}
+```
+
+### Códigos de error
+
+| Código | Condición | Cuerpo de respuesta |
+|--------|-----------|---------------------|
+| 400 | Email duplicado | `Ya existe un empleado con email 'xxx'.` (texto plano) |
+| 400 | Número de empleado duplicado | `Ya existe un empleado con numeroEmpleado 'xxx'.` (texto plano) |
+| 400 | Campo vacío o inválido | `El valor es obligatorio.` (texto plano) |
+| 404 | Empleado no encontrado | `El empleado con id {id} no existe` (texto plano) |
+| 404 | Ruta no soportada | `Recurso no encontrado` (texto plano) |
+| 500 | Error inesperado | `Ocurrió un error interno del servidor.` (texto plano) |
+
+> Nota: Todas las respuestas de error tienen `Content-Type: text/plain; charset=utf-8`.
+
+## Validaciones y reglas de negocio
+
+1. **Campos requeridos:** Todos los campos del request son obligatorios. Si algún campo string está vacío o solo contiene espacios, retorna 400.
+2. **Email único:** No se permite registrar dos empleados con el mismo email (case-insensitive).
+3. **Número de empleado único:** No se permite registrar dos empleados con el mismo `numeroEmpleado` (case-sensitive).
+4. **ID único:** No se permite registrar dos empleados con el mismo `id`.
+5. **Estado por defecto:** Todo empleado registrado tiene estado `ACTIVO` automáticamente.
+6. **Normalización de email:** El email se almacena y retorna en minúsculas.
+7. **Trim automático:** Los campos string se recortan de espacios al registrar.
+8. **Concurrencia:** El repositorio usa `lock` para garantizar operaciones atómicas. Si dos solicitudes concurrentes intentan registrar el mismo email o número de empleado, solo una succeederá.
+
+## Persistencia
+
+Los datos se almacenan en memoria (`Dictionary` + `HashSet` con sincronización explícita). Al reiniciar la aplicación, se pierden todos los registros.
 
 ## Pruebas automatizadas
 
@@ -48,4 +193,45 @@ dotnet run --project RegistroService/RegistroService.csproj
 dotnet test RegistroService.sln
 ```
 
-La suite verifica registro, consulta, duplicados, validaciones, rutas no soportadas y concurrencia.
+La suite incluye:
+- Pruebas de integración (endpoints HTTP): `EmpleadosEndpointsTests.cs`
+- Pruebas unitarias (servicio): `EmpleadoServiceTests.cs`
+- Pruebas unitarias (repositorio): `EmpleadoRepositoryTests.cs`
+
+## Docker
+
+### Construir imagen
+
+```bash
+cd Reto-1/RegistroService
+docker build -t servidor-empleados .
+```
+
+### Ejecutar contenedor
+
+```bash
+docker run --rm -p 8080:8080 servidor-empleados
+```
+
+- La API queda en `http://localhost:8080`
+- El contenedor se detiene con `Ctrl+C`
+- `--rm` elimina el contenedor al detenerlo
+
+### Probar desde el host
+
+```bash
+curl http://localhost:8080/empleados/E001
+```
+
+## Limitaciones conocidas
+
+- Sin base de datos (datos en memoria, se pierden al reiniciar)
+- Sin paginación ni filtros en consultas
+- Sin endpoints de actualización, borrado o listado
+- Sin autenticación ni autorización
+- Sin límite de concurrencia configurado
+
+## Autor
+
+Persona 1, Persona 2, Persona 3  
+**Fecha:** 2026-08-09

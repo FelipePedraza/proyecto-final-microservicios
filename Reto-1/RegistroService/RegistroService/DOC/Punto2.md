@@ -21,7 +21,7 @@
 
 ### 1. Endpoint POST /empleados
 
-**Ubicación:** `Program.cs` líneas 115-135
+**Ubicación:** `Program.cs` líneas 77-96
 
 **Características:**
 - ✅ Retorna **200 OK** (no 201 Created) con información del empleado registrado
@@ -47,20 +47,15 @@
 ```
 
 **Respuesta con error (400 Bad Request):**
-```json
-{
-  "error": "El email ya existe en el sistema",
-  "campo": "email",
-  "valor": "juan.perez@company.com",
-  "timestamp": "2026-08-05T23:15:37.477Z"
-}
+```
+Ya existe un empleado con email 'juan.perez@company.com'.
 ```
 
 ---
 
 ### 2. Endpoint GET /empleados/{id}
 
-**Ubicación:** `Program.cs` líneas 150-169
+**Ubicación:** `Program.cs` líneas 111-131
 
 **Características:**
 - ✅ Retorna **200 OK** si el empleado existe
@@ -85,17 +80,15 @@
 ```
 
 **Respuesta con error (404 Not Found):**
-```json
-{
-  "error": "El empleado con id invalid-id no existe"
-}
+```
+El empleado con id invalid-id no existe
 ```
 
 ---
 
 ### 3. Middleware para Rutas No Soportadas
 
-**Ubicación:** `Program.cs` líneas 64-78
+**Ubicación:** `Program.cs` líneas 134-136
 
 **Características:**
 - ✅ Captura **cualquier ruta o método HTTP no definido**
@@ -104,10 +97,8 @@
 - ✅ Verifica `context.Response.StatusCode == 404`
 
 **Respuesta (404 Not Found):**
-```json
-{
-  "error": "Recurso no encontrado"
-}
+```
+Recurso no encontrado
 ```
 
 **Ejemplos de rutas que activan este middleware:**

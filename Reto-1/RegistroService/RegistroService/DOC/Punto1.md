@@ -132,9 +132,9 @@ public interface IEmpleadoRepository
 
 **Ruta:** `Domain/Repositories/EmpleadoRepository.cs`
 
-**Tecnología:** `ConcurrentDictionary<string, Empleado>`
+**Tecnología:** `Dictionary<string, Empleado>` + `HashSet<string>` con `lock` explícito
 
-- ✅ Thread-safe (múltiples hilos simultáneos)
+- ✅ Thread-safe (sincronización explícita con `lock`)
 - ✅ Sin dependencias externas (en memoria)
 - ✅ Ideal para pruebas y desarrollo
 - ✅ Datos persisten durante la sesión de la aplicación
@@ -142,20 +142,25 @@ public interface IEmpleadoRepository
 ```csharp
 public sealed class EmpleadoRepository : IEmpleadoRepository
 {
-    private readonly ConcurrentDictionary<string, Empleado> _empleados = new();
+    private readonly Dictionary<string, Empleado> _empleados = new();
+    private readonly HashSet<string> _emails = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _numerosEmpleado = new(StringComparer.Ordinal);
+    private readonly object _sync = new();
     
-    public Task<bool> ExisteEmailAsync(string email, CancellationToken cancellationToken = default)
+    public async Task<bool> ExisteEmailAsync(string email, CancellationToken cancellationToken = default)
     {
-        var emailNormalizado = email.Trim().ToLowerInvariant();
-        var existe = _empleados.Values.Any(e => e.Email == emailNormalizado);
-        return Task.FromResult(existe);
+        lock (_sync)
+        {
+            return Task.FromResult(_emails.Contains(email.Trim()));
+        }
     }
     
-    public Task<bool> ExisteNumeroEmpleadoAsync(string numeroEmpleado, CancellationToken cancellationToken = default)
+    public async Task<bool> ExisteNumeroEmpleadoAsync(string numeroEmpleado, CancellationToken cancellationToken = default)
     {
-        var numeroNormalizado = numeroEmpleado.Trim();
-        var existe = _empleados.Values.Any(e => e.NumeroEmpleado == numeroNormalizado);
-        return Task.FromResult(existe);
+        lock (_sync)
+        {
+            return Task.FromResult(_numerosEmpleado.Contains(numeroEmpleado.Trim()));
+        }
     }
 }
 ```
@@ -213,16 +218,14 @@ public class EmpleadoService
 - `Program.cs` - Middleware de manejo de excepciones (línea ~28)
 
 **Respuesta HTTP (400 Bad Request):**
-```json
-{
-  "error": "Ya existe un empleado con email 'juan.perez@company.com'.",
-  "campo": "email",
-  "valor": "juan.perez@company.com",
-  "timestamp": "2024-08-05T22:35:00Z"
-}
+```
+Ya existe un empleado con email 'juan.perez@company.com'.
 ```
 
-### Validación 2: NumeroEmpleado Duplicado → 400 Bad Request
+**Respuesta HTTP (400 Bad Request):**
+```
+Ya existe un empleado con numeroEmpleado 'EMP001'.
+```
 
 **Implementación:**
 1. `EmpleadoService.RegistrarAsync()` llama a `_repository.ExisteNumeroEmpleadoAsync()`
@@ -236,13 +239,8 @@ public class EmpleadoService
 - `Program.cs` - Middleware de manejo de excepciones (línea ~28)
 
 **Respuesta HTTP (400 Bad Request):**
-```json
-{
-  "error": "Ya existe un empleado con numeroEmpleado 'EMP001'.",
-  "campo": "numeroEmpleado",
-  "valor": "EMP001",
-  "timestamp": "2024-08-05T22:35:00Z"
-}
+```
+Ya existe un empleado con numeroEmpleado 'EMP001'.
 ```
 
 ---
@@ -460,15 +458,20 @@ app.UseExceptionHandler(exceptionHandlerApp =>
         if (exception is EmpleadoDuplicadoException duplicado)
         {
             httpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
-            httpContext.Response.ContentType = "application/json";
-            
-            await httpContext.Response.WriteAsJsonAsync(new
-            {
-                error = duplicado.Message,
-                campo = duplicado.Campo,
-                valor = duplicado.Valor,
-                timestamp = DateTime.UtcNow
-            });
+            httpContext.Response.ContentType = "text/plain; charset=utf-8";
+            await httpContext.Response.WriteAsync(duplicado.Message);
+        }
+        else if (exception is ArgumentException)
+        {
+            httpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
+            httpContext.Response.ContentType = "text/plain; charset=utf-8";
+            await httpContext.Response.WriteAsync(exception.Message);
+        }
+        else
+        {
+            httpContext.Response.StatusCode = StatusCodes.Status500InternalServerError;
+            httpContext.Response.ContentType = "text/plain; charset=utf-8";
+            await httpContext.Response.WriteAsync("Ocurrió un error interno del servidor.");
         }
     });
 });
@@ -613,7 +616,7 @@ dotnet run
 ## 📌 Notas Importantes
 
 1. **Email normalization**: El email se almacena siempre en minúsculas para evitar duplicados sensibles a mayúsculas.
-2. **Thread-safe**: `ConcurrentDictionary` permite acceso seguro desde múltiples hilos sin locks manuales.
+2. **Thread-safe**: Sincronización explícita con `lock` para garantizar atomicidad en operaciones concurrentes.
 3. **Async/Await**: Todos los métodos del repositorio son asincronos, preparados para integración futura con base de datos.
 4. **Validación de negocio**: Las excepciones se lanzan en la capa de servicio, no en el repositorio.
 5. **Inyección de dependencias**: Facilita testing y cambio de implementaciones en el futuro.
