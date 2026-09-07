@@ -10,7 +10,7 @@ El sistema está compuesto por microservicios especializados que se comunican en
 
 | Módulo | Descripción | Tecnología |
 |--------|-------------|------------|
-| **RegistroService** | Registro y consulta de empleados, persistencia PostgreSQL y consulta HTTP de Departamentos | ASP.NET Core 10, Minimal APIs |
+| **RegistroService** | Registro y consulta de empleados, persistencia PostgreSQL y consumo HTTP del servicio externo de Departamentos | ASP.NET Core 10, Minimal APIs |
 | *(pendientes)* | *(se agregarán en retos siguientes)* | *(a definir)* |
 
 ## Prerrequisitos

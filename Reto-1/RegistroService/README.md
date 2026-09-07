@@ -1,13 +1,13 @@
 # RegistroService — Reto 1 / Reto 2
 
-Microservicio web en ASP.NET Core Minimal APIs para registrar empleados y consultarlos por identificador. La información se persiste en PostgreSQL y se valida el departamento mediante HTTP.
+Microservicio web en ASP.NET Core Minimal APIs para registrar empleados y consultarlos por identificador. La información se persiste en PostgreSQL y consume por HTTP el servicio externo de Departamentos.
 
 ## Requisitos
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
 - PostgreSQL 14 o superior
 - Docker (opcional, para ejecutar en contenedor)
-- Un servicio Departamentos disponible por HTTP (por defecto `http://localhost:8081/`)
+- El servicio externo de Departamentos disponible por HTTP (por defecto `http://localhost:8081/`)
 
 ## Estructura del proyecto
 
@@ -86,7 +86,7 @@ La base de datos y la tabla se crean automáticamente al iniciar el servicio. La
 }
 ```
 
-Al registrar un empleado, el servicio consulta `GET {BaseUrl}/departamentos/{departamentoId}`. Un `404` rechaza el registro porque el departamento no existe; cualquier otro error del servicio remoto se propaga como error de comunicación.
+RegistroService no implementa ni almacena Departamentos. Al registrar un empleado, únicamente consume `GET {BaseUrl}/departamentos/{departamentoId}` del microservicio externo. Un `404` rechaza el registro porque el departamento no existe; cualquier otro error del servicio remoto se propaga como error de comunicación.
 
 ## Probar la API
 
