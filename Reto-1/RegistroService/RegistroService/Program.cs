@@ -26,15 +26,12 @@ app.UseExceptionHandler(exceptionHandlerApp =>
         if (exception is DomainException or ArgumentException)
         {
             httpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
-            httpContext.Response.ContentType = "text/plain; charset=utf-8";
-            await httpContext.Response.WriteAsync(exception.Message);
+            await httpContext.Response.WriteAsJsonAsync(new { error = exception.Message });
             return;
         }
-
         // Manejar otras excepciones con un error genérico
         httpContext.Response.StatusCode = StatusCodes.Status500InternalServerError;
-        httpContext.Response.ContentType = "text/plain; charset=utf-8";
-        await httpContext.Response.WriteAsync("Ocurrió un error interno del servidor.");
+        await httpContext.Response.WriteAsJsonAsync(new { error = "Ocurrió un error interno del servidor." });
     });
 });
 
