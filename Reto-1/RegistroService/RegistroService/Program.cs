@@ -4,15 +4,36 @@ using RegistroService.Domain.Exceptions;
 using RegistroService.API.DTOs;
 using RegistroService.API.Extensions;
 using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.EntityFrameworkCore;
+using RegistroService.Infrastructure.Departamentos;
+using RegistroService.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Registrar dependencias del dominio
-// La inyección de dependencias permite desacoplar la lógica de negocio de la presentación
-builder.Services.AddSingleton<IEmpleadoRepository, EmpleadoRepository>();
+builder.Services.AddDbContext<RegistroDbContext>(options =>
+    options.UseNpgsql(builder.Configuration.GetConnectionString("Registro")));
+builder.Services.AddScoped<IEmpleadoRepository, EmpleadoRepository>();
 builder.Services.AddScoped<EmpleadoService>();
+builder.Services.AddHttpClient<IDepartamentoClient, DepartamentoClient>(client =>
+{
+    var baseUrl = builder.Configuration["Departamentos:BaseUrl"]
+        ?? throw new InvalidOperationException("Falta la configuración Departamentos:BaseUrl.");
+    client.BaseAddress = new Uri(baseUrl, UriKind.Absolute);
+});
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
+
+if (!app.Environment.IsEnvironment("Testing"))
+{
+    using var scope = app.Services.CreateScope();
+    var dbContext = scope.ServiceProvider.GetRequiredService<RegistroDbContext>();
+    dbContext.Database.EnsureCreated();
+}
+
+app.UseSwagger();
+app.UseSwaggerUI();
 
 
 // Middleware de manejo global de excepciones

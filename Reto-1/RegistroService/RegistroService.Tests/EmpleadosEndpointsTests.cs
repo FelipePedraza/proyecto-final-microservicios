@@ -1,16 +1,97 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Collections.Concurrent;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using RegistroService.Infrastructure.Departamentos;
+using RegistroService.Infrastructure.Persistence;
+using RegistroService.Domain.Entities;
+using RegistroService.Domain.Exceptions;
+using RegistroService.Domain.Repositories;
 using Xunit;
 
 namespace RegistroService.Tests;
 
-public sealed class EmpleadosEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
+public sealed class EmpleadoWebApplicationFactory : WebApplicationFactory<Program>
+{
+    protected override void ConfigureWebHost(
+        Microsoft.AspNetCore.Hosting.IWebHostBuilder builder)
+    {
+        builder.ConfigureServices(services =>
+        {
+            services.RemoveAll<IEmpleadoRepository>();
+            services.AddSingleton<IEmpleadoRepository, TestEmpleadoRepository>();
+            services.RemoveAll<IDepartamentoClient>();
+            services.AddSingleton<IDepartamentoClient, DepartamentoClientFake>();
+        });
+        builder.UseSetting("environment", "Testing");
+    }
+}
+
+internal sealed class TestEmpleadoRepository : IEmpleadoRepository
+{
+    private readonly ConcurrentDictionary<string, Empleado> empleados = new();
+    private readonly object sync = new();
+
+    public Task<Empleado?> ObtenerPorIdAsync(
+        string id,
+        CancellationToken cancellationToken = default)
+        => Task.FromResult(empleados.TryGetValue(id.Trim(), out var empleado) ? empleado : null);
+
+    public Task<bool> ExisteEmailAsync(
+        string email,
+        CancellationToken cancellationToken = default)
+        => Task.FromResult(empleados.Values.Any(e =>
+            e.Email.Equals(email.Trim(), StringComparison.OrdinalIgnoreCase)));
+
+    public Task<bool> ExisteNumeroEmpleadoAsync(
+        string numeroEmpleado,
+        CancellationToken cancellationToken = default)
+        => Task.FromResult(empleados.Values.Any(e => e.NumeroEmpleado == numeroEmpleado.Trim()));
+
+    public Task RegistrarAsync(
+        Empleado empleado,
+        CancellationToken cancellationToken = default)
+    {
+        lock (sync)
+        {
+            if (empleados.Values.Any(e =>
+                e.Email.Equals(empleado.Email, StringComparison.OrdinalIgnoreCase)))
+            {
+                throw new EmpleadoDuplicadoException("email", empleado.Email);
+            }
+
+            if (empleados.Values.Any(e => e.NumeroEmpleado == empleado.NumeroEmpleado))
+            {
+                throw new EmpleadoDuplicadoException("numeroEmpleado", empleado.NumeroEmpleado);
+            }
+
+            if (!empleados.TryAdd(empleado.Id, empleado))
+            {
+                throw new EmpleadoDuplicadoException("id", empleado.Id);
+            }
+        }
+
+        return Task.CompletedTask;
+    }
+}
+
+internal sealed class DepartamentoClientFake : IDepartamentoClient
+{
+    public Task<bool> ExisteAsync(
+        string departamentoId,
+        CancellationToken cancellationToken = default) => Task.FromResult(true);
+}
+
+public sealed class EmpleadosEndpointsTests : IClassFixture<EmpleadoWebApplicationFactory>
 {
     private readonly HttpClient _client;
 
-    public EmpleadosEndpointsTests(WebApplicationFactory<Program> factory)
+    public EmpleadosEndpointsTests(EmpleadoWebApplicationFactory factory)
     {
         _client = factory.CreateClient();
     }

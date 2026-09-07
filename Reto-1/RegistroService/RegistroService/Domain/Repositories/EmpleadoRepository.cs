@@ -1,126 +1,110 @@
+using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using RegistroService.Domain.Entities;
 using RegistroService.Domain.Exceptions;
+using RegistroService.Infrastructure.Persistence;
 
 namespace RegistroService.Domain.Repositories;
 
-/// <summary>
-/// Implementación en memoria del repositorio de empleados.
-/// Protege todas las operaciones con una sección crítica para garantizar
-/// atómicamente la unicidad del id, email y número de empleado.
-/// Esta implementación es válida para desarrollo y pruebas.
-/// </summary>
 public sealed class EmpleadoRepository : IEmpleadoRepository
 {
-    /// <summary>
-    /// Almacenamiento en memoria de empleados. Key: ID del empleado, Value: Entidad Empleado.
-    /// </summary>
-    private readonly Dictionary<string, Empleado> _empleados = new(StringComparer.Ordinal);
-    private readonly HashSet<string> _emails = new(StringComparer.OrdinalIgnoreCase);
-    private readonly HashSet<string> _numerosEmpleado = new(StringComparer.Ordinal);
-    private readonly object _sync = new();
+    private readonly RegistroDbContext dbContext;
+    private readonly SemaphoreSlim sync = new(1, 1);
 
-    /// <summary>
-    /// Obtiene un empleado por su identificador único.
-    /// </summary>
-    /// <param name="id">Identificador único del empleado.</param>
-    /// <param name="cancellationToken">Token de cancelación para operaciones asincrónicas.</param>
-    /// <returns>
-    /// Una tarea que retorna el empleado si existe, null si no se encuentra.
-    /// </returns>
+    public EmpleadoRepository(RegistroDbContext dbContext)
+    {
+        this.dbContext = dbContext;
+    }
+
     public Task<Empleado?> ObtenerPorIdAsync(
         string id,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
-        
-        cancellationToken.ThrowIfCancellationRequested();
-
-        lock (_sync)
-        {
-            var encontrado = _empleados.TryGetValue(id.Trim(), out var empleado);
-            return Task.FromResult(encontrado ? empleado : null);
-        }
+        return dbContext.Empleados.AsNoTracking().SingleOrDefaultAsync(
+            e => e.Id == id.Trim(), cancellationToken);
     }
 
-    /// <summary>
-    /// Verifica si existe un empleado con el email especificado.
-    /// La búsqueda es case-insensitive porque los emails se almacenan en minúsculas.
-    /// </summary>
-    /// <param name="email">Email a buscar (será convertido a minúsculas).</param>
-    /// <param name="cancellationToken">Token de cancelación para operaciones asincrónicas.</param>
-    /// <returns>True si el email existe, false en caso contrario.</returns>
     public Task<bool> ExisteEmailAsync(
         string email,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(email);
-        
-        cancellationToken.ThrowIfCancellationRequested();
-
-        lock (_sync)
-        {
-            return Task.FromResult(_emails.Contains(email.Trim()));
-        }
+        return dbContext.Empleados.AnyAsync(e => e.Email == email.Trim(), cancellationToken);
     }
 
-    /// <summary>
-    /// Verifica si existe un empleado con el número de empleado especificado.
-    /// </summary>
-    /// <param name="numeroEmpleado">Número de empleado a buscar.</param>
-    /// <param name="cancellationToken">Token de cancelación para operaciones asincrónicas.</param>
-    /// <returns>True si el número de empleado existe, false en caso contrario.</returns>
     public Task<bool> ExisteNumeroEmpleadoAsync(
         string numeroEmpleado,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(numeroEmpleado);
-        
-        cancellationToken.ThrowIfCancellationRequested();
-
-        lock (_sync)
-        {
-            return Task.FromResult(_numerosEmpleado.Contains(numeroEmpleado.Trim()));
-        }
+        return dbContext.Empleados.AnyAsync(
+            e => e.NumeroEmpleado == numeroEmpleado.Trim(), cancellationToken);
     }
 
-    /// <summary>
-    /// Registra un nuevo empleado en el repositorio.
-    /// </summary>
-    /// <param name="empleado">Empleado a registrar. No puede ser null.</param>
-    /// <param name="cancellationToken">Token de cancelación para operaciones asincrónicas.</param>
-    /// <returns>Una tarea que representa la operación asincrónica.</returns>
-    /// <exception cref="ArgumentNullException">Se lanza si empleado es null.</exception>
-    public Task RegistrarAsync(
+    public async Task RegistrarAsync(
         Empleado empleado,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(empleado);
-        cancellationToken.ThrowIfCancellationRequested();
 
-        lock (_sync)
+        await sync.WaitAsync(cancellationToken);
+        try
         {
-            if (_empleados.ContainsKey(empleado.Id))
+            if (dbContext.Empleados.Local.Any(e => e.Id == empleado.Id)
+                || await dbContext.Empleados.AnyAsync(e => e.Id == empleado.Id, cancellationToken))
             {
                 throw new EmpleadoDuplicadoException("id", empleado.Id);
             }
 
-            if (_emails.Contains(empleado.Email))
+            if (dbContext.Empleados.Local.Any(e => e.Email == empleado.Email)
+                || await dbContext.Empleados.AnyAsync(e => e.Email == empleado.Email, cancellationToken))
             {
                 throw new EmpleadoDuplicadoException("email", empleado.Email);
             }
 
-            if (_numerosEmpleado.Contains(empleado.NumeroEmpleado))
+            if (dbContext.Empleados.Local.Any(e => e.NumeroEmpleado == empleado.NumeroEmpleado)
+                || await dbContext.Empleados.AnyAsync(
+                    e => e.NumeroEmpleado == empleado.NumeroEmpleado,
+                    cancellationToken))
             {
                 throw new EmpleadoDuplicadoException(
                     "numeroEmpleado",
                     empleado.NumeroEmpleado);
             }
 
-            _empleados.Add(empleado.Id, empleado);
-            _emails.Add(empleado.Email);
-            _numerosEmpleado.Add(empleado.NumeroEmpleado);
-        }
+            try
+            {
+                dbContext.Empleados.Add(empleado);
+                await dbContext.SaveChangesAsync(cancellationToken);
+                dbContext.ChangeTracker.Clear();
+            }
+            catch (DbUpdateException exception) when (exception.InnerException is PostgresException
+                { SqlState: PostgresErrorCodes.UniqueViolation } postgresException)
+            {
+                if (postgresException.ConstraintName == "PK_Empleados")
+                {
+                    throw new EmpleadoDuplicadoException("id", empleado.Id);
+                }
 
-        return Task.CompletedTask;
+                if (postgresException.ConstraintName == "IX_Empleados_Email")
+                {
+                    throw new EmpleadoDuplicadoException("email", empleado.Email);
+                }
+
+                if (postgresException.ConstraintName == "IX_Empleados_NumeroEmpleado")
+                {
+                    throw new EmpleadoDuplicadoException(
+                        "numeroEmpleado",
+                        empleado.NumeroEmpleado);
+                }
+
+                throw;
+            }
+        }
+        finally
+        {
+            sync.Release();
+        }
     }
 }

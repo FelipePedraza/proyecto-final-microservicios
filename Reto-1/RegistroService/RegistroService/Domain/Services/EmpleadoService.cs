@@ -1,5 +1,7 @@
 using RegistroService.Domain.Entities;
+using RegistroService.Domain.Exceptions;
 using RegistroService.Domain.Repositories;
+using RegistroService.Infrastructure.Departamentos;
 
 namespace RegistroService.Domain.Services;
 
@@ -9,10 +11,14 @@ namespace RegistroService.Domain.Services;
 public sealed class EmpleadoService
 {
     private readonly IEmpleadoRepository _repository;
+    private readonly IDepartamentoClient? _departamentoClient;
 
-    public EmpleadoService(IEmpleadoRepository repository)
+    public EmpleadoService(
+        IEmpleadoRepository repository,
+        IDepartamentoClient? departamentoClient = null)
     {
         _repository = repository;
+        _departamentoClient = departamentoClient;
     }
 
     public async Task<Empleado> RegistrarAsync(
@@ -21,8 +27,12 @@ public sealed class EmpleadoService
     {
         ArgumentNullException.ThrowIfNull(empleado);
 
-        // El repositorio realiza en una sola operación atómica las validaciones
-        // de unicidad y el registro, evitando carreras entre solicitudes.
+        if (_departamentoClient is not null
+            && !await _departamentoClient.ExisteAsync(empleado.DepartamentoId, cancellationToken))
+        {
+            throw new DepartamentoNoEncontradoException(empleado.DepartamentoId);
+        }
+
         await _repository.RegistrarAsync(empleado, cancellationToken);
         return empleado;
     }
