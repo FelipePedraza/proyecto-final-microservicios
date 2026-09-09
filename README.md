@@ -10,7 +10,7 @@ El sistema está compuesto por microservicios especializados que se comunican en
 
 | Módulo | Descripción | Tecnología |
 |--------|-------------|------------|
-| **RegistroService** | Registro y consulta de empleados | ASP.NET Core 10, Minimal APIs |
+| **RegistroService** | Registro y consulta de empleados, persistencia PostgreSQL y consumo HTTP del servicio externo de Departamentos | ASP.NET Core 10, Minimal APIs |
 | *(pendientes)* | *(se agregarán en retos siguientes)* | *(a definir)* |
 
 ## Prerrequisitos
@@ -35,7 +35,7 @@ cd Reto-1/RegistroService
 dotnet run --project RegistroService/RegistroService.csproj
 ```
 
-La API queda disponible en `http://localhost:5080` (HTTP) o `https://localhost:7217` (HTTPS).
+La API queda disponible en `http://localhost:5080` (HTTP) o `https://localhost:7217` (HTTPS). Swagger UI está disponible en `/swagger`.
 
 ### 3. Levantar RegistroService (con Docker)
 
@@ -88,7 +88,7 @@ Cada módulo tiene su propia documentación en su carpeta:
 | Reto | Estado | Descripción |
 |------|--------|-------------|
 | Reto 1 | ✅ Completado | Registro y consulta de empleados |
-| Reto 2 | ⏳ Pendiente | *(a definir)* |
+| Reto 2 | ✅ Implementado en RegistroService | Persistencia PostgreSQL, unicidad en BD, consumo HTTP de Departamentos y Swagger |
 | Reto 3 | ⏳ Pendiente | *(a definir)* |
 
 ## Licencia

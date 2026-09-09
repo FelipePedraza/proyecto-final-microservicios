@@ -35,23 +35,27 @@ public sealed class Empleado
         Estado = EstadoEmpleado.Activo;
     }
 
-    public string Id { get; }
+    private Empleado()
+    {
+    }
 
-    public string Nombre { get; }
+    public string Id { get; private set; } = null!;
 
-    public string Apellido { get; }
+    public string Nombre { get; private set; } = null!;
 
-    public string Email { get; }
+    public string Apellido { get; private set; } = null!;
 
-    public string NumeroEmpleado { get; }
+    public string Email { get; private set; } = null!;
 
-    public string Cargo { get; }
+    public string NumeroEmpleado { get; private set; } = null!;
 
-    public string Area { get; }
+    public string Cargo { get; private set; } = null!;
 
-    public string DepartamentoId { get; }
+    public string Area { get; private set; } = null!;
 
-    public DateOnly FechaIngreso { get; }
+    public string DepartamentoId { get; private set; } = null!;
+
+    public DateOnly FechaIngreso { get; private set; }
 
     public EstadoEmpleado Estado { get; private set; }
 

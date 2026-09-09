@@ -1,11 +1,13 @@
-# RegistroService — Reto 1
+# RegistroService — Reto 1 / Reto 2
 
-Microservicio web en ASP.NET Core Minimal APIs para registrar empleados y consultarlos por identificador. Los datos se conservan en memoria durante la ejecución.
+Microservicio web en ASP.NET Core Minimal APIs para registrar empleados y consultarlos por identificador. La información se persiste en PostgreSQL y consume por HTTP el servicio externo de Departamentos.
 
 ## Requisitos
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
+- PostgreSQL 14 o superior
 - Docker (opcional, para ejecutar en contenedor)
+- El servicio externo de Departamentos disponible por HTTP (por defecto `http://localhost:8081/`)
 
 ## Estructura del proyecto
 
@@ -67,7 +69,24 @@ dotnet run --project RegistroService/RegistroService.csproj
 - HTTP: `http://localhost:5080`
 - HTTPS: `https://localhost:7217`
 
-> Importante: Swagger/OpenAPI no está habilitado en `Program.cs`. No accede por `/swagger` ni `/openapi/v1.json`.
+Swagger UI queda disponible en `/swagger` y el documento OpenAPI en `/swagger/v1/swagger.json`.
+
+### Persistencia y configuración
+
+La base de datos y la tabla se crean automáticamente al iniciar el servicio. La configuración está en `RegistroService/appsettings.json`:
+
+```json
+{
+  "ConnectionStrings": {
+    "Registro": "Host=localhost;Port=5432;Database=registro;Username=postgres;Password=postgres"
+  },
+  "Departamentos": {
+    "BaseUrl": "http://localhost:8081/"
+  }
+}
+```
+
+RegistroService no implementa ni almacena Departamentos. Al registrar un empleado, únicamente consume `GET {BaseUrl}/departamentos/{departamentoId}` del microservicio externo. Un `404` rechaza el registro porque el departamento no existe; cualquier otro error del servicio remoto se propaga como error de comunicación.
 
 ## Probar la API
 
@@ -185,7 +204,7 @@ El empleado con id NO-EXISTE no existe
 
 ## Persistencia
 
-Los datos se almacenan en memoria (`Dictionary` + `HashSet` con sincronización explícita). Al reiniciar la aplicación, se pierden todos los registros.
+Los datos se almacenan en PostgreSQL. La tabla `Empleados` conserva los 10 campos del modelo canónico y tiene índices únicos para `Email` y `NumeroEmpleado`. El email se normaliza a minúsculas antes de persistirse y las restricciones se aplican en la base de datos, incluso ante solicitudes concurrentes.
 
 ## Pruebas automatizadas
 
@@ -225,7 +244,6 @@ curl http://localhost:8080/empleados/E001
 
 ## Limitaciones conocidas
 
-- Sin base de datos (datos en memoria, se pierden al reiniciar)
 - Sin paginación ni filtros en consultas
 - Sin endpoints de actualización, borrado o listado
 - Sin autenticación ni autorización

@@ -9,6 +9,8 @@
 using RegistroService.Domain.Entities;
 using RegistroService.Domain.Exceptions;
 using RegistroService.Domain.Repositories;
+using RegistroService.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using Xunit;
 
 namespace RegistroService.Tests;
@@ -25,7 +27,7 @@ public sealed class EmpleadoRepositoryTests
     [Fact]
     public async Task RegistrarAsync_EmpleadoNuevo_AgregaCorrectamente()
     {
-        var repo = new EmpleadoRepository();
+        var repo = CrearRepositorio();
         var empleado = new Empleado(
             "E001", "Juan", "Pérez", "juan@test.com", "EMP001", "Dev", "Tech", "IT",
             new DateOnly(2024, 1, 15));
@@ -43,7 +45,7 @@ public sealed class EmpleadoRepositoryTests
     [Fact]
     public async Task RegistrarAsync_IdDuplicado_LanzaEmpleadoDuplicadoException()
     {
-        var repo = new EmpleadoRepository();
+        var repo = CrearRepositorio();
         await repo.RegistrarAsync(new Empleado(
             "E001", "Juan", "Pérez", "juan@test.com", "EMP001", "Dev", "Tech", "IT",
             new DateOnly(2024, 1, 15)));
@@ -63,7 +65,7 @@ public sealed class EmpleadoRepositoryTests
     [Fact]
     public async Task RegistrarAsync_EmailDuplicado_LanzaEmpleadoDuplicadoException()
     {
-        var repo = new EmpleadoRepository();
+        var repo = CrearRepositorio();
         await repo.RegistrarAsync(new Empleado(
             "E001", "Juan", "Pérez", "juan@test.com", "EMP001", "Dev", "Tech", "IT",
             new DateOnly(2024, 1, 15)));
@@ -82,7 +84,7 @@ public sealed class EmpleadoRepositoryTests
     [Fact]
     public async Task RegistrarAsync_NumeroEmpleadoDuplicado_LanzaEmpleadoDuplicadoException()
     {
-        var repo = new EmpleadoRepository();
+        var repo = CrearRepositorio();
         await repo.RegistrarAsync(new Empleado(
             "E001", "Juan", "Pérez", "juan@test.com", "EMP001", "Dev", "Tech", "IT",
             new DateOnly(2024, 1, 15)));
@@ -101,7 +103,7 @@ public sealed class EmpleadoRepositoryTests
     [Fact]
     public async Task ObtenerPorIdAsync_NoExistente_RetornaNull()
     {
-        var repo = new EmpleadoRepository();
+        var repo = CrearRepositorio();
 
         var resultado = await repo.ObtenerPorIdAsync("NO-EXISTE");
 
@@ -117,7 +119,7 @@ public sealed class EmpleadoRepositoryTests
     [Fact]
     public async Task RegistrarAsync_Concurrentemente_UnSoloRegistroExitoso()
     {
-        var repo = new EmpleadoRepository();
+        var repo = CrearRepositorio();
         const string email = "concurrente@test.com";
 
         var tareas = Enumerable.Range(1, 10)
@@ -146,5 +148,15 @@ public sealed class EmpleadoRepositoryTests
 
         // Solo 1 de los 10 intentos debió tener éxito
         Assert.Equal(1, contador);
+    }
+
+    private static EmpleadoRepository CrearRepositorio()
+    {
+        var options = new DbContextOptionsBuilder<RegistroDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        var context = new RegistroDbContext(options);
+        context.Database.EnsureCreated();
+        return new EmpleadoRepository(context);
     }
 }
