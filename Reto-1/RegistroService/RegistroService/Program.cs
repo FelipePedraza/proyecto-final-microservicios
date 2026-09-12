@@ -135,8 +135,8 @@ app.MapGet("/empleados/{id}", async (
 
     if (empleado is null)
     {
-        return Results.Text(
-            $"El empleado con id {id} no existe",
+        return Results.Json(
+            new { error = $"El empleado con id {id} no existe" },
             statusCode: StatusCodes.Status404NotFound);
     }
 
@@ -149,8 +149,8 @@ app.MapGet("/empleados/{id}", async (
 .Produces(StatusCodes.Status500InternalServerError);
 
 // Cualquier ruta o método HTTP no soportado debe retornar el mensaje exacto del reto.
-app.MapFallback(() => Results.Text(
-    "Recurso no encontrado",
+app.MapFallback(() => Results.Json(
+    new { error = "Recurso no encontrado" },
     statusCode: StatusCodes.Status404NotFound));
 
 app.Run();

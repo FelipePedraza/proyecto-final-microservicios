@@ -58,23 +58,27 @@ dotnet test RegistroService.sln
 
 ```bash
 # Registrar empleado
-curl -X POST http://localhost:8080/empleados \
-  -H "Content-Type: application/json" \
-  -d '{
-    "id": "E001",
-    "nombre": "Juan",
-    "apellido": "Pérez",
-    "email": "juan.perez@empresa.com",
-    "numeroEmpleado": "EMP-2026-001",
-    "cargo": "Desarrollador Senior",
-    "area": "Tecnología",
-    "departamentoId": "IT",
-    "fechaIngreso": "2026-02-10"
-  }'
+Invoke-RestMethod -Uri http://localhost:8080/empleados `
+   -Method POST `
+   -ContentType "application/json" `
+   -Body '{"id":"E001","nombre":"Juan","apellido":"Perez","email":"juan@test.com","numeroEmpleado":"EMP001","cargo":"Dev","area":"Tech","departamentoId":"IT","fechaIngreso":"2026-02-10"}'
+
+# probar duplicado
+4. Probar duplicado (mismo email)
+try {
+    $response = Invoke-WebRequest -Uri http://localhost:8080/empleados `
+      -Method POST `
+      -ContentType "application/json" `
+      -Body '{"id":"E002","nombre":"Ana","apellido":"Lopez","email":"juan@test.com","numeroEmpleado":"EMP002","cargo":"QA","area":"Tech","departamentoId":"IT","fechaIngreso":"2026-02-10"}'
+    $response.Content
+} catch {
+    $_.Exception.Response.StatusCode
+    $reader = [System.IO.StreamReader]::new($_.Exception.Response.GetResponseStream())
+    $reader.ReadToEnd()
+}
 
 # Consultar empleado
-curl http://localhost:8080/empleados/E001
-```
+Invoke-RestMethod -Uri http://localhost:8080/empleados/E001
 
 ## Documentación detallada
 
@@ -87,9 +91,9 @@ Cada módulo tiene su propia documentación en su carpeta:
 
 | Reto | Estado | Descripción |
 |------|--------|-------------|
-| Reto 1 | ✅ Completado | Registro y consulta de empleados |
-| Reto 2 | ✅ Implementado en RegistroService | Persistencia PostgreSQL, unicidad en BD, consumo HTTP de Departamentos y Swagger |
-| Reto 3 | ⏳ Pendiente | *(a definir)* |
+| Reto 1 |  Completado | Registro y consulta de empleados |
+| Reto 2 |  Pendiente | *(a definir)* |
+| Reto 3 |  Pendiente | *(a definir)* |
 
 ## Licencia
 

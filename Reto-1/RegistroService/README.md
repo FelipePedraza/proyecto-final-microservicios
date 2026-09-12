@@ -51,8 +51,7 @@ RegistroService/
 Desde la carpeta `Reto-1/RegistroService/`:
 
 ```bash
-docker build -t servidor-empleados .
-docker run --rm -p 8080:8080 servidor-empleados
+|0docker run --rm -p 8080:8080 servidor-empleados
 ```
 
 La API queda disponible en `http://localhost:8080`.

@@ -124,9 +124,8 @@ public sealed class EmpleadosEndpointsTests : IClassFixture<EmpleadoWebApplicati
         var response = await _client.GetAsync($"/empleados/{id}");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-        Assert.Equal(
-            $"El empleado con id {id} no existe",
-            await response.Content.ReadAsStringAsync());
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal($"El empleado con id {id} no existe", json.RootElement.GetProperty("error").GetString());
     }
 
     [Fact]
@@ -188,9 +187,12 @@ public sealed class EmpleadosEndpointsTests : IClassFixture<EmpleadoWebApplicati
         var metodoResponse = await _client.PutAsync("/empleados", null);
 
         Assert.Equal(HttpStatusCode.NotFound, rutaResponse.StatusCode);
-        Assert.Equal("Recurso no encontrado", await rutaResponse.Content.ReadAsStringAsync());
+        using var rutaJson = JsonDocument.Parse(await rutaResponse.Content.ReadAsStringAsync());
+        Assert.Equal("Recurso no encontrado", rutaJson.RootElement.GetProperty("error").GetString());
+
         Assert.Equal(HttpStatusCode.NotFound, metodoResponse.StatusCode);
-        Assert.Equal("Recurso no encontrado", await metodoResponse.Content.ReadAsStringAsync());
+        using var metodoJson = JsonDocument.Parse(await metodoResponse.Content.ReadAsStringAsync());
+        Assert.Equal("Recurso no encontrado", metodoJson.RootElement.GetProperty("error").GetString());
     }
 
     [Fact]
