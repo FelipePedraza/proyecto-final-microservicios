@@ -1,4 +1,5 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, status
+from fastapi.responses import JSONResponse
 from app.api.departments_api import router as departamentos_router
 
 app = FastAPI(
@@ -8,6 +9,11 @@ app = FastAPI(
 )
 
 app.include_router(departamentos_router)
+
+
+@app.get("/health", tags=["Health"])
+def health():
+    return {"status": "healthy"}
 
 # Requisito: Manejo universal de rutas no soportadas (404)
 @app.exception_handler(404)

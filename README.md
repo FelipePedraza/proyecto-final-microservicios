@@ -4,22 +4,77 @@ Proyecto final de la materia **Arquitectura de Microservicios**. Consiste en una
 
 ## Visión general
 
-El sistema está compuesto por microservicios especializados que se comunican entre sí para registrar, consultar y gestionar empleados. Cada servicio es independiente, tiene su propia base de datos (en este reto, en memoria) y expone una API REST.
+El sistema está compuesto por microservicios especializados que se comunican entre sí para registrar, consultar y gestionar empleados. Cada servicio es independiente, tiene su propia base de datos PostgreSQL y expone una API REST.
 
 ## Módulos del proyecto
 
 | Módulo | Descripción | Tecnología |
 |--------|-------------|------------|
 | **RegistroService** | Registro y consulta de empleados, persistencia PostgreSQL y consumo HTTP del servicio externo de Departamentos | ASP.NET Core 10, Minimal APIs |
-| *(pendientes)* | *(se agregarán en retos siguientes)* | *(a definir)* |
+| **DepartamentosService** | Registro y consulta de departamentos | Python 3.11, FastAPI, SQLAlchemy |
 
 ## Prerrequisitos
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
-- Docker 20.10+ (opcional, para contenerización)
+- Docker con Docker Compose
 - Git (para control de versiones)
 
-## Cómo levantar el proyecto
+## Cómo levantar el proyecto completo con Docker Compose
+
+Desde la carpeta `Reto-2`:
+
+```bash
+# Opcional: personalizar puertos y credenciales locales.
+cp .env.example .env
+
+# Construir las APIs y levantar APIs + bases de datos.
+docker compose up --build -d
+
+# Ver el estado y esperar a que todos aparezcan healthy.
+docker compose ps
+
+# Consultar los logs.
+docker compose logs -f
+```
+
+Servicios publicados en el equipo:
+
+- RegistroService: `http://localhost:8080` (Swagger en `/swagger`)
+- DepartamentosService: `http://localhost:8081` (Swagger en `/docs`)
+
+Las bases de datos no publican puertos al anfitrión: solamente son accesibles por
+los servicios dentro de la red privada `microservicios-network`. Cada
+microservicio tiene su propia base y su propio volumen; ningún servicio consulta
+directamente la base del otro.
+
+### Creación reproducible de esquemas
+
+PostgreSQL ejecuta automáticamente los archivos de
+`/docker-entrypoint-initdb.d` la primera vez que crea cada volumen:
+
+- `database/registro/001-schema.sql` crea el esquema de empleados.
+- `departamentos-serviceReto2/init.sql` crea el esquema de departamentos.
+
+Para recrear desde cero las dos bases y volver a ejecutar los scripts (esto borra
+los datos locales):
+
+```bash
+docker compose down --volumes
+docker compose up --build -d
+```
+
+Para detener los contenedores sin borrar los datos:
+
+```bash
+docker compose down
+```
+
+Compose espera a que cada PostgreSQL esté saludable antes de iniciar su API. A
+su vez, RegistroService espera a que DepartamentosService esté saludable porque
+lo consume mediante HTTP usando el nombre DNS interno
+`http://departamentos-service:8081/`.
+
+## Cómo levantar un servicio sin Compose
 
 ### 1. Clonar el repositorio
 
@@ -79,6 +134,7 @@ try {
 
 # Consultar empleado
 Invoke-RestMethod -Uri http://localhost:8080/empleados/E001
+```
 
 ## Documentación detallada
 
@@ -92,7 +148,7 @@ Cada módulo tiene su propia documentación en su carpeta:
 | Reto | Estado | Descripción |
 |------|--------|-------------|
 | Reto 1 |  Completado | Registro y consulta de empleados |
-| Reto 2 |  Pendiente | *(a definir)* |
+| Reto 2 |  Completado | Integración de Registro y Departamentos con bases PostgreSQL independientes |
 | Reto 3 |  Pendiente | *(a definir)* |
 
 ## Licencia

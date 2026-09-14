@@ -34,6 +34,11 @@ RUN dotnet publish "RegistroService.csproj" \
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
 
+# Se usa para que Docker compruebe el endpoint HTTP de salud del servicio.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copiamos únicamente los binarios publicados de la etapa anterior
 COPY --from=build /app/publish .
 

@@ -35,6 +35,10 @@ if (!app.Environment.IsEnvironment("Testing"))
 app.UseSwagger();
 app.UseSwaggerUI();
 
+app.MapGet("/health", () => Results.Ok(new { status = "healthy" }))
+    .WithName("Health")
+    .ExcludeFromDescription();
+
 
 // Middleware de manejo global de excepciones
 // Captura excepciones del dominio y las convierte en respuestas HTTP apropiadas
