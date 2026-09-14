@@ -19,6 +19,8 @@ builder.Services.AddHttpClient<IDepartamentoClient, DepartamentoClient>(client =
     var baseUrl = builder.Configuration["Departamentos:BaseUrl"]
         ?? throw new InvalidOperationException("Falta la configuración Departamentos:BaseUrl.");
     client.BaseAddress = new Uri(baseUrl, UriKind.Absolute);
+    client.Timeout = TimeSpan.FromSeconds(5);
+    client.DefaultRequestHeaders.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
 });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();

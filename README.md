@@ -6,6 +6,17 @@ Proyecto final de la materia **Arquitectura de Microservicios**. Consiste en una
 
 El sistema está compuesto por microservicios especializados que se comunican entre sí para registrar, consultar y gestionar empleados. Cada servicio es independiente, tiene su propia base de datos PostgreSQL y expone una API REST.
 
+## Tolerancia a fallos y resiliencia
+
+La integración entre RegistroService y DepartamentosService ahora contempla:
+
+- timeout por request de 5 segundos para la llamada HTTP a Departamentos.
+- reintentos exponenciales con backoff para errores transitorios (429, 408, 5xx).
+- manejo de 404 como caso normal de negocio: el departamento no existe y debe devolverse un error de dominio.
+- arranque ordenado con `depends_on` y health checks de Compose, de forma que RegistroService no inicia antes de que la base y el servicio de departamentos estén listos.
+
+Para la validación de estos escenarios se mantienen pruebas de integración y de cliente HTTP que cubren la comunicación dependiente.
+
 ## Módulos del proyecto
 
 | Módulo | Descripción | Tecnología |
@@ -112,14 +123,16 @@ dotnet test RegistroService.sln
 ## Pruebas rápidas de la API
 
 ```bash
+# Verificar salud
+Invoke-RestMethod -Uri http://localhost:8080/health
+
 # Registrar empleado
 Invoke-RestMethod -Uri http://localhost:8080/empleados `
    -Method POST `
    -ContentType "application/json" `
    -Body '{"id":"E001","nombre":"Juan","apellido":"Perez","email":"juan@test.com","numeroEmpleado":"EMP001","cargo":"Dev","area":"Tech","departamentoId":"IT","fechaIngreso":"2026-02-10"}'
 
-# probar duplicado
-4. Probar duplicado (mismo email)
+# Probar duplicado (mismo email)
 try {
     $response = Invoke-WebRequest -Uri http://localhost:8080/empleados `
       -Method POST `
@@ -135,6 +148,32 @@ try {
 # Consultar empleado
 Invoke-RestMethod -Uri http://localhost:8080/empleados/E001
 ```
+
+## Verificación de arranque ordenado y tolerancia a fallos
+
+```bash
+docker compose up --build -d
+docker compose ps
+docker compose logs -f departamentos-service
+curl http://localhost:8081/health
+curl http://localhost:8080/health
+```
+
+La validación esperada es:
+
+- `departamentos-db` aparece como `healthy`.
+- `departamentos-service` aparece como `healthy`.
+- `registro-service` queda activo solo después de que `departamentos-service` esté listo.
+- el endpoint `/health` responde exitosamente en ambos servicios.
+
+## Evidencias
+
+Las verificaciones concretas quedan documentadas en [EVIDENCIAS.md](EVIDENCIAS.md). El flujo recomendado es:
+
+1. arranque con `docker compose up --build -d`;
+2. `docker compose ps` para verificar `healthy`;
+3. `curl` o `Invoke-WebRequest` contra `/health`;
+4. pruebas `dotnet test` para comprobar la resiliencia y la API.
 
 ## Documentación detallada
 
