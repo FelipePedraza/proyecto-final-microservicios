@@ -149,6 +149,126 @@ try {
 Invoke-RestMethod -Uri http://localhost:8080/empleados/E001
 ```
 
+## Pruebas solicitadas por el profesor (Reto 2)
+
+> Antes de ejecutar, asegúrate de que los servicios estén levantados y healthys:
+> `docker compose up --build -d` y luego `docker compose ps` (todo debe aparecer en `healthy`).
+
+### 1. Levantar los servicios
+
+```powershell
+docker compose up --build -d
+docker compose ps
+```
+
+### 2. Crear un departamento válido
+
+```powershell
+$jsonDept = '{"id":"IT","name":"Tecnología","description":"Departamento de TI"}'
+$bytesDept = [System.Text.Encoding]::UTF8.GetBytes($jsonDept)
+
+Invoke-RestMethod -Uri "http://localhost:8081/departamentos" `
+    -Method Post `
+    -ContentType "application/json; charset=utf-8" `
+    -Body $bytesDept
+```
+
+### 3. Crear un empleado asociado al departamento
+
+```powershell
+$jsonEmp = '{
+  "id": "E001",
+  "nombre": "Juan",
+  "apellido": "Pérez",
+  "email": "juan.perez@empresa.com",
+  "numeroEmpleado": "EMP-2026-001",
+  "cargo": "Desarrollador Senior",
+  "area": "Tecnología",
+  "departamentoId": "IT",
+  "fechaIngreso": "2026-02-10"
+}'
+$bytesEmp = [System.Text.Encoding]::UTF8.GetBytes($jsonEmp)
+
+Invoke-RestMethod -Uri "http://localhost:8080/empleados" `
+    -Method Post `
+    -ContentType "application/json; charset=utf-8" `
+    -Body $bytesEmp
+```
+
+### 4. Verificar que el empleado existe
+
+```powershell
+Invoke-RestMethod -Uri "http://localhost:8080/empleados/E001" -Method Get
+```
+
+### 5. Validaciones (todas deben responder 400 Bad Request)
+
+#### a) Email duplicado
+
+```powershell
+$jsonDupEmail = '{
+  "id": "E002",
+  "nombre": "Ana",
+  "apellido": "Gómez",
+  "email": "juan.perez@empresa.com",
+  "numeroEmpleado": "EMP-2026-002",
+  "cargo": "QA",
+  "area": "Tecnología",
+  "departamentoId": "IT",
+  "fechaIngreso": "2026-02-11"
+}'
+$bytesDupEmail = [System.Text.Encoding]::UTF8.GetBytes($jsonDupEmail)
+
+Invoke-RestMethod -Uri "http://localhost:8080/empleados" `
+    -Method Post `
+    -ContentType "application/json; charset=utf-8" `
+    -Body $bytesDupEmail
+```
+
+#### b) Número de empleado duplicado
+
+```powershell
+$jsonDupNum = '{
+  "id": "E003",
+  "nombre": "Ana",
+  "apellido": "Gómez",
+  "email": "ana@empresa.com",
+  "numeroEmpleado": "EMP-2026-001",
+  "cargo": "QA",
+  "area": "Tecnología",
+  "departamentoId": "IT",
+  "fechaIngreso": "2026-02-11"
+}'
+$bytesDupNum = [System.Text.Encoding]::UTF8.GetBytes($jsonDupNum)
+
+Invoke-RestMethod -Uri "http://localhost:8080/empleados" `
+    -Method Post `
+    -ContentType "application/json; charset=utf-8" `
+    -Body $bytesDupNum
+```
+
+#### c) Departamento inexistente
+
+```powershell
+$jsonBadDept = '{
+  "id": "E004",
+  "nombre": "Ana",
+  "apellido": "Gómez",
+  "email": "ana@empresa.com",
+  "numeroEmpleado": "EMP-2026-004",
+  "cargo": "QA",
+  "area": "Ventas",
+  "departamentoId": "NO-EXISTE",
+  "fechaIngreso": "2026-02-11"
+}'
+$bytesBadDept = [System.Text.Encoding]::UTF8.GetBytes($jsonBadDept)
+
+Invoke-RestMethod -Uri "http://localhost:8080/empleados" `
+    -Method Post `
+    -ContentType "application/json; charset=utf-8" `
+    -Body $bytesBadDept
+```
+
 ## Verificación de arranque ordenado y tolerancia a fallos
 
 ```bash
