@@ -1,17 +1,20 @@
+using System.Net;
+
 namespace RegistroService.Infrastructure.Departamentos;
 
-public sealed class DepartamentoClient(HttpClient httpClient) : IDepartamentoClient
+public sealed class DepartamentoClient(HttpClient httpClient, ILogger<DepartamentoClient> logger)
+    : IDepartamentoClient
 {
     private const int MaxRetries = 3;
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(5);
 
-    public async Task<bool> ExisteAsync(
-        string departamentoId,
-        CancellationToken cancellationToken = default)
+    public async Task<bool> ExisteAsync(string departamentoId, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(departamentoId);
 
-        for (var attempt = 1; ; attempt++)
+        Exception? ultimoError = null;
+
+        for (var attempt = 1; attempt <= MaxRetries; attempt++)
         {
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeoutCts.CancelAfter(RequestTimeout);
@@ -23,43 +26,61 @@ public sealed class DepartamentoClient(HttpClient httpClient) : IDepartamentoCli
                     HttpCompletionOption.ResponseHeadersRead,
                     timeoutCts.Token);
 
-                if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                if (response.StatusCode == HttpStatusCode.NotFound)
                 {
-                    return false;
+                    return false;   // caso de negocio: el departamento no existe
+                }
+
+                if (response.IsSuccessStatusCode)
+                {
+                    return true;
                 }
 
                 if (IsTransientFailure(response.StatusCode))
                 {
-                    if (attempt >= MaxRetries)
-                    {
-                        response.EnsureSuccessStatusCode();
-                    }
+                    ultimoError = new HttpRequestException(
+                        $"Departamentos respondió {(int)response.StatusCode}.");
+                    logger.LogWarning("Intento {Attempt}/{Max}: departamentos respondió {Status}.",
+                        attempt, MaxRetries, (int)response.StatusCode);
 
-                    await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, attempt - 1)), cancellationToken);
+                    if (attempt == MaxRetries) break;
+                    await BackoffAsync(attempt, cancellationToken);
                     continue;
                 }
 
-                response.EnsureSuccessStatusCode();
-                return true;
+                // 4xx no transitorio: el contrato entre servicios está roto, no es culpa del cliente.
+                throw new DepartamentosNoDisponibleException(
+                    $"El servicio de departamentos respondió {(int)response.StatusCode}, " +
+                    "una respuesta no esperada para la verificación del departamento.");
             }
-            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && attempt < MaxRetries)
+            catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
             {
-                await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, attempt - 1)), cancellationToken);
-                continue;
+                // Timeout propio de 5 s (no una cancelación del cliente HTTP entrante).
+                ultimoError = ex;
+                logger.LogWarning("Intento {Attempt}/{Max}: timeout consultando departamentos.", attempt, MaxRetries);
+                if (attempt == MaxRetries) break;
+                await BackoffAsync(attempt, cancellationToken);
             }
-            catch (HttpRequestException) when (attempt < MaxRetries)
+            catch (HttpRequestException ex)
             {
-                await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, attempt - 1)), cancellationToken);
-                continue;
+                // DNS, conexión rechazada, socket cerrado: el servicio no está arriba.
+                ultimoError = ex;
+                logger.LogWarning(ex, "Intento {Attempt}/{Max}: no se pudo contactar departamentos.", attempt, MaxRetries);
+                if (attempt == MaxRetries) break;
+                await BackoffAsync(attempt, cancellationToken);
             }
         }
+
+        throw new DepartamentosNoDisponibleException(
+            "El servicio de departamentos no está disponible en este momento. Intenta de nuevo más tarde.",
+            ultimoError);
     }
 
-    private static bool IsTransientFailure(System.Net.HttpStatusCode statusCode)
-        => statusCode == System.Net.HttpStatusCode.RequestTimeout
-            || statusCode == System.Net.HttpStatusCode.TooManyRequests
-            || statusCode == System.Net.HttpStatusCode.BadGateway
-            || statusCode == System.Net.HttpStatusCode.ServiceUnavailable
-            || statusCode == System.Net.HttpStatusCode.GatewayTimeout
+    private static Task BackoffAsync(int attempt, CancellationToken cancellationToken)
+        => Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, attempt - 1)), cancellationToken);
+
+    private static bool IsTransientFailure(HttpStatusCode statusCode)
+        => statusCode == HttpStatusCode.RequestTimeout
+            || statusCode == HttpStatusCode.TooManyRequests
             || (int)statusCode >= 500;
 }

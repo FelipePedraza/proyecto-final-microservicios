@@ -32,6 +32,35 @@ public sealed class DepartamentoClientTests
         Assert.Equal(2, attempts);
     }
 
+    [Fact]
+    public async Task ExisteAsync_Lanza_NoDisponible_Cuando_Departamentos_Responde_503_Siempre()
+    {
+        var attempts = 0;
+        var handler = new DelegatingHandlerStub(() =>
+        {
+            attempts++;
+            return new HttpResponseMessage(HttpStatusCode.ServiceUnavailable);
+        });
+
+        var sut = new DepartamentoClient(
+            new HttpClient(handler) { BaseAddress = new Uri("http://departamentos-service:8081/") },
+            NullLogger<DepartamentoClient>.Instance);
+
+        await Assert.ThrowsAsync<DepartamentosNoDisponibleException>(() => sut.ExisteAsync("IT"));
+        Assert.Equal(3, attempts);
+    }
+
+    [Fact]
+    public async Task ExisteAsync_Lanza_NoDisponible_Cuando_No_Hay_Conexion()
+    {
+        var handler = new DelegatingHandlerStub(() => throw new HttpRequestException("connection refused"));
+        var sut = new DepartamentoClient(
+            new HttpClient(handler) { BaseAddress = new Uri("http://departamentos-service:8081/") },
+            NullLogger<DepartamentoClient>.Instance);
+
+        await Assert.ThrowsAsync<DepartamentosNoDisponibleException>(() => sut.ExisteAsync("IT"));
+    }
+
     private sealed class DelegatingHandlerStub(Func<HttpResponseMessage> responseFactory) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(

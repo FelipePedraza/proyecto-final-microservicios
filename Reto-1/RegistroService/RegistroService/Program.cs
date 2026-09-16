@@ -7,6 +7,9 @@ using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using RegistroService.Infrastructure.Departamentos;
 using RegistroService.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore.Storage;
+using Npgsql;
+using RegistroService.Infrastructure.Departamentos;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -27,40 +30,115 @@ builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
+// PRIMER middleware del pipeline: nada debe escaparse sin traducir.
+app.UseExceptionHandler(exceptionHandlerApp =>
+{
+    exceptionHandlerApp.Run(async httpContext =>
+    {
+        var feature = httpContext.Features.Get<IExceptionHandlerPathFeature>();
+        var exception = feature?.Error;
+        var logger = httpContext.RequestServices
+            .GetRequiredService<ILoggerFactory>()
+            .CreateLogger("GlobalExceptionHandler");
+
+        var (status, mensaje) = exception switch
+        {
+            // 400 — reglas de negocio y validación de argumentos
+            DomainException or ArgumentException
+                => (StatusCodes.Status400BadRequest, exception.Message),
+
+            // 400 — JSON malformado, tipo inválido (p. ej. fechaIngreso: "ayer")
+            BadHttpRequestException bad
+                => (bad.StatusCode, "La solicitud no tiene un formato válido."),
+
+            // 503 — la dependencia HTTP no respondió  <<< EL FIX
+            DepartamentosNoDisponibleException
+                => (StatusCodes.Status503ServiceUnavailable, exception.Message),
+
+            // 503 — la base de datos propia no respondió
+            RetryLimitExceededException or TimeoutException
+                => (StatusCodes.Status503ServiceUnavailable,
+                    "La base de datos de registro no está disponible en este momento."),
+
+            NpgsqlException and not PostgresException
+                => (StatusCodes.Status503ServiceUnavailable,
+                    "La base de datos de registro no está disponible en este momento."),
+
+            DbUpdateException { InnerException: NpgsqlException and not PostgresException }
+                => (StatusCodes.Status503ServiceUnavailable,
+                    "La base de datos de registro no está disponible en este momento."),
+
+            _ => (StatusCodes.Status500InternalServerError, "Ocurrió un error interno del servidor.")
+        };
+
+        if (status >= 500)
+        {
+            logger.LogError(exception, "Error {Status} en {Method} {Path}",
+                status, httpContext.Request.Method, feature?.Path);
+        }
+        else
+        {
+            logger.LogWarning("Error {Status} en {Method} {Path}: {Mensaje}",
+                status, httpContext.Request.Method, feature?.Path, exception?.Message);
+        }
+
+        httpContext.Response.StatusCode = status;
+        if (status == StatusCodes.Status503ServiceUnavailable)
+        {
+            httpContext.Response.Headers.RetryAfter = "5";
+        }
+
+        await httpContext.Response.WriteAsJsonAsync(new { error = mensaje });
+    });
+});
+
+app.UseSwagger();
+app.UseSwaggerUI();
+
+builder.Services.AddDbContext<RegistroDbContext>(options =>
+    options.UseNpgsql(
+        builder.Configuration.GetConnectionString("Registro"),
+        npgsql => npgsql.EnableRetryOnFailure(
+            maxRetryCount: 3,
+            maxRetryDelay: TimeSpan.FromSeconds(2),
+            errorCodesToAdd: null)));
+
 if (!app.Environment.IsEnvironment("Testing"))
 {
     using var scope = app.Services.CreateScope();
     var dbContext = scope.ServiceProvider.GetRequiredService<RegistroDbContext>();
-    dbContext.Database.EnsureCreated();
+    var startupLogger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+
+    for (var intento = 1; intento <= 10; intento++)
+    {
+        try
+        {
+            dbContext.Database.EnsureCreated();
+            break;
+        }
+        catch (NpgsqlException ex) when (intento < 10)
+        {
+            startupLogger.LogWarning(ex,
+                "BD no lista (intento {Intento}/10). Reintentando en 3 s...", intento);
+            Thread.Sleep(TimeSpan.FromSeconds(3));
+        }
+    }
 }
 
 app.UseSwagger();
 app.UseSwaggerUI();
 
 app.MapGet("/health", () => Results.Ok(new { status = "healthy" }))
-    .WithName("Health")
     .ExcludeFromDescription();
 
-
-// Middleware de manejo global de excepciones
-// Captura excepciones del dominio y las convierte en respuestas HTTP apropiadas
-app.UseExceptionHandler(exceptionHandlerApp =>
+app.MapGet("/health/ready", async (RegistroDbContext db, CancellationToken ct) =>
 {
-    exceptionHandlerApp.Run(async httpContext =>
-    {
-        var exception = httpContext.Features.Get<IExceptionHandlerPathFeature>()?.Error;
-
-        if (exception is DomainException or ArgumentException)
-        {
-            httpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
-            await httpContext.Response.WriteAsJsonAsync(new { error = exception.Message });
-            return;
-        }
-        // Manejar otras excepciones con un error genérico
-        httpContext.Response.StatusCode = StatusCodes.Status500InternalServerError;
-        await httpContext.Response.WriteAsJsonAsync(new { error = "Ocurrió un error interno del servidor." });
-    });
-});
+    var dbOk = await db.Database.CanConnectAsync(ct);
+    return dbOk
+        ? Results.Ok(new { status = "ready", database = "up" })
+        : Results.Json(new { status = "not_ready", database = "down" },
+            statusCode: StatusCodes.Status503ServiceUnavailable);
+}).ExcludeFromDescription();
 
 // ==================== ENDPOINTS DE EMPLEADOS ====================
 
