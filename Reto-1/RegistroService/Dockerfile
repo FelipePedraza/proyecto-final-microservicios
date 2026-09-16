@@ -37,10 +37,13 @@ WORKDIR /app
 # Se usa para que Docker compruebe el endpoint HTTP de salud del servicio.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --gid 10001 appgroup \
+    && useradd --uid 10001 --gid appgroup --home-dir /app --shell /usr/sbin/nologin --no-create-home appuser
 
 # Copiamos únicamente los binarios publicados de la etapa anterior
-COPY --from=build /app/publish .
+COPY --from=build --chown=appuser:appgroup /app/publish .
+USER appuser
 
 # Kestrel debe escuchar en todas las interfaces del contenedor (0.0.0.0),
 # no solo en localhost, para que el mapeo de puertos de "docker run -p" funcione.

@@ -65,6 +65,16 @@ los servicios dentro de la red privada `microservicios-network`. Cada
 microservicio tiene su propia base y su propio volumen; ningún servicio consulta
 directamente la base del otro.
 
+### Usuarios y permisos de los contenedores
+
+Las tres APIs se ejecutan con un usuario sin privilegios (`appuser`, UID
+`10001`); los artefactos de la aplicación se copian con ese usuario como
+propietario y ninguno de esos contenedores necesita ejecutarse como `root`.
+Las imágenes oficiales de PostgreSQL gestionan internamente el cambio al usuario
+`postgres` después de preparar el volumen. Por eso no se fuerza `user:` en
+Compose para las bases: hacerlo puede impedir que su entrypoint inicialice
+correctamente un volumen nuevo.
+
 ### Creación reproducible de esquemas
 
 PostgreSQL ejecuta automáticamente los archivos de
