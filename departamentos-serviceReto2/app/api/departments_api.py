@@ -40,7 +40,7 @@ def get_department(id: str, db: Session = Depends(get_db)):
         return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content={"Could not retrieve department": str(e)})
 
 
-# lisrtar todos los departamentos
+# listar todos los departamentos
 @router.get("/departamentos", response_model=list[Department], status_code=status.HTTP_200_OK)
 def list_departments(db: Session = Depends(get_db)):
 

@@ -1,0 +1,42 @@
+server:
+  port: ${SERVER_PORT:8088}
+
+spring:
+  application:
+    name: gateway-service
+  cloud:
+    gateway:
+      httpclient:
+        connect-timeout: ${GATEWAY_CONNECT_TIMEOUT_MS:2000}
+        response-timeout: ${GATEWAY_RESPONSE_TIMEOUT:5s}
+      routes:
+        - id: empleados-service
+          uri: ${EMPLEADOS_SERVICE_URL:http://registro-service:8080}
+          predicates:
+            - Path=/empleados/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: empleadosServiceCircuitBreaker
+                fallbackUri: forward:/fallback/empleados-service
+        - id: departamentos-service
+          uri: ${DEPARTAMENTOS_SERVICE_URL:http://departamentos-service:8081}
+          predicates:
+            - Path=/departamentos/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: departamentosServiceCircuitBreaker
+                fallbackUri: forward:/fallback/departamentos-service
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      empleadosServiceCircuitBreaker:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+      departamentosServiceCircuitBreaker:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
