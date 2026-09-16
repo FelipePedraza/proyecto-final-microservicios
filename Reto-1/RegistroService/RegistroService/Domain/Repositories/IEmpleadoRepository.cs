@@ -11,14 +11,6 @@ public interface IEmpleadoRepository
         string id,
         CancellationToken cancellationToken = default);
 
-    Task<bool> ExisteEmailAsync(
-        string email,
-        CancellationToken cancellationToken = default);
-
-    Task<bool> ExisteNumeroEmpleadoAsync(
-        string numeroEmpleado,
-        CancellationToken cancellationToken = default);
-
     Task RegistrarAsync(
         Empleado empleado,
         CancellationToken cancellationToken = default);

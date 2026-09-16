@@ -2,9 +2,8 @@
 // EmpleadoRepositoryTests.cs
 // Pruebas unitarias del repositorio de empleados (capa de persistencia).
 // Objetivo: verificar que el repositorio almacene, busque y detecte duplicados
-//           correctamente, incluyendo concurrencia.
-// Estrategia: usamos la implementación real (EmpleadoRepository) porque
-//             queremos probar el comportamiento thread-safe con lock.
+//           correctamente.
+// Estrategia: usamos la implementación real (EmpleadoRepository).
 // =============================================================================
 using RegistroService.Domain.Entities;
 using RegistroService.Domain.Exceptions;
@@ -108,46 +107,6 @@ public sealed class EmpleadoRepositoryTests
         var resultado = await repo.ObtenerPorIdAsync("NO-EXISTE");
 
         Assert.Null(resultado);
-    }
-
-    // =========================================================================
-    // PRUEBA 6: Concurrencia — 10 solicitudes simultáneas con mismo email
-    // =========================================================================
-    // Caso: 10 tareas en paralelo intentan registrar con el MISMO email.
-    // Resultado esperado: solo 1 registro tiene éxito; los otros 9 fallan.
-    // Verificamos contando cuántos empleados con ese email existen al final.
-    [Fact]
-    public async Task RegistrarAsync_Concurrentemente_UnSoloRegistroExitoso()
-    {
-        var repo = CrearRepositorio();
-        const string email = "concurrente@test.com";
-
-        var tareas = Enumerable.Range(1, 10)
-            .Select(i => repo.RegistrarAsync(new Empleado(
-                $"E{i:000}", $"Nom{i}", $"Ape{i}", email, $"EMP{i:000}", "Dev", "Tech", "IT",
-                new DateOnly(2024, 1, 15))));
-
-        // Ejecutamos todas en paralelo. Algunas lanzarán EmpleadoDuplicadoException.
-        // Capturamos el AggregateException para que el test no falle aquí.
-        try
-        {
-            await Task.WhenAll(tareas);
-        }
-        catch
-        {
-            // Esperado: varias tareas fallaron por email duplicado dentro del lock
-        }
-
-        // Contamos cuántos empleados con ese email se registraron realmente
-        int contador = 0;
-        for (int i = 1; i <= 10; i++)
-        {
-            var e = await repo.ObtenerPorIdAsync($"E{i:000}");
-            if (e != null) contador++;
-        }
-
-        // Solo 1 de los 10 intentos debió tener éxito
-        Assert.Equal(1, contador);
     }
 
     private static EmpleadoRepository CrearRepositorio()

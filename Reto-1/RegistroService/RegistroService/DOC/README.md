@@ -55,8 +55,8 @@ Program.cs                          ← Endpoints + Middleware
 ✅ Modelo Empleado con 10 campos requeridos  
 ✅ Enum EstadoEmpleado (ACTIVO por defecto)  
 ✅ Servicio/Repositorio en memoria (ConcurrentDictionary)  
-✅ Validación: 400 Bad Request si email existe  
-✅ Validación: 400 Bad Request si numeroEmpleado existe  
+✅ Validación: 409 Conflict si email existe
+✅ Validación: 409 Conflict si numeroEmpleado existe
 ✅ DTOs para request/response  
 ✅ Endpoints REST (POST, GET)  
 ✅ Middleware de manejo de excepciones  

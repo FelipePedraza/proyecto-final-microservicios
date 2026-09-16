@@ -70,7 +70,7 @@ directamente la base del otro.
 PostgreSQL ejecuta automáticamente los archivos de
 `/docker-entrypoint-initdb.d` la primera vez que crea cada volumen:
 
-- `database/registro/001-schema.sql` crea el esquema de empleados.
+- `database/registro/001-schema.sql` crea el esquema de empleados; es la única fuente de verdad del esquema de RegistroService.
 - `departamentos-serviceReto2/init.sql` crea el esquema de departamentos.
 
 Para recrear desde cero las dos bases y volver a ejecutar los scripts (esto borra
@@ -208,9 +208,9 @@ Invoke-RestMethod -Uri "http://localhost:8080/empleados" `
 Invoke-RestMethod -Uri "http://localhost:8080/empleados/E001" -Method Get
 ```
 
-### 5. Validaciones (todas deben responder 400 Bad Request)
+### 5. Validaciones
 
-#### a) Email duplicado
+#### a) Email duplicado (409 Conflict)
 
 ```powershell
 $jsonDupEmail = '{
@@ -232,7 +232,7 @@ Invoke-RestMethod -Uri "http://localhost:8080/empleados" `
     -Body $bytesDupEmail
 ```
 
-#### b) Número de empleado duplicado
+#### b) Número de empleado duplicado (409 Conflict)
 
 ```powershell
 $jsonDupNum = '{

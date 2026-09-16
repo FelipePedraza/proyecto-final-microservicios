@@ -72,7 +72,7 @@ Swagger UI queda disponible en `/swagger` y el documento OpenAPI en `/swagger/v1
 
 ### Persistencia y configuración
 
-La base de datos y la tabla se crean automáticamente al iniciar el servicio. La configuración está en `RegistroService/appsettings.json`:
+El esquema de la base de datos se crea mediante el script `database/registro/001-schema.sql` montado por Docker Compose. La configuración está en `RegistroService/appsettings.json`:
 
 ```json
 {
@@ -107,7 +107,9 @@ curl -X POST http://localhost:8080/empleados \
   }'
 ```
 
-**Respuesta 200 OK:**
+**Respuesta 201 Created:**
+
+La respuesta incluye el encabezado `Location: /empleados/E001`.
 ```json
 {
   "id": "E001",
@@ -140,7 +142,7 @@ El empleado con id NO-EXISTE no existe
 
 | Método | Ruta | Descripción | Éxito | Error |
 |--------|------|-------------|-------|-------|
-| POST | `/empleados` | Registra un empleado | 200 OK + `EmpleadoResponse` | 400 Bad Request |
+| POST | `/empleados` | Registra un empleado | 201 Created + `EmpleadoResponse` y `Location` | 400 Bad Request / 409 Conflict |
 | GET | `/empleados/{id}` | Consulta por ID | 200 OK + `EmpleadoResponse` | 404 Not Found |
 | * | Cualquier otra ruta | No soportado | — | 404 Not Found |
 
@@ -181,8 +183,9 @@ El empleado con id NO-EXISTE no existe
 
 | Código | Condición | Cuerpo de respuesta |
 |--------|-----------|---------------------|
-| 400 | Email duplicado | `Ya existe un empleado con email 'xxx'.` (texto plano) |
-| 400 | Número de empleado duplicado | `Ya existe un empleado con numeroEmpleado 'xxx'.` (texto plano) |
+| 409 | Email duplicado | `Ya existe un empleado con email 'xxx'.` |
+| 409 | Número de empleado duplicado | `Ya existe un empleado con numeroEmpleado 'xxx'.` |
+| 400 | Departamento inexistente | `El departamento con id xxx no existe.` |
 | 400 | Campo vacío o inválido | `El valor es obligatorio.` (texto plano) |
 | 404 | Empleado no encontrado | `El empleado con id {id} no existe` (texto plano) |
 | 404 | Ruta no soportada | `Recurso no encontrado` (texto plano) |
@@ -199,7 +202,7 @@ El empleado con id NO-EXISTE no existe
 5. **Estado por defecto:** Todo empleado registrado tiene estado `ACTIVO` automáticamente.
 6. **Normalización de email:** El email se almacena y retorna en minúsculas.
 7. **Trim automático:** Los campos string se recortan de espacios al registrar.
-8. **Concurrencia:** El repositorio usa `lock` para garantizar operaciones atómicas. Si dos solicitudes concurrentes intentan registrar el mismo email o número de empleado, solo una succeederá.
+8. **Concurrencia:** Los índices únicos de PostgreSQL garantizan la unicidad entre solicitudes concurrentes; los conflictos se traducen a 409 Conflict.
 
 ## Persistencia
 

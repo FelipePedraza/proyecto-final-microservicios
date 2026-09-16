@@ -10,7 +10,7 @@
 
 | Requisito | Descripción | Estado |
 |-----------|-------------|--------|
-| **Criterio 1** | POST /empleados con respuesta 200 OK | ✅ |
+| **Criterio 1** | POST /empleados con respuesta 201 Created y `Location` | ✅ |
 | **Criterio 2** | GET /empleados/{id} con 404 exacto y middleware para rutas no soportadas | ✅ |
 | **HTTP Status Codes** | Códigos HTTP correctos según especificación | ✅ |
 | **Routing Control** | Captura de rutas indefinidas con middleware | ✅ |
@@ -24,13 +24,13 @@
 **Ubicación:** `Program.cs` líneas 77-96
 
 **Características:**
-- ✅ Retorna **200 OK** (no 201 Created) con información del empleado registrado
-- ✅ Valida email único (retorna 400 Bad Request si duplicado)
-- ✅ Valida numeroEmpleado único (retorna 400 Bad Request si duplicado)
+- ✅ Retorna **201 Created** con información del empleado registrado y `Location`
+- ✅ Valida email único (retorna 409 Conflict si duplicado)
+- ✅ Valida numeroEmpleado único (retorna 409 Conflict si duplicado)
 - ✅ Convierte DTO a entidad de dominio
 - ✅ Usa inyección de dependencias (EmpleadoService)
 
-**Respuesta exitosa (200 OK):**
+**Respuesta exitosa (201 Created):**
 ```json
 {
   "id": "550e8400-e29b-41d4-a716-446655440000",
@@ -153,14 +153,14 @@ RegistroService/
    - Conserva el id recibido y asigna Estado: ACTIVO (por defecto)
    ↓
 4. EmpleadoService.RegistrarAsync() valida:
-   - ¿Email existe? → 400 Bad Request
-   - ¿NumeroEmpleado existe? → 400 Bad Request
+   - ¿Email existe? → 409 Conflict
+   - ¿NumeroEmpleado existe? → 409 Conflict
    ↓
 5. EmpleadoRepository.AñadirAsync() almacena en ConcurrentDictionary
    ↓
 6. MappingExtensions.ToResponse() convierte a EmpleadoResponse
    ↓
-7. Retorna 200 OK con 10 campos (incluyendo Id y Estado)
+7. Retorna 201 Created con 10 campos (incluyendo Id y Estado) y `Location`
 ```
 
 ### GET /empleados/{id}
@@ -170,7 +170,7 @@ RegistroService/
 2. EmpleadoService.BuscarPorIdAsync() busca en repositorio
    ↓
 3. ¿Encontrado?
-   → SÍ: ToResponse() + 200 OK
+   → SÍ: ToResponse() + 201 Created + `Location`
    → NO: 404 Not Found + "El empleado con id {id} no existe"
 ```
 
@@ -248,7 +248,7 @@ Content-Type: application/json
   "fechaIngreso": "2024-01-15"
 }
 ```
-**Esperado:** 200 OK + ID + Estado generados automáticamente
+**Esperado:** 201 Created + ID + Estado generados automáticamente + `Location`
 
 ---
 
@@ -257,7 +257,7 @@ Content-Type: application/json
 POST /empleados
 (enviar mismo email dos veces)
 ```
-**Esperado:** 400 Bad Request + `{"error": "El email ya existe..."}`
+**Esperado:** 409 Conflict + `{"error": "El email ya existe..."}`
 
 ---
 
@@ -266,7 +266,7 @@ POST /empleados
 POST /empleados
 (enviar mismo numeroEmpleado dos veces)
 ```
-**Esperado:** 400 Bad Request + `{"error": "El numero de empleado ya existe..."}`
+**Esperado:** 409 Conflict + `{"error": "El numero de empleado ya existe..."}`
 
 ---
 
@@ -342,7 +342,7 @@ DELETE /empleados
 
 | Aspecto | Detalle |
 |--------|---------|
-| **POST /empleados** | 200 OK + Email/numeroEmpleado únicos |
+| **POST /empleados** | 201 Created + `Location` + Email/numeroEmpleado únicos |
 | **GET /empleados/{id}** | 200 OK o 404 con mensaje exacto |
 | **Rutas no soportadas** | 404 Not Found + "Recurso no encontrado" |
 | **Validaciones** | Middleware de excepciones + lógica en servicio |

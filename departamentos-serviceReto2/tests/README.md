@@ -37,28 +37,27 @@ Casos cubiertos:
 
 ## Cómo ejecutar las pruebas
 
-Desde la carpeta del servicio:
+Desde la raíz del repositorio:
 
 ```powershell
-cd "C:\Users\DANIEL-PC\Documents\MIcro\proyecto-final-microservicios\departamentos-serviceReto2"
+cd departamentos-serviceReto2
 python -m pytest tests -q
 ```
 
 También puedes ejecutar una prueba puntual:
 
 ```powershell
-cd "C:\Users\DANIEL-PC\Documents\MIcro\proyecto-final-microservicios\departamentos-serviceReto2"
+cd departamentos-serviceReto2
 python -m pytest tests/test_departamentos.py -q
 ```
 
 ## Requisitos previos
 
-Asegúrate de tener instaladas las dependencias del proyecto y `pytest`:
+Asegúrate de tener instaladas las dependencias de desarrollo:
 
 ```powershell
-cd "C:\Users\DANIEL-PC\Documents\MIcro\proyecto-final-microservicios\departamentos-serviceReto2"
-python -m pip install -r requirements.txt
-python -m pip install pytest httpx
+cd departamentos-serviceReto2
+python -m pip install -r requirements-dev.txt
 ```
 
 ## Resultado esperado

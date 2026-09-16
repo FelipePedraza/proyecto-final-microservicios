@@ -290,7 +290,7 @@ Cliente HTTP
     │                └──────────────────┘
     │                       │
     │                       ▼
-    │                Return 200 OK
+    │                Return 201 Created
     │                {EmpleadoResponse}
     │
     └─ No encontrado ───┐
@@ -413,8 +413,8 @@ CreateEmpleadoRequest (JSON entrada)
 
 | Validación | Ubicación | Condición | Respuesta | HTTP Status |
 |------------|-----------|-----------|-----------|------------|
-| Email duplicado | EmpleadoService:25 | Ya existe en repositorio | EmpleadoDuplicadoException | 400 |
-| NumeroEmpleado duplicado | EmpleadoService:30 | Ya existe en repositorio | EmpleadoDuplicadoException | 400 |
+| Email duplicado | EmpleadoService | Ya existe en repositorio | EmpleadoDuplicadoException | 409 |
+| NumeroEmpleado duplicado | EmpleadoService | Ya existe en repositorio | EmpleadoDuplicadoException | 409 |
 | Empleado no encontrado | Program.cs:126 | ID no existe en repositorio | {"error": "Empleado..."} | 404 |
 | Registro exitoso | Program.cs:110 | Todas las validaciones pasaron | EmpleadoResponse | 201 |
 | Búsqueda exitosa | Program.cs:138 | Empleado encontrado | EmpleadoResponse | 200 |

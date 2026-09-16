@@ -45,4 +45,4 @@ def test_get_missing_department_returns_404(client):
     response = client.get("/departamentos/NO-EXISTE")
 
     assert response.status_code == 404
-    assert response.json() == {"Department not found": "Department with id NO-EXISTE not found"}
+    assert response.json() == {"error": "El departamento con id NO-EXISTE no existe"}

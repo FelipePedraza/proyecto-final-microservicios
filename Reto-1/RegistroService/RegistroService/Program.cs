@@ -9,12 +9,16 @@ using RegistroService.Infrastructure.Departamentos;
 using RegistroService.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore.Storage;
 using Npgsql;
-using RegistroService.Infrastructure.Departamentos;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddDbContext<RegistroDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("Registro")));
+    options.UseNpgsql(
+        builder.Configuration.GetConnectionString("Registro"),
+        npgsql => npgsql.EnableRetryOnFailure(
+            maxRetryCount: 3,
+            maxRetryDelay: TimeSpan.FromSeconds(2),
+            errorCodesToAdd: null)));
 builder.Services.AddScoped<IEmpleadoRepository, EmpleadoRepository>();
 builder.Services.AddScoped<EmpleadoService>();
 builder.Services.AddHttpClient<IDepartamentoClient, DepartamentoClient>(client =>
@@ -43,7 +47,12 @@ app.UseExceptionHandler(exceptionHandlerApp =>
 
         var (status, mensaje) = exception switch
         {
-            // 400 — reglas de negocio y validación de argumentos
+            EmpleadoDuplicadoException
+                => (StatusCodes.Status409Conflict, exception.Message),
+
+            DepartamentoNoEncontradoException
+                => (StatusCodes.Status400BadRequest, exception.Message),
+
             DomainException or ArgumentException
                 => (StatusCodes.Status400BadRequest, exception.Message),
 
@@ -95,36 +104,6 @@ app.UseExceptionHandler(exceptionHandlerApp =>
 app.UseSwagger();
 app.UseSwaggerUI();
 
-builder.Services.AddDbContext<RegistroDbContext>(options =>
-    options.UseNpgsql(
-        builder.Configuration.GetConnectionString("Registro"),
-        npgsql => npgsql.EnableRetryOnFailure(
-            maxRetryCount: 3,
-            maxRetryDelay: TimeSpan.FromSeconds(2),
-            errorCodesToAdd: null)));
-
-if (!app.Environment.IsEnvironment("Testing"))
-{
-    using var scope = app.Services.CreateScope();
-    var dbContext = scope.ServiceProvider.GetRequiredService<RegistroDbContext>();
-    var startupLogger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-
-    for (var intento = 1; intento <= 10; intento++)
-    {
-        try
-        {
-            dbContext.Database.EnsureCreated();
-            break;
-        }
-        catch (NpgsqlException ex) when (intento < 10)
-        {
-            startupLogger.LogWarning(ex,
-                "BD no lista (intento {Intento}/10). Reintentando en 3 s...", intento);
-            Thread.Sleep(TimeSpan.FromSeconds(3));
-        }
-    }
-}
-
 app.UseSwagger();
 app.UseSwaggerUI();
 
@@ -150,8 +129,8 @@ app.MapGet("/health/ready", async (RegistroDbContext db, CancellationToken ct) =
 ///
 /// Validaciones aplicadas:
 /// - Todos los campos son requeridos y no pueden estar vacíos
-/// - El email debe ser único en el sistema (retorna 400 si duplicado)
-/// - El numeroEmpleado debe ser único en el sistema (retorna 400 si duplicado)
+/// - El email debe ser único en el sistema (retorna 409 si duplicado)
+/// - El numeroEmpleado debe ser único en el sistema (retorna 409 si duplicado)
 /// - El email se almacena automáticamente en minúsculas
 ///
 /// Ejemplo de solicitud:
@@ -172,9 +151,10 @@ app.MapGet("/health/ready", async (RegistroDbContext db, CancellationToken ct) =
 /// <param name="service">Servicio de empleados (inyección de dependencias)</param>
 /// <param name="request">Datos del empleado a registrar</param>
 /// <param name="cancellationToken">Token de cancelación</param>
-/// <returns>200 OK con los datos del empleado registrado</returns>
-/// <response code="200">Empleado registrado exitosamente</response>
-/// <response code="400">Error de validación (email o numeroEmpleado duplicado, campos inválidos)</response>
+/// <returns>201 Created con los datos del empleado registrado y su URL en `Location`</returns>
+/// <response code="201">Empleado registrado exitosamente</response>
+/// <response code="400">Error de validación o departamento inexistente</response>
+/// <response code="409">El email, numeroEmpleado o ID ya está registrado</response>
 /// <response code="500">Error interno del servidor</response>
 app.MapPost("/empleados", async (
     EmpleadoService service,
@@ -190,11 +170,12 @@ app.MapPost("/empleados", async (
     // Convertir entidad a DTO de respuesta
     var response = empleadoRegistrado.ToResponse();
 
-    return Results.Ok(response);
+    return Results.Created($"/empleados/{empleadoRegistrado.Id}", response);
 })
 .WithName("RegistrarEmpleado")
-.Produces<EmpleadoResponse>(StatusCodes.Status200OK)
+.Produces<EmpleadoResponse>(StatusCodes.Status201Created)
 .Produces(StatusCodes.Status400BadRequest)
+.Produces(StatusCodes.Status409Conflict)
 .Produces(StatusCodes.Status500InternalServerError);
 
 /// <summary>

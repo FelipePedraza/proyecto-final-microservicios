@@ -42,17 +42,6 @@ internal sealed class TestEmpleadoRepository : IEmpleadoRepository
         CancellationToken cancellationToken = default)
         => Task.FromResult(empleados.TryGetValue(id.Trim(), out var empleado) ? empleado : null);
 
-    public Task<bool> ExisteEmailAsync(
-        string email,
-        CancellationToken cancellationToken = default)
-        => Task.FromResult(empleados.Values.Any(e =>
-            e.Email.Equals(email.Trim(), StringComparison.OrdinalIgnoreCase)));
-
-    public Task<bool> ExisteNumeroEmpleadoAsync(
-        string numeroEmpleado,
-        CancellationToken cancellationToken = default)
-        => Task.FromResult(empleados.Values.Any(e => e.NumeroEmpleado == numeroEmpleado.Trim()));
-
     public Task RegistrarAsync(
         Empleado empleado,
         CancellationToken cancellationToken = default)
@@ -104,7 +93,8 @@ public sealed class EmpleadosEndpointsTests : IClassFixture<EmpleadoWebApplicati
 
         var postResponse = await _client.PostAsJsonAsync("/empleados", request);
 
-        Assert.Equal(HttpStatusCode.OK, postResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.Created, postResponse.StatusCode);
+        Assert.Equal($"/empleados/{id}", postResponse.Headers.Location?.ToString());
         using var postJson = JsonDocument.Parse(await postResponse.Content.ReadAsStringAsync());
         Assert.Equal(id, postJson.RootElement.GetProperty("id").GetString());
         Assert.Equal("ACTIVO", postJson.RootElement.GetProperty("estado").GetString());
@@ -129,7 +119,7 @@ public sealed class EmpleadosEndpointsTests : IClassFixture<EmpleadoWebApplicati
     }
 
     [Fact]
-    public async Task RegistrarEmailDuplicado_RetornaBadRequest()
+    public async Task RegistrarEmailDuplicado_RetornaConflict()
     {
         var suffix = Guid.NewGuid().ToString("N");
         var email = $"duplicado-{suffix}@empresa.com";
@@ -141,12 +131,12 @@ public sealed class EmpleadosEndpointsTests : IClassFixture<EmpleadoWebApplicati
             "/empleados",
             CrearEmpleado($"E-B-{suffix}", email.ToUpperInvariant(), $"EMP-B-{suffix}"));
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         Assert.Contains("email", await response.Content.ReadAsStringAsync());
     }
 
     [Fact]
-    public async Task RegistrarNumeroEmpleadoDuplicado_RetornaBadRequest()
+    public async Task RegistrarNumeroEmpleadoDuplicado_RetornaConflict()
     {
         var suffix = Guid.NewGuid().ToString("N");
         var numeroEmpleado = $"EMP-DUP-{suffix}";
@@ -158,7 +148,7 @@ public sealed class EmpleadosEndpointsTests : IClassFixture<EmpleadoWebApplicati
             "/empleados",
             CrearEmpleado($"E-B-{suffix}", $"b-{suffix}@empresa.com", numeroEmpleado));
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         Assert.Contains("numeroEmpleado", await response.Content.ReadAsStringAsync());
     }
 
@@ -207,8 +197,8 @@ public sealed class EmpleadosEndpointsTests : IClassFixture<EmpleadoWebApplicati
 
         var responses = await Task.WhenAll(solicitudes);
 
-        Assert.Single(responses.Where(r => r.StatusCode == HttpStatusCode.OK));
-        Assert.Equal(11, responses.Count(r => r.StatusCode == HttpStatusCode.BadRequest));
+        Assert.Single(responses.Where(r => r.StatusCode == HttpStatusCode.Created));
+        Assert.Equal(11, responses.Count(r => r.StatusCode == HttpStatusCode.Conflict));
     }
 
     private static CrearEmpleadoRequest CrearEmpleado(

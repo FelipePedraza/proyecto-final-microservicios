@@ -1,5 +1,4 @@
-## primero la version de python
-FROM python:3.11
+FROM python:3.11-slim
 
 # EL DIRECTORIO DE TRABAJO DE DOCKER
 WORKDIR /app
@@ -10,6 +9,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # el codigo
 COPY . .
+
+RUN useradd --create-home --uid 10001 appuser \
+    && chown -R appuser:appuser /app
+USER appuser
 
 # EXPONER EL PUERTO
 EXPOSE 8081

@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http;
+using Microsoft.Extensions.Logging.Abstractions;
 using RegistroService.Infrastructure.Departamentos;
 using Xunit;
 
@@ -24,7 +25,7 @@ public sealed class DepartamentoClientTests
             BaseAddress = new Uri("http://departamentos-service:8081/")
         };
 
-        var sut = new DepartamentoClient(client);
+        var sut = new DepartamentoClient(client, NullLogger<DepartamentoClient>.Instance);
 
         var result = await sut.ExisteAsync("DEP-123");
 
