@@ -14,6 +14,7 @@ La integración entre RegistroService y DepartamentosService ahora contempla:
 - reintentos exponenciales con backoff para errores transitorios (429, 408, 5xx).
 - manejo de 404 como caso normal de negocio: el departamento no existe y debe devolverse un error de dominio.
 - arranque ordenado con `depends_on` y health checks de Compose, de forma que RegistroService no inicia antes de que la base y el servicio de departamentos estén listos.
+- **circuit breaker con fallback** (Reto 3): tras 3 intentos fallidos consecutivos el circuito se abre y RegistroService deja de llamar a Departamentos; los empleados se registran con estado `PENDIENTE_VALIDACION`. Ver [Circuit Breaker y fallback](#circuit-breaker-y-fallback-reto-3).
 
 Para la validación de estos escenarios se mantienen pruebas de integración y de cliente HTTP que cubren la comunicación dependiente.
 
@@ -312,12 +313,71 @@ Las verificaciones concretas quedan documentadas en [EVIDENCIAS.md](EVIDENCIAS.m
 3. `curl` o `Invoke-WebRequest` contra `/health`;
 4. pruebas `dotnet test` para comprobar la resiliencia y la API.
 
+## Circuit Breaker y fallback (Reto 3)
+
+RegistroService protege con **Polly** (`Polly` 8.x, `CircuitBreakerAsync`) la llamada síncrona a
+DepartamentosService (`DepartamentoClient` + `DepartamentoCircuitBreaker`).
+
+| Parámetro | Valor por defecto | Rango del reto | Configuración |
+|-----------|-------------------|----------------|---------------|
+| Fallos consecutivos que abren el circuito | 3 | 3 a 5 | `Departamentos:Resilience:FallosConsecutivos` / `CB_FALLOS_CONSECUTIVOS` |
+| Timeout de cada llamada | 5 s | 5 s | `Departamentos:Resilience:TimeoutLlamada` / `CB_TIMEOUT_LLAMADA` |
+| Tiempo con el circuito abierto | 30 s | 30 a 60 s | `Departamentos:Resilience:DuracionCircuitoAbierto` / `CB_DURACION_CIRCUITO_ABIERTO` |
+
+Los valores fuera de rango hacen que el servicio no arranque (validación al inicio).
+
+### Estados
+
+```
+        3 fallos consecutivos                 pasan 30 s
+CLOSED ───────────────────────► OPEN ─────────────────────────► HALF_OPEN
+   ▲                             ▲                                  │
+   │        la llamada de prueba tiene éxito                        │
+   └─────────────────────────────────────────────────────────────── ┤
+                                 └──── la llamada de prueba falla ──┘
+```
+
+- **CLOSED**: las llamadas pasan; se cuentan los intentos fallidos consecutivos (un éxito reinicia la cuenta).
+- **OPEN**: las llamadas se rechazan al instante, sin tocar la red.
+- **HALF_OPEN**: se permite una única llamada de prueba; si funciona el circuito vuelve a CLOSED, si falla vuelve a OPEN.
+
+Cada **intento HTTP** fallido (timeout, conexión rechazada, 408/429/5xx) cuenta como un fallo; se
+cuenta por intento y no por petición para que el circuito se abra aunque el cliente (p. ej. el
+gateway, que corta a los 5 s) cancele la petición antes de agotar los reintentos. Un `404` (el
+departamento no existe) es una respuesta de negocio válida: no cuenta como fallo y sigue
+devolviendo `400`.
+
+### Fallback: `PENDIENTE_VALIDACION`
+
+Si Departamentos no está disponible (intentos agotados o circuito abierto) el empleado **se registra
+igualmente** y responde `201 Created` con `"estado": "PENDIENTE_VALIDACION"`, en lugar de un `503`.
+Las validaciones propias (email o número de empleado duplicado) siguen aplicándose.
+
+### Cómo verlo funcionar
+
+```powershell
+# Estado del circuito (CLOSED / OPEN / HALF_OPEN)
+Invoke-RestMethod http://localhost:8080/health/circuit-breaker
+
+# 1. Detener Departamentos
+docker compose stop departamentos-service
+
+# 2. Registrar empleados: responden 201 con estado PENDIENTE_VALIDACION y el circuito pasa a OPEN
+#    (a partir de ahí la respuesta es inmediata). Ver los logs de las transiciones:
+docker compose logs -f registro-service
+
+# 3. Levantar Departamentos y esperar 30 s: el circuito pasa a HALF_OPEN; el siguiente registro
+#    hace la llamada de prueba, vuelve a CLOSED y el empleado queda ACTIVO
+docker compose start departamentos-service
+```
+
 ## Documentación detallada
 
 Cada módulo tiene su propia documentación en su carpeta:
 
 - [RegistroService README](Reto-1/RegistroService/README.md)
 - [RegistroService DOC](Reto-1/RegistroService/RegistroService/DOC/)
+- [Reto 3 — Circuit Breaker y fallback (qué se hizo, archivos y decisiones)](Reto-1/RegistroService/RegistroService/DOC/Reto3-CircuitBreaker.md)
 
 ## Estado del proyecto
 
@@ -325,7 +385,7 @@ Cada módulo tiene su propia documentación en su carpeta:
 |------|--------|-------------|
 | Reto 1 |  Completado | Registro y consulta de empleados |
 | Reto 2 |  Completado | Integración de Registro y Departamentos con bases PostgreSQL independientes |
-| Reto 3 |  Pendiente | *(a definir)* |
+| Reto 3 |  En progreso | Circuit Breaker y fallback en RegistroService (Polly) |
 
 ## Licencia
 
