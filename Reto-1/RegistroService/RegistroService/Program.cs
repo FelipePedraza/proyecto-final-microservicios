@@ -5,6 +5,7 @@ using RegistroService.API.DTOs;
 using RegistroService.API.Extensions;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using RegistroService.Infrastructure.Departamentos;
 using RegistroService.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -21,12 +22,21 @@ builder.Services.AddDbContext<RegistroDbContext>(options =>
             errorCodesToAdd: null)));
 builder.Services.AddScoped<IEmpleadoRepository, EmpleadoRepository>();
 builder.Services.AddScoped<EmpleadoService>();
-builder.Services.AddHttpClient<IDepartamentoClient, DepartamentoClient>(client =>
+builder.Services.AddOptions<DepartamentosResilienceOptions>()
+    .Bind(builder.Configuration.GetSection(DepartamentosResilienceOptions.SectionName))
+    .Validate(
+        o => o.EsValida(),
+        "Departamentos:Resilience inválido: FallosConsecutivos debe estar entre 3 y 5 y " +
+        "DuracionCircuitoAbierto entre 00:00:30 y 00:01:00.")
+    .ValidateOnStart();
+// Singleton: el estado del circuito (CLOSED/OPEN/HALF_OPEN) se comparte entre todas las peticiones.
+builder.Services.AddSingleton<DepartamentoCircuitBreaker>();
+builder.Services.AddHttpClient<IDepartamentoClient, DepartamentoClient>((sp, client) =>
 {
     var baseUrl = builder.Configuration["Departamentos:BaseUrl"]
         ?? throw new InvalidOperationException("Falta la configuración Departamentos:BaseUrl.");
     client.BaseAddress = new Uri(baseUrl, UriKind.Absolute);
-    client.Timeout = TimeSpan.FromSeconds(5);
+    client.Timeout = sp.GetRequiredService<IOptions<DepartamentosResilienceOptions>>().Value.TimeoutLlamada;
     client.DefaultRequestHeaders.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
 });
 builder.Services.AddEndpointsApiExplorer();
@@ -119,6 +129,17 @@ app.MapGet("/health/ready", async (RegistroDbContext db, CancellationToken ct) =
             statusCode: StatusCodes.Status503ServiceUnavailable);
 }).ExcludeFromDescription();
 
+// Estado del circuit breaker hacia DepartamentosService (CLOSED, OPEN o HALF_OPEN).
+// No afecta a /health/ready: un circuito abierto no debe sacar a RegistroService de servicio,
+// porque el fallback sigue permitiendo registrar empleados como PENDIENTE_VALIDACION.
+app.MapGet("/health/circuit-breaker", (DepartamentoCircuitBreaker circuitBreaker) => Results.Ok(new
+{
+    dependencia = "departamentos-service",
+    estado = circuitBreaker.Estado,
+    fallosConsecutivos = circuitBreaker.FallosConsecutivos,
+    duracionCircuitoAbiertoSegundos = circuitBreaker.DuracionCircuitoAbierto.TotalSeconds
+})).ExcludeFromDescription();
+
 // ==================== ENDPOINTS DE EMPLEADOS ====================
 
 /// <summary>
@@ -132,6 +153,8 @@ app.MapGet("/health/ready", async (RegistroDbContext db, CancellationToken ct) =
 /// - El email debe ser único en el sistema (retorna 409 si duplicado)
 /// - El numeroEmpleado debe ser único en el sistema (retorna 409 si duplicado)
 /// - El email se almacena automáticamente en minúsculas
+/// - El departamento se verifica contra DepartamentosService con circuit breaker; si el servicio
+///   no está disponible (fallback) el empleado se registra con estado PENDIENTE_VALIDACION
 ///
 /// Ejemplo de solicitud:
 /// ```json
@@ -152,7 +175,7 @@ app.MapGet("/health/ready", async (RegistroDbContext db, CancellationToken ct) =
 /// <param name="request">Datos del empleado a registrar</param>
 /// <param name="cancellationToken">Token de cancelación</param>
 /// <returns>201 Created con los datos del empleado registrado y su URL en `Location`</returns>
-/// <response code="201">Empleado registrado exitosamente</response>
+/// <response code="201">Empleado registrado (estado ACTIVO, o PENDIENTE_VALIDACION si Departamentos no estaba disponible)</response>
 /// <response code="400">Error de validación o departamento inexistente</response>
 /// <response code="409">El email, numeroEmpleado o ID ya está registrado</response>
 /// <response code="500">Error interno del servidor</response>

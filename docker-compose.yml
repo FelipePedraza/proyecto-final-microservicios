@@ -75,6 +75,10 @@ services:
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__Registro: Host=registro-db;Port=5432;Database=${REGISTRO_DB_NAME:-registro_db};Username=${REGISTRO_DB_USER:-registro_user};Password=${REGISTRO_DB_PASSWORD:-registro_password}
       Departamentos__BaseUrl: http://departamentos-service:8081/
+      # Circuit breaker hacia Departamentos (reto: 3-5 fallos consecutivos, circuito abierto 30-60 s)
+      Departamentos__Resilience__FallosConsecutivos: ${CB_FALLOS_CONSECUTIVOS:-3}
+      Departamentos__Resilience__TimeoutLlamada: ${CB_TIMEOUT_LLAMADA:-00:00:05}
+      Departamentos__Resilience__DuracionCircuitoAbierto: ${CB_DURACION_CIRCUITO_ABIERTO:-00:00:30}
     ports:
       - "${REGISTRO_SERVICE_PORT:-8080}:8080"
     networks:
