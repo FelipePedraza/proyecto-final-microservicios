@@ -53,7 +53,9 @@ public sealed class EmpleadoResponse
     public DateOnly FechaIngreso { get; set; }
 
     /// <summary>
-    /// Estado canónico del empleado (ACTIVO, EN_VACACIONES o RETIRADO).
+    /// Estado canónico del empleado (ACTIVO, EN_VACACIONES, RETIRADO o PENDIENTE_VALIDACION).
+    /// PENDIENTE_VALIDACION indica que el departamento no pudo verificarse al registrar
+    /// (DepartamentosService no disponible o circuit breaker abierto).
     /// </summary>
     public string Estado { get; set; } = null!;
 }

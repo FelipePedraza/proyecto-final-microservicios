@@ -164,14 +164,72 @@ public sealed class EmpleadoServiceTests
         await Assert.ThrowsAsync<ArgumentException>(() => service.BuscarPorIdAsync(""));
     }
 
-    private static EmpleadoService CrearServicio(IEmpleadoRepository repository)
-        => new(repository, new FakeDepartamentoClient());
+    // =========================================================================
+    // PRUEBAS DEL FALLBACK (Reto 3): departamentos no disponible -> PENDIENTE_VALIDACION
+    // =========================================================================
+    [Fact]
+    public async Task RegistrarAsync_DepartamentosNoDisponible_RegistraComoPendienteValidacion()
+    {
+        var repo = new FakeRepository();
+        var service = CrearServicio(repo, new FakeDepartamentoClient(
+            () => throw new DepartamentosNoDisponibleException("departamentos caído")));
 
-    private sealed class FakeDepartamentoClient : IDepartamentoClient
+        var resultado = await service.RegistrarAsync(NuevoEmpleado());
+
+        Assert.Equal(EstadoEmpleado.PendienteValidacion, resultado.Estado);
+        var guardado = await service.BuscarPorIdAsync("E001");
+        Assert.NotNull(guardado);
+        Assert.Equal(EstadoEmpleado.PendienteValidacion, guardado!.Estado);
+    }
+
+    [Fact]
+    public async Task RegistrarAsync_CircuitoAbierto_RegistraComoPendienteValidacion()
+    {
+        var service = CrearServicio(new FakeRepository(), new FakeDepartamentoClient(
+            () => throw new DepartamentosCircuitoAbiertoException("circuito abierto")));
+
+        var resultado = await service.RegistrarAsync(NuevoEmpleado());
+
+        Assert.Equal(EstadoEmpleado.PendienteValidacion, resultado.Estado);
+    }
+
+    [Fact]
+    public async Task RegistrarAsync_DepartamentoInexistente_NoActivaElFallback()
+    {
+        var repo = new FakeRepository();
+        var service = CrearServicio(repo, new FakeDepartamentoClient(() => false));
+
+        await Assert.ThrowsAsync<DepartamentoNoEncontradoException>(
+            () => service.RegistrarAsync(NuevoEmpleado()));
+
+        Assert.Null(await service.BuscarPorIdAsync("E001")); // no se guardó nada
+    }
+
+    [Fact]
+    public async Task RegistrarAsync_ConFallback_SigueValidandoDuplicados()
+    {
+        var service = CrearServicio(new FakeRepository(), new FakeDepartamentoClient(
+            () => throw new DepartamentosNoDisponibleException("departamentos caído")));
+        await service.RegistrarAsync(NuevoEmpleado());
+
+        await Assert.ThrowsAsync<EmpleadoDuplicadoException>(
+            () => service.RegistrarAsync(NuevoEmpleado(id: "E002")));
+    }
+
+    private static Empleado NuevoEmpleado(string id = "E001")
+        => new(id, "Juan", "Pérez", "juan@test.com", "EMP001", "Dev", "Tech", "IT",
+            new DateOnly(2024, 1, 15));
+
+    private static EmpleadoService CrearServicio(
+        IEmpleadoRepository repository,
+        IDepartamentoClient? departamentoClient = null)
+        => new(repository, departamentoClient ?? new FakeDepartamentoClient());
+
+    private sealed class FakeDepartamentoClient(Func<bool>? respuesta = null) : IDepartamentoClient
     {
         public Task<bool> ExisteAsync(
             string departamentoId,
             CancellationToken cancellationToken = default)
-            => Task.FromResult(true);
+            => Task.FromResult(respuesta?.Invoke() ?? true);
     }
 }

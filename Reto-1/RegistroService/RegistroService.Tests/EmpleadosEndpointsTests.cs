@@ -71,9 +71,15 @@ internal sealed class TestEmpleadoRepository : IEmpleadoRepository
 
 internal sealed class DepartamentoClientFake : IDepartamentoClient
 {
+    /// <summary>Id de departamento con el que el fake simula que DepartamentosService está caído.</summary>
+    public const string DepartamentoCaido = "DEP-CAIDO";
+
     public Task<bool> ExisteAsync(
         string departamentoId,
-        CancellationToken cancellationToken = default) => Task.FromResult(true);
+        CancellationToken cancellationToken = default)
+        => departamentoId == DepartamentoCaido
+            ? throw new DepartamentosNoDisponibleException("departamentos caído")
+            : Task.FromResult(true);
 }
 
 public sealed class EmpleadosEndpointsTests : IClassFixture<EmpleadoWebApplicationFactory>
@@ -104,6 +110,41 @@ public sealed class EmpleadosEndpointsTests : IClassFixture<EmpleadoWebApplicati
         Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
         using var getJson = JsonDocument.Parse(await getResponse.Content.ReadAsStringAsync());
         Assert.Equal(id, getJson.RootElement.GetProperty("id").GetString());
+    }
+
+    /// <summary>
+    /// Fallback del Reto 3 de extremo a extremo por HTTP: con Departamentos caído el registro NO falla,
+    /// responde 201 con estado PENDIENTE_VALIDACION y el empleado queda consultable con ese estado.
+    /// </summary>
+    [Fact]
+    public async Task Registrar_ConDepartamentosNoDisponible_AplicaFallbackPendienteValidacion()
+    {
+        var id = $"E-{Guid.NewGuid():N}";
+        var request = CrearEmpleado(id, $"{id}@empresa.com", $"EMP-{id}")
+            with { DepartamentoId = DepartamentoClientFake.DepartamentoCaido };
+
+        var postResponse = await _client.PostAsJsonAsync("/empleados", request);
+
+        Assert.Equal(HttpStatusCode.Created, postResponse.StatusCode);
+        using var postJson = JsonDocument.Parse(await postResponse.Content.ReadAsStringAsync());
+        Assert.Equal("PENDIENTE_VALIDACION", postJson.RootElement.GetProperty("estado").GetString());
+
+        var getResponse = await _client.GetAsync($"/empleados/{id}");
+        using var getJson = JsonDocument.Parse(await getResponse.Content.ReadAsStringAsync());
+        Assert.Equal("PENDIENTE_VALIDACION", getJson.RootElement.GetProperty("estado").GetString());
+    }
+
+    /// <summary>El endpoint de observabilidad expone el estado y la configuración vigente del circuito.</summary>
+    [Fact]
+    public async Task HealthCircuitBreaker_ReportaEstadoDelCircuito()
+    {
+        var response = await _client.GetAsync("/health/circuit-breaker");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal("CLOSED", json.RootElement.GetProperty("estado").GetString());
+        Assert.Equal(3, json.RootElement.GetProperty("fallosConsecutivos").GetInt32());
+        Assert.Equal(30, json.RootElement.GetProperty("duracionCircuitoAbiertoSegundos").GetDouble());
     }
 
     [Fact]

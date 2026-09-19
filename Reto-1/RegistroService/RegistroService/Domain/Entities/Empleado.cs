@@ -59,6 +59,12 @@ public sealed class Empleado
 
     public EstadoEmpleado Estado { get; private set; }
 
+    /// <summary>
+    /// Marca al empleado como pendiente de validación: su departamento no pudo verificarse
+    /// porque DepartamentosService no estaba disponible.
+    /// </summary>
+    public void MarcarPendienteValidacion() => Estado = EstadoEmpleado.PendienteValidacion;
+
     private static string Requerido(string valor, string nombreParametro)
     {
         if (string.IsNullOrWhiteSpace(valor))

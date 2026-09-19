@@ -60,6 +60,7 @@ public static class MappingExtensions
         EstadoEmpleado.Activo => "ACTIVO",
         EstadoEmpleado.EnVacaciones => "EN_VACACIONES",
         EstadoEmpleado.Retirado => "RETIRADO",
+        EstadoEmpleado.PendienteValidacion => "PENDIENTE_VALIDACION",
         _ => throw new ArgumentOutOfRangeException(nameof(estado), estado, null)
     };
 }
