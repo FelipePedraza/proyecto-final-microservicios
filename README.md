@@ -389,4 +389,4 @@ Cada módulo tiene su propia documentación en su carpeta:
 
 ## Licencia
 
-Proyecto académico — UdeA
+Proyecto académico 
