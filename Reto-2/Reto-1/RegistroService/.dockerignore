@@ -1,0 +1,9 @@
+**/bin/
+**/obj/
+**/.idea/
+**/.vs/
+**/*.user
+**/DOC/
+.git/
+.gitignore
+README.md
