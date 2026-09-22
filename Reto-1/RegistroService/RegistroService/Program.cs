@@ -1,4 +1,5 @@
-﻿using RegistroService.Domain.Repositories;
+﻿using RegistroService.Domain.Entities;
+using RegistroService.Domain.Repositories;
 using RegistroService.Domain.Services;
 using RegistroService.Domain.Exceptions;
 using RegistroService.API.DTOs;

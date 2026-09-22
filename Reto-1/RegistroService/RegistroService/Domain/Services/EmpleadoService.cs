@@ -80,7 +80,7 @@ public sealed class EmpleadoService
 
     // LÓGICA RETO 4: Busca el empleado, aplica baja lógica y dispara evento de retirado
 
-    public async Task<Empleado> RetirarAsync(string id, CancellationToken cancellationToken = default)
+    public async Task<Empleado?> RetirarAsync(string id, CancellationToken cancellationToken = default)
     {
         var empleado = await _repository.ObtenerPorIdAsync(id, cancellationToken);
         if (empleado == null)
@@ -98,7 +98,7 @@ public sealed class EmpleadoService
 
     // LÓGICA RETO 4: Modifica un empleado y dispara evento de actualizado
 
-    public async Task<Empleado> ActualizarAsync(string id, Empleado datosActualizados, CancellationToken cancellationToken = default)
+    public async Task<Empleado?> ActualizarAsync(string id, Empleado datosActualizados, CancellationToken cancellationToken = default)
     {
         var empleado = await _repository.ObtenerPorIdAsync(id, cancellationToken);
         if (empleado == null) return null;

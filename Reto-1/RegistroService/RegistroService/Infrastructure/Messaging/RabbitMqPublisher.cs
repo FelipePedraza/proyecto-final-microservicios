@@ -1,4 +1,4 @@
-using System.Text;
+ï»¿using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
@@ -12,8 +12,8 @@ public interface IEventPublisher
 
 public class RabbitMqPublisher : IEventPublisher, IDisposable
 {
-    private readonly IConnection _connection;
-    private readonly IModel _channel;
+    private readonly IConnection? _connection;
+    private readonly IModel? _channel;
     private readonly ILogger<RabbitMqPublisher> _logger;
     private const string ExchangeName = "empleados_exchange";
 
@@ -38,15 +38,15 @@ public class RabbitMqPublisher : IEventPublisher, IDisposable
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error al conectar con RabbitMQ. Los eventos no se publicarán.");
+            _logger.LogError(ex, "Error al conectar con RabbitMQ. Los eventos no se publicarï¿½n.");
         }
     }
 
     public void Publish<T>(string eventType, T data)
     {
-        if (_channel == null || !_connection.IsOpen)
+        if (_channel == null || _connection == null || !_connection.IsOpen)
         {
-            _logger.LogWarning("No hay conexión con RabbitMQ. El evento {EventType} no se publicará, pero la operación continúa.", eventType);
+            _logger.LogWarning("No hay conexiï¿½n con RabbitMQ. El evento {EventType} no se publicarï¿½, pero la operaciï¿½n continï¿½a.", eventType);
             return;
         }
 
@@ -70,7 +70,7 @@ public class RabbitMqPublisher : IEventPublisher, IDisposable
         }
         catch (Exception ex)
         {
-            // Según los requerimientos: Si falla la publicación, registramos el error pero NO revertimos la BD
+            // Segï¿½n los requerimientos: Si falla la publicaciï¿½n, registramos el error pero NO revertimos la BD
             _logger.LogError(ex, "Error al publicar el evento {EventType}", eventType);
         }
     }
