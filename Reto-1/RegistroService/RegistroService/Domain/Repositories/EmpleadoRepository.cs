@@ -81,4 +81,36 @@ public sealed class EmpleadoRepository : IEmpleadoRepository
             throw;
         }
     }
+
+    public async Task ActualizarAsync(
+        Empleado empleado,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(empleado);
+        dbContext.Empleados.Update(empleado);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        dbContext.ChangeTracker.Clear();
+    }
+
+    public async Task<IEnumerable<Empleado>> ObtenerRetiradosAsync(
+        DateTime? desde,
+        DateTime? hasta,
+        CancellationToken cancellationToken = default)
+    {
+        var query = dbContext.Empleados
+            .AsNoTracking()
+            .Where(e => e.Estado == RegistroService.Domain.Enums.EstadoEmpleado.Retirado);
+
+        if (desde.HasValue)
+        {
+            query = query.Where(e => e.FechaRetiro >= desde.Value);
+        }
+
+        if (hasta.HasValue)
+        {
+            query = query.Where(e => e.FechaRetiro <= hasta.Value);
+        }
+
+        return await query.ToListAsync(cancellationToken);
+    }
 }

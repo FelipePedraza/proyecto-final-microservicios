@@ -332,3 +332,12 @@ El Gateway todavÃ­a no cuenta con pruebas automatizadas propias. Deben agregarse
 | Reto 1 | Completado | Registro y consulta individual de empleados |
 | Reto 2 | Completado | Persistencia y comunicaciÃ³n REST entre servicios |
 | Reto 3 | En progreso | ImplementaciÃ³n lista |
+### Justificación de la Elección del Message Broker
+
+Para implementar la comunicación asincrónica y orientada a eventos, se investigaron tres opciones principales: **RabbitMQ**, **Apache Kafka** y **Redis Streams**. Se seleccionó **RabbitMQ** como la tecnología idónea para este proyecto por las siguientes razones:
+
+1. **Retención vs. Mensajería Pura:** A diferencia de **Kafka**, que está diseñado para retener un histórico de eventos de forma persistente (streaming y data pipelines), nuestro caso de uso requiere mensajería transaccional y rápida. Una vez que los microservicios reaccionan a la creación o retiro de un empleado, el evento ya no necesita persistir en el broker. Kafka habría introducido una complejidad innecesaria.
+2. **Patrón Fan-out Nativo:** El reto exige que un solo evento dispare múltiples acciones en distintos microservicios. RabbitMQ, mediante su protocolo AMQP y sus "Exchanges", maneja el enrutamiento *Fan-out* de forma nativa.
+3. **Visibilidad y Depuración:** RabbitMQ incluye una interfaz gráfica (Management UI). Esto permite visualizar en tiempo real los exchanges, colas y mensajes, facilitando las pruebas.
+4. **Estándar de la Industria:** RabbitMQ es ampliamente utilizado para arquitecturas orientadas a eventos en microservicios.
+

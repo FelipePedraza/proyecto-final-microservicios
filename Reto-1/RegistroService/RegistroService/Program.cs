@@ -1,4 +1,4 @@
-using RegistroService.Domain.Repositories;
+﻿using RegistroService.Domain.Repositories;
 using RegistroService.Domain.Services;
 using RegistroService.Domain.Exceptions;
 using RegistroService.API.DTOs;
@@ -39,6 +39,7 @@ builder.Services.AddHttpClient<IDepartamentoClient, DepartamentoClient>((sp, cli
     client.Timeout = sp.GetRequiredService<IOptions<DepartamentosResilienceOptions>>().Value.TimeoutLlamada;
     client.DefaultRequestHeaders.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
 });
+builder.Services.AddSingleton<RegistroService.Infrastructure.Messaging.IEventPublisher, RegistroService.Infrastructure.Messaging.RabbitMqPublisher>();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -236,7 +237,79 @@ app.MapGet("/empleados/{id}", async (
 .Produces(StatusCodes.Status404NotFound)
 .Produces(StatusCodes.Status500InternalServerError);
 
-// Cualquier ruta o método HTTP no soportado debe retornar el mensaje exacto del reto.
+app.MapPut("/empleados/{id}", async (
+    EmpleadoService service,
+    string id,
+    CreateEmpleadoRequest request,
+    CancellationToken cancellationToken) =>
+{
+    var datosNuevos = new Empleado(
+        id: id,
+        nombre: request.Nombre,
+        apellido: request.Apellido,
+        email: request.Email,
+        numeroEmpleado: request.NumeroEmpleado,
+        cargo: request.Cargo,
+        area: request.Area,
+        departamentoId: request.DepartamentoId,
+        fechaIngreso: request.FechaIngreso
+    );
+    
+    var actualizado = await service.ActualizarAsync(id, datosNuevos, cancellationToken);
+    
+    if (actualizado == null)
+        return Results.NotFound(new { error = "El empleado con id " + id + " no existe" });
+        
+    return Results.Ok(actualizado.ToResponse());
+})
+.WithName("ActualizarEmpleado")
+.Produces<EmpleadoResponse>(StatusCodes.Status200OK)
+.Produces(StatusCodes.Status404NotFound);
+
+app.MapGet("/empleados", async (
+    EmpleadoService service,
+    string? estado,
+    DateTime? desde,
+    DateTime? hasta,
+    CancellationToken cancellationToken) =>
+{
+    if (estado == "RETIRADO")
+    {
+        var retirados = await service.ObtenerRetiradosAsync(desde, hasta, cancellationToken);
+        var response = retirados.Select(e => new {
+            e.Id, e.Nombre, e.Apellido, e.Email, e.NumeroEmpleado, e.Cargo, e.Area, e.DepartamentoId, e.FechaIngreso, e.Estado, e.FechaRetiro
+        });
+        return Results.Ok(response);
+    }
+    
+    // Si piden otro estado u omiten, como el reto no lo especifica, podemos retornar 400 o lista vac�a.
+    return Results.BadRequest(new { error = "Solo se soporta la consulta de estado RETIRADO" });
+})
+.WithName("ListarEmpleados")
+.Produces(StatusCodes.Status200OK);
+
+app.MapDelete("/empleados/{id}", async (
+    EmpleadoService service,
+    string id,
+    CancellationToken cancellationToken) =>
+{
+    var empleado = await service.RetirarAsync(id, cancellationToken);
+    
+    if (empleado is null)
+    {
+        return Results.Json(
+            new { error = $"El empleado con id {id} no existe" },
+            statusCode: StatusCodes.Status404NotFound);
+    }
+
+    return Results.NoContent();
+})
+.WithName("RetirarEmpleado")
+.Produces(StatusCodes.Status204NoContent)
+.Produces(StatusCodes.Status404NotFound)
+.Produces(StatusCodes.Status500InternalServerError);
+
+// Cualquier ruta o m�todo HTTP no soportado debe retornar el mensaje exacto del reto.
 app.MapFallback(() => Results.Json(
     new { error = "Recurso no encontrado" },
     statusCode: StatusCodes.Status404NotFound));

@@ -4,6 +4,8 @@ using RegistroService.Domain.Exceptions;
 using RegistroService.Domain.Repositories;
 using RegistroService.Infrastructure.Departamentos;
 
+using RegistroService.Infrastructure.Messaging;
+
 namespace RegistroService.Domain.Services;
 
 /// <summary>
@@ -14,14 +16,17 @@ public sealed class EmpleadoService
     private readonly IEmpleadoRepository _repository;
     private readonly IDepartamentoClient _departamentoClient;
     private readonly ILogger<EmpleadoService> _logger;
+    private readonly IEventPublisher _eventPublisher;
 
     public EmpleadoService(
         IEmpleadoRepository repository,
         IDepartamentoClient departamentoClient,
+        IEventPublisher eventPublisher,
         ILogger<EmpleadoService>? logger = null)
     {
         _repository = repository;
         _departamentoClient = departamentoClient;
+        _eventPublisher = eventPublisher;
         _logger = logger ?? NullLogger<EmpleadoService>.Instance;
     }
 
@@ -34,6 +39,9 @@ public sealed class EmpleadoService
         await VerificarDepartamentoAsync(empleado, cancellationToken);
 
         await _repository.RegistrarAsync(empleado, cancellationToken);
+        
+        _eventPublisher.Publish("empleado.creado", empleado);
+        
         return empleado;
     }
 
@@ -68,5 +76,36 @@ public sealed class EmpleadoService
                 empleado.DepartamentoId, empleado.Id, ex.Message);
             empleado.MarcarPendienteValidacion();
         }
+    }
+
+    public async Task<Empleado> RetirarAsync(string id, CancellationToken cancellationToken = default)
+    {
+        var empleado = await _repository.ObtenerPorIdAsync(id, cancellationToken);
+        if (empleado == null)
+        {
+            return null; // El controlador manejará el 404
+        }
+
+        empleado.Retirar(DateTime.UtcNow);
+        await _repository.ActualizarAsync(empleado, cancellationToken);
+
+        _eventPublisher.Publish("empleado.retirado", empleado);
+
+        return empleado;
+    }
+
+    public async Task<Empleado> ActualizarAsync(string id, Empleado datosActualizados, CancellationToken cancellationToken = default)
+    {
+        var empleado = await _repository.ObtenerPorIdAsync(id, cancellationToken);
+        if (empleado == null) return null;
+
+        await _repository.ActualizarAsync(datosActualizados, cancellationToken);
+        _eventPublisher.Publish("empleado.actualizado", datosActualizados);
+        return datosActualizados;
+    }
+
+    public Task<IEnumerable<Empleado>> ObtenerRetiradosAsync(DateTime? desde, DateTime? hasta, CancellationToken cancellationToken = default)
+    {
+        return _repository.ObtenerRetiradosAsync(desde, hasta, cancellationToken);
     }
 }

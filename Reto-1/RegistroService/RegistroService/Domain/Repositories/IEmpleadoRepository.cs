@@ -14,4 +14,13 @@ public interface IEmpleadoRepository
     Task RegistrarAsync(
         Empleado empleado,
         CancellationToken cancellationToken = default);
+
+    Task ActualizarAsync(
+        Empleado empleado,
+        CancellationToken cancellationToken = default);
+
+    Task<IEnumerable<Empleado>> ObtenerRetiradosAsync(
+        DateTime? desde,
+        DateTime? hasta,
+        CancellationToken cancellationToken = default);
 }

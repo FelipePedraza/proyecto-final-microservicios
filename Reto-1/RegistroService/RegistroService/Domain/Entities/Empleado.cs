@@ -57,6 +57,8 @@ public sealed class Empleado
 
     public DateOnly FechaIngreso { get; private set; }
 
+    public DateTime? FechaRetiro { get; private set; }
+
     public EstadoEmpleado Estado { get; private set; }
 
     /// <summary>
@@ -64,6 +66,15 @@ public sealed class Empleado
     /// porque DepartamentosService no estaba disponible.
     /// </summary>
     public void MarcarPendienteValidacion() => Estado = EstadoEmpleado.PendienteValidacion;
+
+    /// <summary>
+    /// Realiza la baja lógica del empleado.
+    /// </summary>
+    public void Retirar(DateTime fechaRetiro)
+    {
+        Estado = EstadoEmpleado.Retirado;
+        FechaRetiro = fechaRetiro;
+    }
 
     private static string Requerido(string valor, string nombreParametro)
     {
