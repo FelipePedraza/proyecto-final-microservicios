@@ -237,6 +237,8 @@ app.MapGet("/empleados/{id}", async (
 .Produces(StatusCodes.Status404NotFound)
 .Produces(StatusCodes.Status500InternalServerError);
 
+// ENDPOINT RETO 4: Actualización de datos de un empleado (requerido para probar el evento actualizado)
+
 app.MapPut("/empleados/{id}", async (
     EmpleadoService service,
     string id,
@@ -266,6 +268,8 @@ app.MapPut("/empleados/{id}", async (
 .Produces<EmpleadoResponse>(StatusCodes.Status200OK)
 .Produces(StatusCodes.Status404NotFound);
 
+// ENDPOINT RETO 4: Auditoría. Solo retorna empleados en estado RETIRADO y filtra por fecha
+
 app.MapGet("/empleados", async (
     EmpleadoService service,
     string? estado,
@@ -287,6 +291,8 @@ app.MapGet("/empleados", async (
 })
 .WithName("ListarEmpleados")
 .Produces(StatusCodes.Status200OK);
+
+// ENDPOINT RETO 4: Baja Lógica. No borra de BD, cambia el estado a RETIRADO y emite evento
 
 app.MapDelete("/empleados/{id}", async (
     EmpleadoService service,

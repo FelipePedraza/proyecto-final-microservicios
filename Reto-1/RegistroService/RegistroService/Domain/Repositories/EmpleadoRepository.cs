@@ -82,6 +82,8 @@ public sealed class EmpleadoRepository : IEmpleadoRepository
         }
     }
 
+    // Implementación para guardar en DB los cambios de la baja lógica y PUT (Reto 4)
+
     public async Task ActualizarAsync(
         Empleado empleado,
         CancellationToken cancellationToken = default)
@@ -91,6 +93,8 @@ public sealed class EmpleadoRepository : IEmpleadoRepository
         await dbContext.SaveChangesAsync(cancellationToken);
         dbContext.ChangeTracker.Clear();
     }
+
+    // Implementación del filtro de auditoría que exige el Reto 4
 
     public async Task<IEnumerable<Empleado>> ObtenerRetiradosAsync(
         DateTime? desde,

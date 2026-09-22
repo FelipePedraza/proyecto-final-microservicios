@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging.Abstractions;
+﻿using Microsoft.Extensions.Logging.Abstractions;
 using RegistroService.Domain.Entities;
 using RegistroService.Domain.Exceptions;
 using RegistroService.Domain.Repositories;
@@ -54,7 +54,7 @@ public sealed class EmpleadoService
     }
 
     /// <summary>
-    /// Verifica el departamento. Si DepartamentosService no está disponible (llamada fallida tras
+    /// Verifica el departamento. Si DepartamentosService no estÃ¡ disponible (llamada fallida tras
     /// reintentos o circuit breaker abierto) se aplica el FALLBACK: el empleado se registra igual
     /// con estado PENDIENTE_VALIDACION en lugar de rechazar el registro con un 503.
     /// Un departamento inexistente (404 de Departamentos) NO activa el fallback: es un error de negocio.
@@ -78,12 +78,14 @@ public sealed class EmpleadoService
         }
     }
 
+    // LÓGICA RETO 4: Busca el empleado, aplica baja lógica y dispara evento de retirado
+
     public async Task<Empleado> RetirarAsync(string id, CancellationToken cancellationToken = default)
     {
         var empleado = await _repository.ObtenerPorIdAsync(id, cancellationToken);
         if (empleado == null)
         {
-            return null; // El controlador manejará el 404
+            return null; // El controlador manejarÃ¡ el 404
         }
 
         empleado.Retirar(DateTime.UtcNow);
@@ -94,6 +96,8 @@ public sealed class EmpleadoService
         return empleado;
     }
 
+    // LÓGICA RETO 4: Modifica un empleado y dispara evento de actualizado
+
     public async Task<Empleado> ActualizarAsync(string id, Empleado datosActualizados, CancellationToken cancellationToken = default)
     {
         var empleado = await _repository.ObtenerPorIdAsync(id, cancellationToken);
@@ -103,6 +107,8 @@ public sealed class EmpleadoService
         _eventPublisher.Publish("empleado.actualizado", datosActualizados);
         return datosActualizados;
     }
+
+    // LÓGICA RETO 4: Expone la consulta de auditoría hacia el controlador
 
     public Task<IEnumerable<Empleado>> ObtenerRetiradosAsync(DateTime? desde, DateTime? hasta, CancellationToken cancellationToken = default)
     {
