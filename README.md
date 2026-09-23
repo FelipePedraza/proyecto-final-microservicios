@@ -101,6 +101,20 @@ docker compose down
 
 No usar `docker compose down --volumes` durante la demostración: esa variante elimina los datos locales y obliga a recrear las bases.
 
+## Estructura de esquemas SQL
+
+Para mantener una convención uniforme, todos los scripts iniciales de base de datos se almacenan bajo `database/` y se organizan por servicio:
+
+```text
+database/
+  registro/001-schema.sql
+  departamentos/001-schema.sql
+  notificaciones/001-schema.sql
+  perfiles/001-schema.sql
+```
+
+Esto mantiene el mismo patrón para todas las bases y permite que PostgreSQL ejecute los scripts desde `/docker-entrypoint-initdb.d` cuando se crea el volumen por primera vez.
+
 ## Ejemplos por medio del Gateway
 
 ### Crear un departamento

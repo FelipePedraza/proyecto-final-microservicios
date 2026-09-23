@@ -61,7 +61,9 @@ docker compose up --build -d
 Esto regenerará los esquemas iniciales desde:
 
 - `database/registro/001-schema.sql`
-- `departamentos-serviceReto2/init.sql`
+- `database/departamentos/001-schema.sql`
+- `database/notificaciones/001-schema.sql`
+- `database/perfiles/001-schema.sql`
 
 ## 6. Arranque ordenado
 
