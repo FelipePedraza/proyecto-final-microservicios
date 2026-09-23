@@ -9,6 +9,7 @@ Sistema de onboarding de empleados compuesto por microservicios independientes. 
 | `gateway-service` | Java 21, Spring Cloud Gateway | Punto de entrada, enrutamiento, timeout y respuesta 503 controlada | `http://localhost:8088` |
 | `registro-service` | ASP.NET Core 10 | Registro y consulta de empleados; consume DepartamentosService | No publicado; puerto interno `8080` |
 | `departamentos-service` | Python 3.11, FastAPI | Registro y consulta de departamentos | No publicado; puerto interno `8081` |
+| `notificaciones-service` | Node.js 20, Express | Consume eventos y consulta el historial de notificaciones | No publicado; puerto interno `8082` |
 | `registro-db` | PostgreSQL 17 | Persistencia exclusiva de empleados | No publicado |
 | `departamentos-db` | PostgreSQL 17 | Persistencia exclusiva de departamentos | No publicado |
 
@@ -28,6 +29,8 @@ RegistroService                DepartamentosService
 registro-db                    departamentos-db
      |
      +--- REST + Circuit Breaker ---> DepartamentosService
+
+API Gateway ---> NotificacionesService
 ```
 
 ## URL base única
@@ -38,7 +41,8 @@ Desde el Reto 3, toda interacción externa debe usar:
 http://localhost:8088
 ```
 
-Los puertos `8080` y `8081` son internos de Docker. No deben utilizarse desde Postman, Bruno, scripts de prueba ni clientes externos.
+Los puertos `8080`, `8081` y `8082` son internos de Docker. No deben utilizarse desde
+Postman, Bruno, scripts de prueba ni clientes externos.
 
 ## API Gateway
 
@@ -55,6 +59,7 @@ El Gateway no contiene reglas del dominio. Su responsabilidad se limita a enruta
 | `GET /health` | Gateway | Salud propia del punto de entrada |
 | `/empleados/**` | `http://registro-service:8080` | Registrar o consultar empleados |
 | `/departamentos/**` | `http://departamentos-service:8081` | Registrar, listar o consultar departamentos |
+| `/notificaciones/**` | `http://notificaciones-service:8082` | Consultar el historial de notificaciones |
 
 El Gateway conserva la ruta, el cuerpo, las cabeceras y el código de estado producido por el servicio destino. Si el destino no responde, devuelve `503 Service Unavailable` con un cuerpo JSON descriptivo.
 
@@ -156,6 +161,13 @@ curl -i http://localhost:8088/empleados/E001
 ```
 
 > RegistroService actualmente implementa `POST /empleados` y `GET /empleados/{id}`. El listado `GET /empleados` todavía no está implementado.
+
+### Consultar notificaciones
+
+```bash
+curl -i http://localhost:8088/notificaciones
+curl -i http://localhost:8088/notificaciones/E001
+```
 
 ## Circuit Breaker
 

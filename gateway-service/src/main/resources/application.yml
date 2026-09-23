@@ -39,6 +39,15 @@ spring:
                   args:
                     name: perfilesServiceCircuitBreaker
                     fallbackUri: forward:/fallback/perfiles-service
+            - id: notificaciones-service
+              uri: ${NOTIFICACIONES_SERVICE_URL:http://notificaciones-service:8082}
+              predicates:
+                - Path=/notificaciones/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: notificacionesServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/notificaciones-service
 
 resilience4j:
   circuitbreaker:
@@ -49,6 +58,7 @@ resilience4j:
         waitDurationInOpenState: 10s
       departamentosServiceCircuitBreaker: *cb
       perfilesServiceCircuitBreaker: *cb
+      notificacionesServiceCircuitBreaker: *cb
   timelimiter:                       # FALTABA: el default de Spring Cloud CircuitBreaker es 1 s
     instances:
       empleadosServiceCircuitBreaker:
@@ -56,4 +66,6 @@ resilience4j:
       departamentosServiceCircuitBreaker:
         timeoutDuration: 6s
       perfilesServiceCircuitBreaker:
+        timeoutDuration: 6s
+      notificacionesServiceCircuitBreaker:
         timeoutDuration: 6s

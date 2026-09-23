@@ -120,6 +120,7 @@ services:
       EMPLEADOS_SERVICE_URL: ${EMPLEADOS_SERVICE_URL:?Define EMPLEADOS_SERVICE_URL in .env}
       DEPARTAMENTOS_SERVICE_URL: ${DEPARTAMENTOS_SERVICE_URL:?Define DEPARTAMENTOS_SERVICE_URL in .env}
       PERFILES_SERVICE_URL: ${PERFILES_SERVICE_URL:?Define PERFILES_SERVICE_URL in .env}
+      NOTIFICACIONES_SERVICE_URL: ${NOTIFICACIONES_SERVICE_URL:?Define NOTIFICACIONES_SERVICE_URL in .env}
     ports:
       - "${GATEWAY_SERVICE_PORT:?Define GATEWAY_SERVICE_PORT in .env}:8088"
     networks:
@@ -130,6 +131,8 @@ services:
       departamentos-service:
         condition: service_healthy
       perfiles-service:
+        condition: service_healthy
+      notificaciones-service:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8088/health"]
@@ -185,7 +188,7 @@ services:
       RABBITMQ_PORT: ${RABBITMQ_PORT:?Define RABBITMQ_PORT in .env}
       RABBITMQ_USER: ${RABBITMQ_USER:?Define RABBITMQ_USER in .env}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Define RABBITMQ_PASSWORD in .env}
-    ports:
+    expose:
       - "${NOTIFICACIONES_SERVICE_PORT:?Define NOTIFICACIONES_SERVICE_PORT in .env}:8082"
     networks:
       - microservicios-network

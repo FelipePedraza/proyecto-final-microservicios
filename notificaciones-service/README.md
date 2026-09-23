@@ -10,8 +10,9 @@ volumen `notificaciones-data`, y cuatro variables de entorno a `registro-service
 (`RABBITMQ_HOST` y credenciales) que le faltaban para poder conectarse al broker
 dentro de Docker Compose — sin esa configuración, `empleado.creado` nunca salía de su
 contenedor y este servicio no recibía nada. Ese cambio se coordinó primero con el
-responsable de `registro-service` (Integrante 1). No se tocó `gateway-service` ni
-`message-broker`. El detalle está en la sección 7 de
+responsable de `registro-service` (Integrante 1). No se tocó `message-broker`; el
+Gateway ahora registra la ruta `/notificaciones/**` hacia este servicio. El detalle
+está en la sección 7 de
 [`DOC/Notificaciones-Diseno.md`](DOC/Notificaciones-Diseno.md).
 
 ## Stack
@@ -31,10 +32,10 @@ microservicio.
 | `GET` | `/health/ready` | Readiness: además, la base de datos responde. |
 | `GET` | `/docs` | Swagger UI (OpenAPI generado desde el código de las rutas). |
 
-`notificaciones-service` publica su puerto directamente al host (`8082` por defecto,
-`NOTIFICACIONES_SERVICE_PORT` en `.env`): a diferencia de `registro-service` y
-`departamentos-service`, no pasa por el Gateway. Integrarlo al Gateway no forma parte
-de lo pedido para este servicio (ver `DOC/Notificaciones-Diseno.md`).
+En Docker Compose, `notificaciones-service` escucha internamente en `8082` y se expone
+al resto de la red privada para que el Gateway lo enrute. El acceso desde el host se
+hace mediante el Gateway en `http://localhost:8088`; el puerto `8082` sigue siendo útil
+para ejecutar el contenedor de forma aislada o desarrollar localmente.
 
 ## Cómo correrlo
 
@@ -45,7 +46,7 @@ Desde la raíz del repositorio:
 ```bash
 docker compose up --build -d
 docker compose ps          # notificaciones-service y notificaciones-db en "healthy"
-curl http://localhost:8082/notificaciones
+curl http://localhost:8088/notificaciones
 ```
 
 ### Local, sin Docker (para desarrollar)

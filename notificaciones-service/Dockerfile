@@ -3,6 +3,7 @@
 #
 # Construccion y ejecucion (desde esta carpeta):
 #   docker build -t notificaciones-service .
+#   (ejecucion aislada; en Docker Compose se accede mediante el Gateway en 8088)
 #   docker run --rm -p 8082:8082 notificaciones-service
 #
 # Sigue el mismo patron de seguridad ya establecido en el resto del proyecto

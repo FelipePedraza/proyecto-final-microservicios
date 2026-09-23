@@ -89,8 +89,10 @@ Postgres ni RabbitMQ para correr `npm test`.
 | `docker-compose.yml` | Dos bloques nuevos: `notificaciones-db` y `notificaciones-service`, más el volumen `notificaciones-data`. También la sección de `registro-service` (ver §7). |
 | `.env.example` | Variables de la base de datos de `notificaciones-service` (mismo patrón que las de `REGISTRO_DB_*`/`DEPARTAMENTOS_DB_*` que ya estaban). |
 
-`notificaciones-service` publica su puerto directamente al host (`ports`, no
-`expose`), sin pasar por el Gateway.
+En Docker Compose, `notificaciones-service` escucha en el puerto interno `8082` y se
+expone únicamente dentro de `microservicios-network`. El Gateway lo publica hacia el
+host mediante `http://localhost:8088/notificaciones`; el mapeo directo `8082:8082` del
+Dockerfile corresponde solo a una ejecución aislada del contenedor.
 
 ## 5. Contrato del evento (de dónde sale, qué se asume)
 
@@ -182,9 +184,9 @@ bloquea el arranque del servidor HTTP.
 
 ## 7. Cambios fuera de esta carpeta
 
-El único archivo compartido que se modificó, además de `docker-compose.yml` y
-`.env.example` (ambos solo con líneas agregadas, ver §4), es la sección de
-`registro-service` dentro de `docker-compose.yml`: se le agregaron las variables
+Los cambios de integración fuera de esta carpeta se hicieron en `docker-compose.yml`,
+`.env.example` y la configuración de rutas de `gateway-service`. En Compose se agregó
+la sección de `registro-service`, a la que se le agregaron las variables
 `RABBITMQ_HOST=message-broker`, `RABBITMQ_PORT`, `RABBITMQ_USER` y
 `RABBITMQ_PASSWORD`, y se agregó `message-broker` a su `depends_on` (con
 `condition: service_started`, porque `message-broker` no tiene healthcheck en este
@@ -198,7 +200,9 @@ cualquier otro consumidor) cuando todo corre junto con Docker Compose. No se mod
 ninguna línea de código C#, solo configuración de despliegue, y se coordinó con el
 responsable de `empleados-service` (Integrante 1) antes de aplicarla.
 
-`gateway-service` y la definición de `message-broker` no se modificaron.
+`gateway-service` ahora incluye una ruta `/notificaciones/**` hacia
+`http://notificaciones-service:8082`, con su propio Circuit Breaker. La definición de
+`message-broker` no se modificó.
 
 ## 8. Verificación
 
