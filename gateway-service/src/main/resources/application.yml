@@ -30,6 +30,15 @@ spring:
                   args:
                     name: departamentosServiceCircuitBreaker
                     fallbackUri: forward:/fallback/departamentos-service
+            - id: perfiles-service
+              uri: ${PERFILES_SERVICE_URL:http://perfiles-service:8083}
+              predicates:
+                - Path=/perfiles/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: perfilesServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/perfiles-service
 
 resilience4j:
   circuitbreaker:
@@ -39,9 +48,12 @@ resilience4j:
         failureRateThreshold: 50
         waitDurationInOpenState: 10s
       departamentosServiceCircuitBreaker: *cb
+      perfilesServiceCircuitBreaker: *cb
   timelimiter:                       # FALTABA: el default de Spring Cloud CircuitBreaker es 1 s
     instances:
       empleadosServiceCircuitBreaker:
         timeoutDuration: 6s
       departamentosServiceCircuitBreaker:
+        timeoutDuration: 6s
+      perfilesServiceCircuitBreaker:
         timeoutDuration: 6s

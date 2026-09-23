@@ -332,12 +332,20 @@ El Gateway todavÃ­a no cuenta con pruebas automatizadas propias. Deben agregarse
 | Reto 1 | Completado | Registro y consulta individual de empleados |
 | Reto 2 | Completado | Persistencia y comunicaciÃ³n REST entre servicios |
 | Reto 3 | En progreso | ImplementaciÃ³n lista |
-### Justificación de la Elección del Message Broker
+### Justificaciï¿½n de la Elecciï¿½n del Message Broker
 
-Para implementar la comunicación asincrónica y orientada a eventos, se investigaron tres opciones principales: **RabbitMQ**, **Apache Kafka** y **Redis Streams**. Se seleccionó **RabbitMQ** como la tecnología idónea para este proyecto por las siguientes razones:
+Para implementar la comunicaciï¿½n asincrï¿½nica y orientada a eventos, se investigaron tres opciones principales: **RabbitMQ**, **Apache Kafka** y **Redis Streams**. Se seleccionï¿½ **RabbitMQ** como la tecnologï¿½a idï¿½nea para este proyecto por las siguientes razones:
 
-1. **Retención vs. Mensajería Pura:** A diferencia de **Kafka**, que está diseñado para retener un histórico de eventos de forma persistente (streaming y data pipelines), nuestro caso de uso requiere mensajería transaccional y rápida. Una vez que los microservicios reaccionan a la creación o retiro de un empleado, el evento ya no necesita persistir en el broker. Kafka habría introducido una complejidad innecesaria.
-2. **Patrón Fan-out Nativo:** El reto exige que un solo evento dispare múltiples acciones en distintos microservicios. RabbitMQ, mediante su protocolo AMQP y sus "Exchanges", maneja el enrutamiento *Fan-out* de forma nativa.
-3. **Visibilidad y Depuración:** RabbitMQ incluye una interfaz gráfica (Management UI). Esto permite visualizar en tiempo real los exchanges, colas y mensajes, facilitando las pruebas.
-4. **Estándar de la Industria:** RabbitMQ es ampliamente utilizado para arquitecturas orientadas a eventos en microservicios.
+1. **Retenciï¿½n vs. Mensajerï¿½a Pura:** A diferencia de **Kafka**, que estï¿½ diseï¿½ado para retener un histï¿½rico de eventos de forma persistente (streaming y data pipelines), nuestro caso de uso requiere mensajerï¿½a transaccional y rï¿½pida. Una vez que los microservicios reaccionan a la creaciï¿½n o retiro de un empleado, el evento ya no necesita persistir en el broker. Kafka habrï¿½a introducido una complejidad innecesaria.
+2. **Patrï¿½n Fan-out Nativo:** El reto exige que un solo evento dispare mï¿½ltiples acciones en distintos microservicios. RabbitMQ, mediante su protocolo AMQP y sus "Exchanges", maneja el enrutamiento *Fan-out* de forma nativa.
+3. **Visibilidad y Depuraciï¿½n:** RabbitMQ incluye una interfaz grï¿½fica (Management UI). Esto permite visualizar en tiempo real los exchanges, colas y mensajes, facilitando las pruebas.
+4. **Estï¿½ndar de la Industria:** RabbitMQ es ampliamente utilizado para arquitecturas orientadas a eventos en microservicios.
+### Perfiles Service (Reto 4)
 
+| Servicio | Lenguaje | Base de datos |
+|---|---|---|
+| `perfiles-service` | Go 1.22 | PostgreSQL 17 |
+
+Go aporta un binario estÃ¡tico pequeÃ±o y concurrencia nativa para el consumidor RabbitMQ; PostgreSQL garantiza restricciones `UNIQUE`, transacciones y deduplicaciÃ³n durable. El servicio consume `empleado.creado`, `empleado.actualizado` y `empleado.retirado` del CatÃ¡logo de Eventos publicado en `empleados_exchange`.
+
+Para probarlo: ejecutar `docker compose up --build`, crear un empleado por `http://localhost:8088/empleados`, consultar `http://localhost:8088/perfiles/{empleadoId}` y actualizar los campos propios mediante `PUT`. Publicar dos veces el mismo envelope en RabbitMQ deja una sola fila: el log del segundo consumo muestra `duplicate event`. Un retiro conserva el perfil y marca `archivado=true`; los datos sobreviven al reinicio por el volumen `perfiles-data`.
