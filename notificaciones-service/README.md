@@ -7,7 +7,7 @@ notificación (log) y guarda un historial consultable, con deduplicación por id
 No modifica código de ningún otro servicio del repositorio: en `docker-compose.yml` se
 agregaron sus propios dos bloques (`notificaciones-db` y `notificaciones-service`), el
 volumen `notificaciones-data`, y cuatro variables de entorno a `registro-service`
-(`RabbitMQ__Host` y credenciales) que le faltaban para poder conectarse al broker
+(`RABBITMQ_HOST` y credenciales) que le faltaban para poder conectarse al broker
 dentro de Docker Compose — sin esa configuración, `empleado.creado` nunca salía de su
 contenedor y este servicio no recibía nada. Ese cambio se coordinó primero con el
 responsable de `registro-service` (Integrante 1). No se tocó `gateway-service` ni

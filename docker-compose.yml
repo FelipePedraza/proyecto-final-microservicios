@@ -4,9 +4,9 @@ services:
   registro-db:
     image: postgres:17-alpine
     environment:
-      POSTGRES_DB: ${REGISTRO_DB_NAME:-registro_db}
-      POSTGRES_USER: ${REGISTRO_DB_USER:-registro_user}
-      POSTGRES_PASSWORD: ${REGISTRO_DB_PASSWORD:-registro_password}
+      POSTGRES_DB: ${REGISTRO_DB_NAME:?Define REGISTRO_DB_NAME in .env}
+      POSTGRES_USER: ${REGISTRO_DB_USER:?Define REGISTRO_DB_USER in .env}
+      POSTGRES_PASSWORD: ${REGISTRO_DB_PASSWORD:?Define REGISTRO_DB_PASSWORD in .env}
     volumes:
       - registro-data:/var/lib/postgresql/data
       - ./database/registro:/docker-entrypoint-initdb.d:ro
@@ -23,9 +23,9 @@ services:
   departamentos-db:
     image: postgres:17-alpine
     environment:
-      POSTGRES_DB: ${DEPARTAMENTOS_DB_NAME:-departamentos_db}
-      POSTGRES_USER: ${DEPARTAMENTOS_DB_USER:-departamentos_user}
-      POSTGRES_PASSWORD: ${DEPARTAMENTOS_DB_PASSWORD:-departamentos_password}
+      POSTGRES_DB: ${DEPARTAMENTOS_DB_NAME:?Define DEPARTAMENTOS_DB_NAME in .env}
+      POSTGRES_USER: ${DEPARTAMENTOS_DB_USER:?Define DEPARTAMENTOS_DB_USER in .env}
+      POSTGRES_PASSWORD: ${DEPARTAMENTOS_DB_PASSWORD:?Define DEPARTAMENTOS_DB_PASSWORD in .env}
     volumes:
       - departamentos-data:/var/lib/postgresql/data
       - ./departamentos-serviceReto2/init.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro
@@ -45,11 +45,11 @@ services:
     environment:
       DB_DEPARTAMENTOS_HOST: departamentos-db
       DB_DEPARTAMENTOS_PORT: 5432
-      DB_DEPARTAMENTOS_NAME: ${DEPARTAMENTOS_DB_NAME:-departamentos_db}
-      DB_DEPARTAMENTOS_USER: ${DEPARTAMENTOS_DB_USER:-departamentos_user}
-      DB_DEPARTAMENTOS_PASSWORD: ${DEPARTAMENTOS_DB_PASSWORD:-departamentos_password}
+      DB_DEPARTAMENTOS_NAME: ${DEPARTAMENTOS_DB_NAME:?Define DEPARTAMENTOS_DB_NAME in .env}
+      DB_DEPARTAMENTOS_USER: ${DEPARTAMENTOS_DB_USER:?Define DEPARTAMENTOS_DB_USER in .env}
+      DB_DEPARTAMENTOS_PASSWORD: ${DEPARTAMENTOS_DB_PASSWORD:?Define DEPARTAMENTOS_DB_PASSWORD in .env}
     expose:
-      - "${DEPARTAMENTOS_SERVICE_PORT:-8081}"
+      - "${DEPARTAMENTOS_SERVICE_PORT:?Define DEPARTAMENTOS_SERVICE_PORT in .env}"
     networks:
       - microservicios-network
     depends_on:
@@ -71,24 +71,24 @@ services:
     build:
       context: ./Reto-1/RegistroService
     environment:
-      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:?Define ASPNETCORE_ENVIRONMENT in .env}
       ASPNETCORE_URLS: http://+:8080
-      ConnectionStrings__Registro: Host=registro-db;Port=5432;Database=${REGISTRO_DB_NAME:-registro_db};Username=${REGISTRO_DB_USER:-registro_user};Password=${REGISTRO_DB_PASSWORD:-registro_password}
+      ConnectionStrings__Registro: Host=registro-db;Port=5432;Database=${REGISTRO_DB_NAME:?Define REGISTRO_DB_NAME in .env};Username=${REGISTRO_DB_USER:?Define REGISTRO_DB_USER in .env};Password=${REGISTRO_DB_PASSWORD:?Define REGISTRO_DB_PASSWORD in .env}
       Departamentos__BaseUrl: http://departamentos-service:8081/
       # Circuits breaker hacia Departamentos (reto: 3-5 fallos consecutivos, circuito abierto 30-60 s)
-      Departamentos__Resilience__FallosConsecutivos: ${CB_FALLOS_CONSECUTIVOS:-3}
-      Departamentos__Resilience__TimeoutLlamada: ${CB_TIMEOUT_LLAMADA:-00:00:05}
-      Departamentos__Resilience__DuracionCircuitoAbierto: ${CB_DURACION_CIRCUITO_ABIERTO:-00:00:30}
+      Departamentos__Resilience__FallosConsecutivos: ${CB_FALLOS_CONSECUTIVOS:?Define CB_FALLOS_CONSECUTIVOS in .env}
+      Departamentos__Resilience__TimeoutLlamada: ${CB_TIMEOUT_LLAMADA:?Define CB_TIMEOUT_LLAMADA in .env}
+      Departamentos__Resilience__DuracionCircuitoAbierto: ${CB_DURACION_CIRCUITO_ABIERTO:?Define CB_DURACION_CIRCUITO_ABIERTO in .env}
       # RabbitMQ (Reto 4): sin esto, RabbitMqPublisher usa su default "localhost", que
       # dentro del contenedor de registro-service apunta a si mismo, no al broker. Con
       # eso empleado.creado nunca sale y ningun consumidor (notificaciones-service) lo
-      # recibe. Debe coincidir con RABBITMQ_DEFAULT_USER/PASS de message-broker abajo.
-      RabbitMQ__Host: message-broker
-      RabbitMQ__Port: 5672
-      RabbitMQ__Username: admin
-      RabbitMQ__Password: admin
+      # recibe. Debe coincidir con las credenciales configuradas en message-broker abajo.
+      RabbitMQ__Host: ${RABBITMQ_HOST:?Define RABBITMQ_HOST in .env}
+      RabbitMQ__Port: ${RABBITMQ_PORT:?Define RABBITMQ_PORT in .env}
+      RabbitMQ__Username: ${RABBITMQ_USER:?Define RABBITMQ_USER in .env}
+      RabbitMQ__Password: ${RABBITMQ_PASSWORD:?Define RABBITMQ_PASSWORD in .env}
     expose:
-      - "${REGISTRO_SERVICE_PORT:-8080}"
+      - "${REGISTRO_SERVICE_PORT:?Define REGISTRO_SERVICE_PORT in .env}"
     networks:
       - microservicios-network
     depends_on:
@@ -118,7 +118,7 @@ services:
       EMPLEADOS_SERVICE_URL: http://registro-service:8080
       DEPARTAMENTOS_SERVICE_URL: http://departamentos-service:8081
     ports:
-      - "${GATEWAY_SERVICE_PORT:-8088}:8088"
+      - "${GATEWAY_SERVICE_PORT:?Define GATEWAY_SERVICE_PORT in .env}:8088"
     networks:
       - microservicios-network
     depends_on:
@@ -138,11 +138,11 @@ services:
     image: rabbitmq:3-management
     container_name: rabbitmq-broker
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "${RABBITMQ_AMQP_PORT:?Define RABBITMQ_AMQP_PORT in .env}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:?Define RABBITMQ_MANAGEMENT_PORT in .env}:15672"
     environment:
-      RABBITMQ_DEFAULT_USER: admin
-      RABBITMQ_DEFAULT_PASS: admin
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?Define RABBITMQ_USER in .env}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Define RABBITMQ_PASSWORD in .env}
     networks:
       - microservicios-network
     restart: unless-stopped
@@ -150,9 +150,9 @@ services:
   notificaciones-db:
     image: postgres:17-alpine
     environment:
-      POSTGRES_DB: ${NOTIFICACIONES_DB_NAME:-notificaciones_db}
-      POSTGRES_USER: ${NOTIFICACIONES_DB_USER:-notificaciones_user}
-      POSTGRES_PASSWORD: ${NOTIFICACIONES_DB_PASSWORD:-notificaciones_password}
+      POSTGRES_DB: ${NOTIFICACIONES_DB_NAME:?Define NOTIFICACIONES_DB_NAME in .env}
+      POSTGRES_USER: ${NOTIFICACIONES_DB_USER:?Define NOTIFICACIONES_DB_USER in .env}
+      POSTGRES_PASSWORD: ${NOTIFICACIONES_DB_PASSWORD:?Define NOTIFICACIONES_DB_PASSWORD in .env}
     volumes:
       - notificaciones-data:/var/lib/postgresql/data
       - ./notificaciones-service/init.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro
@@ -173,15 +173,15 @@ services:
       PORT: 8082
       DB_HOST: notificaciones-db
       DB_PORT: 5432
-      DB_NAME: ${NOTIFICACIONES_DB_NAME:-notificaciones_db}
-      DB_USER: ${NOTIFICACIONES_DB_USER:-notificaciones_user}
-      DB_PASSWORD: ${NOTIFICACIONES_DB_PASSWORD:-notificaciones_password}
-      RABBITMQ_HOST: message-broker
-      RABBITMQ_PORT: 5672
-      RABBITMQ_USER: admin
-      RABBITMQ_PASSWORD: admin
+      DB_NAME: ${NOTIFICACIONES_DB_NAME:?Define NOTIFICACIONES_DB_NAME in .env}
+      DB_USER: ${NOTIFICACIONES_DB_USER:?Define NOTIFICACIONES_DB_USER in .env}
+      DB_PASSWORD: ${NOTIFICACIONES_DB_PASSWORD:?Define NOTIFICACIONES_DB_PASSWORD in .env}
+      RABBITMQ_HOST: ${RABBITMQ_HOST:?Define RABBITMQ_HOST in .env}
+      RABBITMQ_PORT: ${RABBITMQ_PORT:?Define RABBITMQ_PORT in .env}
+      RABBITMQ_USER: ${RABBITMQ_USER:?Define RABBITMQ_USER in .env}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Define RABBITMQ_PASSWORD in .env}
     ports:
-      - "${NOTIFICACIONES_SERVICE_PORT:-8082}:8082"
+      - "${NOTIFICACIONES_SERVICE_PORT:?Define NOTIFICACIONES_SERVICE_PORT in .env}:8082"
     networks:
       - microservicios-network
     depends_on:

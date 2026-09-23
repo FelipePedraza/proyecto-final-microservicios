@@ -185,8 +185,8 @@ bloquea el arranque del servidor HTTP.
 El único archivo compartido que se modificó, además de `docker-compose.yml` y
 `.env.example` (ambos solo con líneas agregadas, ver §4), es la sección de
 `registro-service` dentro de `docker-compose.yml`: se le agregaron las variables
-`RabbitMQ__Host: message-broker`, `RabbitMQ__Port`, `RabbitMQ__Username` y
-`RabbitMQ__Password`, y se agregó `message-broker` a su `depends_on` (con
+`RABBITMQ_HOST=message-broker`, `RABBITMQ_PORT`, `RABBITMQ_USER` y
+`RABBITMQ_PASSWORD`, y se agregó `message-broker` a su `depends_on` (con
 `condition: service_started`, porque `message-broker` no tiene healthcheck en este
 compose).
 
