@@ -79,6 +79,14 @@ services:
       Departamentos__Resilience__FallosConsecutivos: ${CB_FALLOS_CONSECUTIVOS:-3}
       Departamentos__Resilience__TimeoutLlamada: ${CB_TIMEOUT_LLAMADA:-00:00:05}
       Departamentos__Resilience__DuracionCircuitoAbierto: ${CB_DURACION_CIRCUITO_ABIERTO:-00:00:30}
+      # RabbitMQ (Reto 4): sin esto, RabbitMqPublisher usa su default "localhost", que
+      # dentro del contenedor de registro-service apunta a si mismo, no al broker. Con
+      # eso empleado.creado nunca sale y ningun consumidor (notificaciones-service) lo
+      # recibe. Debe coincidir con RABBITMQ_DEFAULT_USER/PASS de message-broker abajo.
+      RabbitMQ__Host: message-broker
+      RabbitMQ__Port: 5672
+      RabbitMQ__Username: admin
+      RabbitMQ__Password: admin
     expose:
       - "${REGISTRO_SERVICE_PORT:-8080}"
     networks:
@@ -88,6 +96,12 @@ services:
         condition: service_healthy
       departamentos-service:
         condition: service_healthy
+      # message-broker no define healthcheck en este compose, asi que solo se puede
+      # esperar a que el contenedor arranque, no a que ya acepte conexiones. RabbitMqPublisher
+      # solo intenta conectar una vez al arrancar (no reintenta), asi que esto reduce el
+      # riesgo de una carrera de arranque, pero no lo elimina del todo.
+      message-broker:
+        condition: service_started
     healthcheck:
       test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8080/health/ready"]
       interval: 10s
@@ -133,6 +147,60 @@ services:
       - microservicios-network
     restart: unless-stopped
 
+  notificaciones-db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${NOTIFICACIONES_DB_NAME:-notificaciones_db}
+      POSTGRES_USER: ${NOTIFICACIONES_DB_USER:-notificaciones_user}
+      POSTGRES_PASSWORD: ${NOTIFICACIONES_DB_PASSWORD:-notificaciones_password}
+    volumes:
+      - notificaciones-data:/var/lib/postgresql/data
+      - ./notificaciones-service/init.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro
+    networks:
+      - microservicios-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
+
+  notificaciones-service:
+    build:
+      context: ./notificaciones-service
+    environment:
+      PORT: 8082
+      DB_HOST: notificaciones-db
+      DB_PORT: 5432
+      DB_NAME: ${NOTIFICACIONES_DB_NAME:-notificaciones_db}
+      DB_USER: ${NOTIFICACIONES_DB_USER:-notificaciones_user}
+      DB_PASSWORD: ${NOTIFICACIONES_DB_PASSWORD:-notificaciones_password}
+      RABBITMQ_HOST: message-broker
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: admin
+      RABBITMQ_PASSWORD: admin
+    ports:
+      - "${NOTIFICACIONES_SERVICE_PORT:-8082}:8082"
+    networks:
+      - microservicios-network
+    depends_on:
+      notificaciones-db:
+        condition: service_healthy
+      # message-broker no define healthcheck en este compose, asi que no se puede pedir
+      # "service_healthy" de el; se espera solo a que el contenedor arranque. Si RabbitMQ
+      # todavia no acepta conexiones en ese momento, rabbitConsumer.js reintenta solo
+      # (ver notificaciones-service/src/messaging/rabbitConsumer.js).
+      message-broker:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8082/health/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
 networks:
   microservicios-network:
     driver: bridge
@@ -140,3 +208,4 @@ networks:
 volumes:
   registro-data:
   departamentos-data:
+  notificaciones-data:
