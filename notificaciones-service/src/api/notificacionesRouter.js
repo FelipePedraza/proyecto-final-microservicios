@@ -1,6 +1,7 @@
 'use strict';
 
 const { Router } = require('express');
+const { tipoNotificacion, obtenerDestinatario } = require('../domain/eventoParser');
 
 /**
  * @openapi
@@ -8,41 +9,42 @@ const { Router } = require('express');
  *   schemas:
  *     Notificacion:
  *       type: object
+ *       required: [id, tipo, destinatario, mensaje, fechaEnvio, empleadoId]
  *       properties:
  *         id:
- *           type: integer
- *           example: 1
- *         eventoId:
  *           type: string
- *           description: Id del evento origen (usado para deduplicar).
- *           example: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
- *         tipoEvento:
+ *           example: "1"
+ *         tipo:
  *           type: string
- *           example: "empleado.creado"
+ *           enum: [BIENVENIDA, DESVINCULACION, VACACIONES]
+ *           example: DESVINCULACION
+ *         destinatario:
+ *           type: string
+ *           format: email
+ *           example: "juan.perez@empresa.com"
+ *         mensaje:
+ *           type: string
+ *           example: "Su cuenta ha sido desvinculada."
+ *         fechaEnvio:
+ *           type: string
+ *           format: date-time
  *         empleadoId:
  *           type: string
  *           example: "E001"
- *         mensaje:
- *           type: string
- *           example: "Notificación de bienvenida enviada a Juan Pérez (cargo: Desarrollador)."
- *         payload:
- *           type: object
- *           description: Envelope crudo del evento, tal como llegó por RabbitMQ.
- *         creadoEn:
- *           type: string
- *           format: date-time
  */
 
 /** Convierte una fila de la tabla `notificaciones` (snake_case) al contrato JSON de la API. */
 function aRespuesta(fila) {
+  const payload = fila.payload ?? {};
+  const data = payload.Data ?? payload.data ?? {};
+
   return {
-    id: fila.id,
-    eventoId: fila.evento_id,
-    tipoEvento: fila.tipo_evento,
-    empleadoId: fila.empleado_id,
+    id: String(fila.id),
+    tipo: tipoNotificacion(fila.tipo_evento),
+    destinatario: fila.destinatario ?? obtenerDestinatario(data) ?? 'no informado',
     mensaje: fila.mensaje,
-    payload: fila.payload,
-    creadoEn: fila.creado_en,
+    fechaEnvio: fila.creado_en,
+    empleadoId: fila.empleado_id,
   };
 }
 

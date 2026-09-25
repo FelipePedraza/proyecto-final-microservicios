@@ -9,18 +9,19 @@ qué se creó, dónde, y el razonamiento detrás de cada decisión.
 | Requisito | Resultado |
 |-----------|-----------|
 | Servicio y base de datos propios | `notificaciones-service` (Node/Express) + `notificaciones-db` (Postgres), ambos nuevos en `docker-compose.yml` |
-| Consumir `empleado.creado` y `vacaciones.programadas` | Consumidor de RabbitMQ ligado al exchange fanout `empleados_exchange` |
-| Generar logs simulando notificaciones | `console.log` por cada notificación procesada (ver `notificacionService.js`) |
-| Guardar historial | Tabla `notificaciones`, con el *payload* crudo del evento en una columna `JSONB` |
+| Consumir `empleado.creado`, `empleado.retirado` y `vacaciones.programadas` | Consumidor de RabbitMQ ligado al exchange fanout `empleados_exchange` |
+| Generar logs simulando notificaciones | Log `[NOTIFICACIÓN] Tipo: ... | Para: ... | Mensaje: ...` por cada notificación procesada |
+| Guardar historial | Tabla `notificaciones`; la API expone `id`, `tipo`, `destinatario`, `mensaje`, `fechaEnvio` y `empleadoId` |
 | `GET /notificaciones` y `GET /notificaciones/{empleadoId}` | Implementados |
 | Deduplicación por id del evento | `UNIQUE (evento_id)` + `ON CONFLICT DO NOTHING` |
 | Dockerfile + Swagger/OpenAPI | Implementados |
 
-Explícitamente **fuera** de este alcance (responsabilidad de otros integrantes, según
-la asignación de tareas del Reto 4): `perfiles-service` (Integrante 3, consume
-`empleado.actualizado`/`empleado.retirado`) y `vacaciones-service` (Integrante 4, que
-además publica `vacaciones.programadas` e integra `/vacaciones` al Gateway). No se creó
-ni se tocó código de ninguno de los dos.
+También existe `perfiles-service` (Integrante 3), que consume `empleado.actualizado` y
+`empleado.retirado` para mantener su propio historial de perfiles. El evento de retiro
+lo procesan ambos servicios con propósitos distintos: perfiles archiva el estado y
+notificaciones guarda el aviso en el historial consultable. `vacaciones-service`
+(Integrante 4) publica `vacaciones.programadas` e integra `/vacaciones` al Gateway. No se
+creó ni se tocó código de ninguno de esos servicios.
 
 ## 2. Por qué Node.js/Express
 
@@ -80,7 +81,7 @@ Postgres ni RabbitMQ para correr `npm test`.
 | `src/server.js` | Punto de entrada: arranca `app.js`, el consumidor de RabbitMQ, y el apagado ordenado (`SIGTERM`/`SIGINT`). |
 | `init.sql` | Esquema de la tabla `notificaciones` (mismo patrón que `database/registro/001-schema.sql` y `departamentos-serviceReto2/init.sql`: lo ejecuta Postgres solo, la primera vez que crea el volumen). |
 | `Dockerfile`, `.dockerignore` | Build multi-stage, usuario sin privilegios (UID 10001), mismo patrón que los demás `Dockerfile` del repositorio. |
-| `test/*.test.js` | 22 pruebas con Jest + Supertest (detalladas en el `README.md` del servicio). |
+| `test/*.test.js` | 26 pruebas con Jest + Supertest (detalladas en el `README.md` del servicio). |
 
 ### Cambios fuera de la carpeta del servicio
 
@@ -124,13 +125,11 @@ Por eso `eventoParser.js` busca cada campo probando varias formas de escribirlo
 las dos formas que depender de un detalle de serialización de un servicio que no
 se controla y que podría cambiar sin aviso.
 
-`vacaciones.programadas` todavía no tiene productor en el repositorio (lo publicará
-`vacaciones-service`, Integrante 4). Se diseñó el parseo para degradar con gracia si
-faltan campos que no son esenciales (fechas), y se documenta aquí la forma que se
-asumió para el mensaje simulado: `{ EmpleadoId, FechaInicio, FechaFin }` (o sus
-variantes en minúscula). Si el evento real sale con otra forma, solo hay que ajustar
-`construirMensaje()` en `eventoParser.js`; el resto del servicio (deduplicación,
-persistencia, endpoints) no depende de esa forma.
+`vacaciones.programadas` lo publica `vacaciones-service` con `empleadoId`,
+`fechaInicio` y `fechaFin`; ese evento no incluye el correo del empleado. Para
+registrar el destinatario sin alterar el contrato del evento, Notificaciones lo
+resuelve desde el payload de `empleado.creado` que ya conserva en el historial.
+El parseo tolera PascalCase/camelCase y degrada con gracia si faltan fechas.
 
 ## 6. Decisiones de la capa de mensajería
 
@@ -138,11 +137,13 @@ persistencia, endpoints) no depende de esa forma.
 
 `empleados_exchange` es `fanout` y ya lo declara el productor: todo lo que se publica
 ahí llega a **todas** las colas ligadas, sin importar el tipo de evento. Se declaró la
-misma cola para ambos eventos (`empleado.creado` y `vacaciones.programadas`) porque no
-hay manera de pedirle al fanout que filtre por tipo — el filtro pasa por `Type` dentro
+misma cola para los tres tipos que procesa este servicio (`empleado.creado`,
+`empleado.retirado` y `vacaciones.programadas`) porque no hay manera de pedirle al
+fanout que filtre por tipo — el filtro pasa por `Type` dentro
 del mensaje, en `notificacionService.procesarEvento`, ignorando sin error los tipos
-que no interesan (`empleado.actualizado`, `empleado.retirado`, que también viajan por
-el mismo exchange para `perfiles-service`).
+que no interesan (por ejemplo, `empleado.actualizado`). `empleado.retirado` sí se procesa
+aquí para guardar la notificación; `perfiles-service` lo consume en paralelo para
+archivar el perfil.
 
 La cola es durable y con nombre fijo (`notificaciones.empleados`), no exclusiva ni
 auto-delete: así sobrevive a un reinicio de `notificaciones-service` sin perder los
@@ -206,9 +207,13 @@ responsable de `empleados-service` (Integrante 1) antes de aplicarla.
 
 ## 8. Verificación
 
-- **Pruebas automáticas:** `npm test` corre 22 pruebas (Jest + Supertest) contra la
+- **Pruebas automáticas:** `npm test` corre 26 pruebas (Jest + Supertest) contra la
   lógica de dominio y los endpoints HTTP, con un repositorio y un servicio falsos en
-  memoria — no requieren Postgres ni RabbitMQ. Todas pasan.
+        memoria — no requieren Postgres ni RabbitMQ. En esta sesión no se pudo ejecutar la
+        suite porque `jest` no está instalado; el flujo de desvinculación se validó con una
+        comprobación funcional directa en Node.
+- **Deduplicación manual:** la publicación repetida del mismo evento desde la UI de
+        RabbitMQ se realizó y confirmó un único registro, según la verificación del equipo.
 - **Sin verificar con Docker Compose de punta a punta:** no se pudo levantar el stack
   completo en esta sesión (Docker Desktop estuvo caído de forma intermitente). Con el
   fix de §7 ya aplicado, lo que queda pendiente de verificar en cuanto Docker esté
@@ -221,9 +226,9 @@ responsable de `empleados-service` (Integrante 1) antes de aplicarla.
 
 ## 9. Limitaciones conocidas
 
-- `vacaciones.programadas` se consume con una forma de datos asumida (§5), porque su
-  productor todavía no existe en el repositorio. Si `vacaciones-service` lo publica
-  con campos distintos, solo hace falta ajustar `construirMensaje()`.
+- `vacaciones.programadas` no incluye el correo del empleado; cuando no se encuentra
+        un evento `empleado.creado` previo para resolverlo, el destinatario se registra como
+        `no informado`.
 - El estado de la cola y la deduplicación viven en RabbitMQ y Postgres, no en memoria
   del proceso: con varias réplicas de `notificaciones-service`, todas comparten la
   misma cola (RabbitMQ reparte los mensajes entre los consumidores conectados) y la

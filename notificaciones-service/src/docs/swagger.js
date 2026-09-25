@@ -14,9 +14,9 @@ const especificacion = swaggerJsdoc({
       title: 'Notificaciones Service',
       version: '1.0.0',
       description:
-        'Reto 4 - Integrante 2. Consume empleado.creado y vacaciones.programadas desde ' +
-        'RabbitMQ, guarda un historial de notificaciones (con deduplicación por id de ' +
-        'evento) y lo expone por HTTP.',
+        'Reto 4 - Integrante 2. Consume eventos empleado.creado, empleado.retirado y ' +
+        'vacaciones.programadas desde RabbitMQ, guarda un historial de notificaciones ' +
+        '(con deduplicación por id de evento) y lo expone por HTTP.',
     },
     tags: [{ name: 'Notificaciones' }],
   },

@@ -46,3 +46,15 @@ def test_get_missing_department_returns_404(client):
 
     assert response.status_code == 404
     assert response.json() == {"error": "El departamento con id NO-EXISTE no existe"}
+
+
+def test_invalid_body_returns_422_instead_of_500(client):
+    """Un cuerpo mal formado debe devolver un error de validación serializable."""
+    response = client.post(
+        "/departamentos",
+        content="'{id:",
+        headers={"Content-Type": "application/json"},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["error"] == "Los datos enviados no son válidos."

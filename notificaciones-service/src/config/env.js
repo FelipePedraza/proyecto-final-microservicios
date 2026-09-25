@@ -44,10 +44,9 @@ const env = {
   },
 
   // Tipos de evento que este servicio sabe procesar. Cualquier otro tipo que llegue
-  // por el exchange fanout (p. ej. empleado.actualizado, empleado.retirado) se
-  // reconoce y se descarta sin error: el exchange es compartido por todos los
-  // eventos de empleados-service, no solo por los que a este servicio le interesan.
-  tiposDeEventoSoportados: ['empleado.creado', 'vacaciones.programadas'],
+  // por el exchange fanout (p. ej. empleado.actualizado) se reconoce y se descarta
+  // sin error: el exchange es compartido por todos los eventos de empleados-service.
+  tiposDeEventoSoportados: ['empleado.creado', 'empleado.retirado', 'vacaciones.programadas'],
 };
 
 module.exports = env;

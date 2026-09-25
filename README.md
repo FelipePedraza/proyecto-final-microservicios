@@ -10,6 +10,7 @@ Sistema de onboarding de empleados compuesto por microservicios independientes. 
 | `registro-service` | ASP.NET Core 10 | Registro y consulta de empleados; consume DepartamentosService | No publicado; puerto interno `8080` |
 | `departamentos-service` | Python 3.11, FastAPI | Registro y consulta de departamentos | No publicado; puerto interno `8081` |
 | `notificaciones-service` | Node.js 20, Express | Consume eventos y consulta el historial de notificaciones | No publicado; puerto interno `8082` |
+| `vacaciones-service` | Java 21, Spring Boot | Programa y cancela períodos; replica empleados por eventos | No publicado; puerto interno `8085` |
 | `registro-db` | PostgreSQL 17 | Persistencia exclusiva de empleados | No publicado |
 | `departamentos-db` | PostgreSQL 17 | Persistencia exclusiva de departamentos | No publicado |
 
@@ -60,6 +61,7 @@ El Gateway no contiene reglas del dominio. Su responsabilidad se limita a enruta
 | `/empleados/**` | `http://registro-service:8080` | Registrar o consultar empleados |
 | `/departamentos/**` | `http://departamentos-service:8081` | Registrar, listar o consultar departamentos |
 | `/notificaciones/**` | `http://notificaciones-service:8082` | Consultar el historial de notificaciones |
+| `/vacaciones/**` | `http://vacaciones-service:8085` | Programar, consultar y cancelar vacaciones |
 
 El Gateway conserva la ruta, el cuerpo, las cabeceras y el código de estado producido por el servicio destino. Si el destino no responde, devuelve `503 Service Unavailable` con un cuerpo JSON descriptivo.
 
@@ -375,3 +377,57 @@ Para implementar la comunicaci�n asincr�nica y orientada a eventos, se inves
 Go aporta un binario estático pequeño y concurrencia nativa para el consumidor RabbitMQ; PostgreSQL garantiza restricciones `UNIQUE`, transacciones y deduplicación durable. El servicio consume `empleado.creado`, `empleado.actualizado` y `empleado.retirado` del Catálogo de Eventos publicado en `empleados_exchange`.
 
 Para probarlo: ejecutar `docker compose up --build`, crear un empleado por `http://localhost:8088/empleados`, consultar `http://localhost:8088/perfiles/{empleadoId}` y actualizar los campos propios mediante `PUT`. Publicar dos veces el mismo envelope en RabbitMQ deja una sola fila: el log del segundo consumo muestra `duplicate event`. Un retiro conserva el perfil y marca `archivado=true`; los datos sobreviven al reinicio por el volumen `perfiles-data`.
+
+### Vacaciones Service (Reto 4)
+
+| Servicio | Lenguaje / framework | Base de datos |
+|---|---|---|
+| `vacaciones-service` | Java 21 / Spring Boot | PostgreSQL 17 |
+
+`vacaciones-service` usa Java y PostgreSQL porque Spring ofrece validación, transacciones y publicación AMQP integradas, mientras que PostgreSQL permite expresar la regla crítica de negocio con una restricción `EXCLUDE USING gist`: incluso dos solicitudes concurrentes no pueden crear períodos solapados para el mismo empleado. La API está disponible únicamente por `http://localhost:8088/vacaciones`; el puerto interno `8085` no se publica al host.
+
+El servicio mantiene una réplica local de empleados a partir de `empleado.creado` y `empleado.retirado`, con deduplicación transaccional en `eventos_procesados`. Esta decisión prioriza disponibilidad y autonomía, coherente con la decisión de disponibilidad del Reto 3: programar vacaciones no depende de una llamada síncrona al servicio de empleados. La limitación es la consistencia eventual: empleados creados antes de que existiera la cola no aparecen en la réplica y existe una ventana entre la publicación y el consumo del evento.
+
+Consume `empleado.creado` y `empleado.retirado` desde `empleados_exchange` y publica `vacaciones.programadas` en el mismo exchange después del commit de la transacción. La carga útil de `vacaciones.programadas` usada actualmente es la supuesta del reto (`vacacionId`, `empleadoId`, `fechaInicio`, `fechaFin`) y queda **pendiente de verificar contra el catálogo**. El consumidor tolera envelopes y datos PascalCase/camelCase.
+
+Documentación interactiva:
+
+```text
+http://localhost:8088/vacaciones/docs
+http://localhost:8088/vacaciones/api-docs
+```
+
+Ejemplo completo de validación y operación:
+
+```bash
+# Crear un período (el empleado debe existir y estar ACTIVO en la réplica)
+curl -i -X POST http://localhost:8088/vacaciones \
+  -H 'Content-Type: application/json' \
+  -d '{"empleadoId":"E001","fechaInicio":"2026-10-01","fechaFin":"2026-10-10"}'
+
+# 400: campos ausentes o fecha mal formada
+curl -i -X POST http://localhost:8088/vacaciones \
+  -H 'Content-Type: application/json' \
+  -d '{"empleadoId":"E001","fechaInicio":"no-es-fecha","fechaFin":"2026-10-10"}'
+
+# 400: fechaFin no posterior a fechaInicio
+curl -i -X POST http://localhost:8088/vacaciones \
+  -H 'Content-Type: application/json' \
+  -d '{"empleadoId":"E001","fechaInicio":"2026-10-10","fechaFin":"2026-10-01"}'
+
+# 400: fecha de inicio en el pasado
+curl -i -X POST http://localhost:8088/vacaciones \
+  -H 'Content-Type: application/json' \
+  -d '{"empleadoId":"E001","fechaInicio":"2020-01-01","fechaFin":"2020-01-10"}'
+
+# 400: empleado inexistente o retirado
+curl -i -X POST http://localhost:8088/vacaciones \
+  -H 'Content-Type: application/json' \
+  -d '{"empleadoId":"NO-EXISTE","fechaInicio":"2026-10-01","fechaFin":"2026-10-10"}'
+
+# Consultar por empleado y cancelar
+curl -i 'http://localhost:8088/vacaciones?empleadoId=E001'
+curl -i -X DELETE http://localhost:8088/vacaciones/V-2026-0001
+```
+
+Para comprobar deduplicación, publicar dos veces desde la UI de RabbitMQ el mismo envelope `empleado.creado` con el mismo `id`; la tabla `empleados_validos` debe conservar una sola fila y el log del segundo consumo debe indicar evento duplicado. Después de crear un período, `GET /notificaciones/E001` debe incluir una notificación de tipo `VACACIONES`.

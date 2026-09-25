@@ -13,10 +13,11 @@ function crearNotificacionServiceFalso() {
     {
       id: 2,
       evento_id: 'evt-2',
-      tipo_evento: 'empleado.creado',
+      tipo_evento: 'empleado.retirado',
       empleado_id: 'E002',
-      mensaje: 'Notificación de bienvenida enviada a Ana Gómez.',
-      payload: { Id: 'evt-2' },
+      mensaje: 'Notificación de desvinculación registrada para Ana Gómez.',
+      payload: { Id: 'evt-2', Type: 'empleado.retirado', Data: { Id: 'E002', Email: 'ana@empresa.com' } },
+      destinatario: 'ana@empresa.com',
       creado_en: '2026-02-11T10:00:00.000Z',
     },
     {
@@ -25,7 +26,8 @@ function crearNotificacionServiceFalso() {
       tipo_evento: 'empleado.creado',
       empleado_id: 'E001',
       mensaje: 'Notificación de bienvenida enviada a Juan Pérez.',
-      payload: { Id: 'evt-1' },
+      payload: { Id: 'evt-1', Type: 'empleado.creado', Data: { Id: 'E001', Email: 'juan@empresa.com' } },
+      destinatario: 'juan@empresa.com',
       creado_en: '2026-02-10T10:00:00.000Z',
     },
   ];
@@ -72,20 +74,20 @@ describe('API HTTP de notificaciones-service', () => {
     expect(respuesta.body.status).toBe('not_ready');
   });
 
-  test('GET /notificaciones devuelve el historial completo con el contrato camelCase', async () => {
+  test('GET /notificaciones devuelve el historial con la estructura del reto', async () => {
     const respuesta = await request(app).get('/notificaciones');
 
     expect(respuesta.status).toBe(200);
     expect(respuesta.body).toHaveLength(2);
     expect(respuesta.body[0]).toEqual({
-      id: 2,
-      eventoId: 'evt-2',
-      tipoEvento: 'empleado.creado',
+      id: '2',
+      tipo: 'DESVINCULACION',
+      destinatario: 'ana@empresa.com',
+      mensaje: 'Notificación de desvinculación registrada para Ana Gómez.',
+      fechaEnvio: '2026-02-11T10:00:00.000Z',
       empleadoId: 'E002',
-      mensaje: 'Notificación de bienvenida enviada a Ana Gómez.',
-      payload: { Id: 'evt-2' },
-      creadoEn: '2026-02-11T10:00:00.000Z',
     });
+    expect(respuesta.body[1].tipo).toBe('BIENVENIDA');
   });
 
   test('GET /notificaciones/:empleadoId filtra por empleado', async () => {

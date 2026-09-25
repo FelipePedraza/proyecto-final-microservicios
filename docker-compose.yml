@@ -117,6 +117,7 @@ services:
       DEPARTAMENTOS_SERVICE_URL: ${DEPARTAMENTOS_SERVICE_URL:?Define DEPARTAMENTOS_SERVICE_URL in .env}
       PERFILES_SERVICE_URL: ${PERFILES_SERVICE_URL:?Define PERFILES_SERVICE_URL in .env}
       NOTIFICACIONES_SERVICE_URL: ${NOTIFICACIONES_SERVICE_URL:?Define NOTIFICACIONES_SERVICE_URL in .env}
+      VACACIONES_SERVICE_URL: ${VACACIONES_SERVICE_URL:?Define VACACIONES_SERVICE_URL in .env}
     ports:
       - "${GATEWAY_SERVICE_PORT:?Define GATEWAY_SERVICE_PORT in .env}:8088"
     networks:
@@ -129,6 +130,8 @@ services:
       perfiles-service:
         condition: service_healthy
       notificaciones-service:
+        condition: service_healthy
+      vacaciones-service:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8088/health"]
@@ -197,7 +200,6 @@ services:
     depends_on:
       notificaciones-db:
         condition: service_healthy
-
       message-broker:
         condition: service_healthy
     healthcheck:
@@ -260,6 +262,58 @@ services:
       start_period: 10s
     restart: unless-stopped
 
+  vacaciones-db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${VACACIONES_DB_NAME:?Define VACACIONES_DB_NAME in .env}
+      POSTGRES_USER: ${VACACIONES_DB_USER:?Define VACACIONES_DB_USER in .env}
+      POSTGRES_PASSWORD: ${VACACIONES_DB_PASSWORD:?Define VACACIONES_DB_PASSWORD in .env}
+    volumes:
+      - vacaciones-data:/var/lib/postgresql/data
+      - ./database/vacaciones:/docker-entrypoint-initdb.d:ro
+    networks:
+      - microservicios-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
+
+  vacaciones-service:
+    build:
+      context: ./vacaciones-service
+    environment:
+      PORT: ${VACACIONES_SERVICE_PORT:?Define VACACIONES_SERVICE_PORT in .env}
+      DB_HOST: vacaciones-db
+      DB_PORT: 5432
+      DB_NAME: ${VACACIONES_DB_NAME:?Define VACACIONES_DB_NAME in .env}
+      DB_USER: ${VACACIONES_DB_USER:?Define VACACIONES_DB_USER in .env}
+      DB_PASSWORD: ${VACACIONES_DB_PASSWORD:?Define VACACIONES_DB_PASSWORD in .env}
+      RABBITMQ_HOST: ${RABBITMQ_HOST:?Define RABBITMQ_HOST in .env}
+      RABBITMQ_PORT: ${RABBITMQ_PORT:?Define RABBITMQ_PORT in .env}
+      RABBITMQ_USER: ${RABBITMQ_USER:?Define RABBITMQ_USER in .env}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Define RABBITMQ_PASSWORD in .env}
+      RABBITMQ_EXCHANGE: ${RABBITMQ_EXCHANGE:-empleados_exchange}
+      RABBITMQ_QUEUE: ${RABBITMQ_QUEUE:-vacaciones.empleados}
+    expose:
+      - "8085"
+    networks:
+      - microservicios-network
+    depends_on:
+      vacaciones-db:
+        condition: service_healthy
+      message-broker:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8085/health/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
 networks:
   microservicios-network:
     driver: bridge
@@ -269,3 +323,4 @@ volumes:
   departamentos-data:
   notificaciones-data:
   perfiles-data:
+  vacaciones-data:

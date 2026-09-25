@@ -1,5 +1,28 @@
 'use strict';
 
+function emailDesdePayload(alias) {
+  return `COALESCE(
+    NULLIF(${alias}.payload #>> '{Data,Email}', ''),
+    NULLIF(${alias}.payload #>> '{Data,email}', ''),
+    NULLIF(${alias}.payload #>> '{data,Email}', ''),
+    NULLIF(${alias}.payload #>> '{data,email}', '')
+  )`;
+}
+
+function destinatarioSelect(alias) {
+  return `COALESCE(
+    ${emailDesdePayload(alias)},
+    (
+      SELECT ${emailDesdePayload('origen')}
+      FROM notificaciones AS origen
+      WHERE origen.empleado_id = ${alias}.empleado_id
+        AND origen.tipo_evento = 'empleado.creado'
+      ORDER BY origen.creado_en ASC
+      LIMIT 1
+    )
+  ) AS destinatario`;
+}
+
 /**
  * Acceso a datos de la tabla `notificaciones` (ver init.sql).
  *
@@ -32,9 +55,10 @@ class NotificacionRepository {
   /** Lista el historial completo, más reciente primero. Usa un límite razonable por defecto. */
   async listarTodas({ limite = 200 } = {}) {
     const resultado = await this.pool.query(
-      `SELECT id, evento_id, tipo_evento, empleado_id, mensaje, payload, creado_en
-       FROM notificaciones
-       ORDER BY creado_en DESC
+      `SELECT n.id, n.evento_id, n.tipo_evento, n.empleado_id, n.mensaje, n.payload, n.creado_en,
+              ${destinatarioSelect('n')}
+       FROM notificaciones AS n
+       ORDER BY n.creado_en DESC
        LIMIT $1`,
       [limite],
     );
@@ -45,15 +69,30 @@ class NotificacionRepository {
   /** Historial de un empleado concreto, más reciente primero. */
   async listarPorEmpleado(empleadoId, { limite = 200 } = {}) {
     const resultado = await this.pool.query(
-      `SELECT id, evento_id, tipo_evento, empleado_id, mensaje, payload, creado_en
-       FROM notificaciones
-       WHERE empleado_id = $1
-       ORDER BY creado_en DESC
+      `SELECT n.id, n.evento_id, n.tipo_evento, n.empleado_id, n.mensaje, n.payload, n.creado_en,
+              ${destinatarioSelect('n')}
+       FROM notificaciones AS n
+       WHERE n.empleado_id = $1
+       ORDER BY n.creado_en DESC
        LIMIT $2`,
       [empleadoId, limite],
     );
 
     return resultado.rows;
+  }
+
+  async buscarDestinatario(empleadoId) {
+    const resultado = await this.pool.query(
+      `SELECT ${emailDesdePayload('n')} AS email
+       FROM notificaciones AS n
+       WHERE n.empleado_id = $1
+         AND n.tipo_evento = 'empleado.creado'
+       ORDER BY n.creado_en ASC
+       LIMIT 1`,
+      [empleadoId],
+    );
+
+    return resultado.rows[0]?.email ?? null;
   }
 }
 

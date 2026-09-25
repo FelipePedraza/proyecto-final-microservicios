@@ -2,6 +2,7 @@
 
 const { NotificacionService } = require('../src/domain/notificacionService');
 const { EventoInvalidoError } = require('../src/domain/eventoParser');
+const { tiposDeEventoSoportados: TIPOS_SOPORTADOS } = require('../src/config/env');
 
 /**
  * Repositorio falso en memoria: implementa el mismo contrato que
@@ -30,6 +31,14 @@ class FakeRepository {
     return fila;
   }
 
+  async buscarDestinatario(empleadoId) {
+    const fila = this.filas.find(
+      (notificacion) => notificacion.empleado_id === empleadoId && notificacion.tipo_evento === 'empleado.creado',
+    );
+    const data = fila?.payload?.Data ?? fila?.payload?.data ?? {};
+    return data.Email ?? data.email ?? null;
+  }
+
   async listarTodas() {
     return [...this.filas].sort((a, b) => b.id - a.id);
   }
@@ -39,13 +48,11 @@ class FakeRepository {
   }
 }
 
-const TIPOS_SOPORTADOS = ['empleado.creado', 'vacaciones.programadas'];
-
 function envelopeEmpleadoCreado(eventoId, empleadoId = 'E001') {
   return {
     Id: eventoId,
     Type: 'empleado.creado',
-    Data: { Id: empleadoId, Nombre: 'Juan', Apellido: 'Pérez', Cargo: 'Dev' },
+    Data: { Id: empleadoId, Nombre: 'Juan', Apellido: 'Pérez', Email: 'juan@empresa.com', Cargo: 'Dev' },
   };
 }
 
@@ -74,6 +81,54 @@ describe('NotificacionService.procesarEvento', () => {
     expect(segunda).toBeNull(); // la redelivery no crea una segunda fila
     const historial = await service.listarTodas();
     expect(historial).toHaveLength(1);
+  });
+
+  test('guarda y deja consultable la notificación de desvinculación', async () => {
+    const service = new NotificacionService(new FakeRepository());
+    const log = jest.spyOn(console, 'log').mockImplementation(() => {});
+    const envelope = {
+      Id: 'evt-retiro-1',
+      Type: 'empleado.retirado',
+      Data: {
+        Id: 'E001',
+        Nombre: 'Juan',
+        Apellido: 'Pérez',
+        Email: 'juan@empresa.com',
+        FechaRetiro: '2026-09-25T10:30:00Z',
+      },
+    };
+
+    const guardada = await service.procesarEvento(envelope, { tiposSoportados: TIPOS_SOPORTADOS });
+    const historial = await service.listarPorEmpleado('E001');
+
+    expect(guardada).not.toBeNull();
+    expect(guardada.tipo_evento).toBe('empleado.retirado');
+    expect(guardada.mensaje).toContain('desvinculación');
+    expect(guardada.mensaje).toContain('Juan Pérez');
+    expect(guardada.mensaje).toContain('2026-09-25T10:30:00Z');
+    expect(historial).toHaveLength(1);
+    expect(log).toHaveBeenCalledWith(
+      expect.stringContaining('[NOTIFICACIÓN] Tipo: DESVINCULACION | Para: juan@empresa.com | Mensaje:'),
+    );
+    log.mockRestore();
+  });
+
+  test('resuelve el correo guardado al procesar vacaciones', async () => {
+    const service = new NotificacionService(new FakeRepository());
+    const log = jest.spyOn(console, 'log').mockImplementation(() => {});
+
+    await service.procesarEvento(envelopeEmpleadoCreado('evt-creado'), { tiposSoportados: TIPOS_SOPORTADOS });
+    const guardada = await service.procesarEvento({
+      Id: 'evt-vacaciones',
+      Type: 'vacaciones.programadas',
+      Data: { EmpleadoId: 'E001', FechaInicio: '2026-10-01', FechaFin: '2026-10-10' },
+    }, { tiposSoportados: TIPOS_SOPORTADOS });
+
+    expect(guardada).not.toBeNull();
+    expect(log).toHaveBeenLastCalledWith(
+      expect.stringContaining('[NOTIFICACIÓN] Tipo: VACACIONES | Para: juan@empresa.com | Mensaje:'),
+    );
+    log.mockRestore();
   });
 
   test('ignora (sin error) un tipo de evento que no está en la lista soportada', async () => {

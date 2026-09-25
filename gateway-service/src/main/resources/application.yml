@@ -48,6 +48,15 @@ spring:
                   args:
                     name: notificacionesServiceCircuitBreaker
                     fallbackUri: forward:/fallback/notificaciones-service
+            - id: vacaciones-service
+              uri: ${VACACIONES_SERVICE_URL:http://vacaciones-service:8085}
+              predicates:
+                - Path=/vacaciones/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: vacacionesServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/vacaciones-service
 
 resilience4j:
   circuitbreaker:
@@ -59,6 +68,7 @@ resilience4j:
       departamentosServiceCircuitBreaker: *cb
       perfilesServiceCircuitBreaker: *cb
       notificacionesServiceCircuitBreaker: *cb
+      vacacionesServiceCircuitBreaker: *cb
   timelimiter:                       # FALTABA: el default de Spring Cloud CircuitBreaker es 1 s
     instances:
       empleadosServiceCircuitBreaker:
@@ -68,4 +78,6 @@ resilience4j:
       perfilesServiceCircuitBreaker:
         timeoutDuration: 6s
       notificacionesServiceCircuitBreaker:
+        timeoutDuration: 6s
+      vacacionesServiceCircuitBreaker:
         timeoutDuration: 6s

@@ -37,6 +37,21 @@ function campo(objeto, ...nombres) {
 
 class EventoInvalidoError extends Error {}
 
+const TIPOS_NOTIFICACION = Object.freeze({
+  'empleado.creado': 'BIENVENIDA',
+  'empleado.retirado': 'DESVINCULACION',
+  'vacaciones.programadas': 'VACACIONES',
+});
+
+function tipoNotificacion(tipoEvento) {
+  return TIPOS_NOTIFICACION[tipoEvento] ?? tipoEvento;
+}
+
+function obtenerDestinatario(data) {
+  const email = campo(data, 'Email', 'email');
+  return typeof email === 'string' && email.trim() ? email.trim() : null;
+}
+
 /**
  * Valida y normaliza el envelope. Lanza EventoInvalidoError si falta algo esencial
  * (id del evento, tipo, o el id del empleado dentro de `Data`): esos mensajes van a la
@@ -75,10 +90,19 @@ function construirMensaje(tipoEvento, data) {
         : `Notificación de bienvenida enviada a ${nombreCompleto}.`;
     }
 
+    case 'empleado.retirado': {
+      const empleadoId = campo(data, 'Id', 'id', 'EmpleadoId', 'empleadoId');
+      const nombreCompleto = `${campo(data, 'Nombre', 'nombre') ?? ''} ${campo(data, 'Apellido', 'apellido') ?? ''}`.trim();
+      const empleado = nombreCompleto ? `${nombreCompleto} (empleado ${empleadoId})` : `empleado ${empleadoId}`;
+      const fechaRetiro = campo(data, 'FechaRetiro', 'fechaRetiro');
+      return fechaRetiro
+        ? `Notificación de desvinculación registrada para ${empleado}, con fecha de retiro ${fechaRetiro}.`
+        : `Notificación de desvinculación registrada para ${empleado}.`;
+    }
+
     case 'vacaciones.programadas': {
-      // No hay todavía un productor de este evento en el repositorio (lo publicará otro
-      // integrante). Se acepta cualquier forma razonable de fechas y se degrada con
-      // gracia si no vienen, en vez de rechazar el evento.
+      // El productor publica empleadoId, fechaInicio y fechaFin; se toleran también
+      // variantes PascalCase y se degrada con gracia si falta alguna fecha.
       const desde = campo(data, 'FechaInicio', 'fechaInicio', 'Desde', 'desde');
       const hasta = campo(data, 'FechaFin', 'fechaFin', 'Hasta', 'hasta');
       const empleadoId = campo(data, 'Id', 'id', 'EmpleadoId', 'empleadoId');
@@ -94,4 +118,10 @@ function construirMensaje(tipoEvento, data) {
   }
 }
 
-module.exports = { parsearEnvelope, construirMensaje, EventoInvalidoError };
+module.exports = {
+  parsearEnvelope,
+  construirMensaje,
+  tipoNotificacion,
+  obtenerDestinatario,
+  EventoInvalidoError,
+};

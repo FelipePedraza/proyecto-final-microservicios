@@ -8,9 +8,13 @@ CREATE TABLE IF NOT EXISTS "Empleados" (
     "Area" VARCHAR(150) NOT NULL,
     "DepartamentoId" VARCHAR(100) NOT NULL,
     "FechaIngreso" DATE NOT NULL,
+    "FechaRetiro" TIMESTAMP WITH TIME ZONE NULL,
     "Estado" VARCHAR(30) NOT NULL,
     CONSTRAINT "PK_Empleados" PRIMARY KEY ("Id")
 );
+
+ALTER TABLE "Empleados"
+    ADD COLUMN IF NOT EXISTS "FechaRetiro" TIMESTAMP WITH TIME ZONE NULL;
 
 CREATE UNIQUE INDEX IF NOT EXISTS "IX_Empleados_Email"
     ON "Empleados" ("Email");

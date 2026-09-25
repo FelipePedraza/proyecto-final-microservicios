@@ -1,6 +1,11 @@
 'use strict';
 
-const { parsearEnvelope, construirMensaje } = require('./eventoParser');
+const {
+  parsearEnvelope,
+  construirMensaje,
+  tipoNotificacion,
+  obtenerDestinatario,
+} = require('./eventoParser');
 
 /**
  * Orquesta el caso de uso "procesar un evento entrante": lo valida, decide si ya se
@@ -28,12 +33,16 @@ class NotificacionService {
     const { eventoId, tipoEvento, empleadoId, data } = parsearEnvelope(envelopeCrudo);
 
     if (!tiposSoportados.includes(tipoEvento)) {
-      // Llega por el exchange fanout (es compartido con empleado.actualizado,
-      // empleado.retirado, etc.) pero no es un tipo que a este servicio le interese.
+      // Llega por el exchange fanout (compartido con empleado.actualizado y otros
+      // eventos) pero no es un tipo que a este servicio le interese.
       return null;
     }
 
     const mensaje = construirMensaje(tipoEvento, data);
+    const destinatario =
+      obtenerDestinatario(data) ??
+      (await this.repository.buscarDestinatario(empleadoId)) ??
+      'no informado';
 
     const guardada = await this.repository.guardarSiEsNueva({
       eventoId,
@@ -44,9 +53,9 @@ class NotificacionService {
     });
 
     if (guardada) {
-      // "Generar logs simulando notificaciones": este es ese log. Un canal real
-      // (email, SMS, push) iría aquí en lugar del console.log.
-      console.log(`[notificacion] ${mensaje} (evento ${eventoId}, tipo ${tipoEvento})`);
+      console.log(
+        `[NOTIFICACIÓN] Tipo: ${tipoNotificacion(tipoEvento)} | Para: ${destinatario} | Mensaje: "${mensaje}"`,
+      );
     } else {
       console.log(
         `[notificacion] Evento ${eventoId} (${tipoEvento}) ya se había procesado antes; se ignora (deduplicación).`,

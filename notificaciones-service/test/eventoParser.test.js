@@ -65,6 +65,26 @@ describe('construirMensaje', () => {
     expect(mensaje).toContain('empleado E001');
   });
 
+  test('empleado.retirado identifica al empleado y agrega la fecha de retiro', () => {
+    const mensaje = construirMensaje('empleado.retirado', {
+      Id: 'E001',
+      Nombre: 'Juan',
+      Apellido: 'Pérez',
+      FechaRetiro: '2026-09-25T10:30:00Z',
+    });
+
+    expect(mensaje).toContain('desvinculación');
+    expect(mensaje).toContain('Juan Pérez (empleado E001)');
+    expect(mensaje).toContain('2026-09-25T10:30:00Z');
+  });
+
+  test('empleado.retirado funciona sin nombre ni fecha de retiro', () => {
+    const mensaje = construirMensaje('empleado.retirado', { Id: 'E001' });
+
+    expect(mensaje).toContain('empleado E001');
+    expect(mensaje).not.toContain('undefined');
+  });
+
   test('vacaciones.programadas incluye las fechas cuando están presentes', () => {
     const mensaje = construirMensaje('vacaciones.programadas', {
       EmpleadoId: 'E001',

@@ -1,15 +1,16 @@
 # notificaciones-service
 
 Reto 4 — **Integrante 2**. Consume eventos publicados por `empleados-service`
-(`empleado.creado`, `vacaciones.programadas`) desde RabbitMQ, simula el envío de una
-notificación (log) y guarda un historial consultable, con deduplicación por id de evento.
+(`empleado.creado`, `empleado.retirado`, `vacaciones.programadas`) desde RabbitMQ,
+simula el envío de una notificación (log) y guarda un historial consultable, con
+deduplicación por id de evento.
 
 No modifica código de ningún otro servicio del repositorio: en `docker-compose.yml` se
 agregaron sus propios dos bloques (`notificaciones-db` y `notificaciones-service`), el
 volumen `notificaciones-data`, y cuatro variables de entorno a `registro-service`
 (`RABBITMQ_HOST` y credenciales) que le faltaban para poder conectarse al broker
-dentro de Docker Compose — sin esa configuración, `empleado.creado` nunca salía de su
-contenedor y este servicio no recibía nada. Ese cambio se coordinó primero con el
+dentro de Docker Compose — sin esa configuración, los eventos de empleados no salían de
+su contenedor y este servicio no recibía nada. Ese cambio se coordinó primero con el
 responsable de `registro-service` (Integrante 1). No se tocó `message-broker`; el
 Gateway ahora registra la ruta `/notificaciones/**` hacia este servicio. El detalle
 está en la sección 7 de
@@ -31,6 +32,11 @@ microservicio.
 | `GET` | `/health` | Liveness: el proceso está vivo. |
 | `GET` | `/health/ready` | Readiness: además, la base de datos responde. |
 | `GET` | `/docs` | Swagger UI (OpenAPI generado desde el código de las rutas). |
+
+Cada notificación usa la estructura `id`, `tipo` (`BIENVENIDA`, `DESVINCULACION` o
+`VACACIONES`), `destinatario`, `mensaje`, `fechaEnvio` y `empleadoId`. El correo de
+vacaciones se obtiene del evento `empleado.creado` previamente guardado, ya que
+`vacaciones.programadas` no incluye ese campo en su contrato.
 
 En Docker Compose, `notificaciones-service` escucha internamente en `8082` y se expone
 al resto de la red privada para que el Gateway lo enrute. El acceso desde el host se
@@ -73,7 +79,7 @@ cd notificaciones-service
 npm test
 ```
 
-22 pruebas con Jest y Supertest, todas sobre lógica y HTTP en memoria (sin Postgres ni
+26 pruebas con Jest y Supertest, todas sobre lógica y HTTP en memoria (sin Postgres ni
 RabbitMQ reales, así que corren igual de rápido en cualquier máquina):
 
 - `test/eventoParser.test.js`: extracción de campos del *envelope* (tolerante a
