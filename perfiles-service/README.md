@@ -1,6 +1,6 @@
 # perfiles-service
 
-Servicio de perfiles de empleados implementado en Go 1.22, con PostgreSQL 17 y RabbitMQ (`amqp091-go`).
+Servicio de perfiles de empleados implementado en Go 1.25, con PostgreSQL 17 y RabbitMQ (`amqp091-go`).
 
 Consume el exchange fanout `empleados_exchange` en la cola durable `perfiles.empleados` y su DLQ. Acepta envelopes PascalCase y camelCase. Los eventos `empleado.creado`, `empleado.actualizado` y `empleado.retirado` crean/sincronizan/archivan perfiles. La tabla `eventos_procesados` deduplica por el `id` del envelope dentro de la misma transacción.
 

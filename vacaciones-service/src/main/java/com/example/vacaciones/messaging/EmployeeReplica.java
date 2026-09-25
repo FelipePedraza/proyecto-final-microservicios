@@ -45,5 +45,13 @@ public class EmployeeReplica {
     public String getStatus() {
         return status;
     }
+
+    public String getNombre() {
+        return nombre;
+    }
+
+    public String getEmail() {
+        return email;
+    }
     
 }
