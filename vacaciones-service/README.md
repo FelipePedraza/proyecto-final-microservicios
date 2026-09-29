@@ -12,6 +12,7 @@ Servicio Java 21/Spring Boot 4 para registrar, consultar y cancelar vacaciones.
 Configurar `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` y las
 variables `RABBITMQ_*`. La cola durable `vacaciones.empleados` usa
 `vacaciones.empleados.dlq`; el consumidor acepta `id`/`Id`, `type`/`Type` y
-`empleadoId`/`EmpleadoId`. La carga de `vacaciones.programadas`
-(`vacacionId`, `empleadoId`, `fechaInicio`, `fechaFin`) es un supuesto
+`empleadoId`/`EmpleadoId`. Al procesar `empleado.retirado`, cancela las
+vacaciones del empleado que estén en estado `PROGRAMADA`. La carga de
+`vacaciones.programadas` (`vacacionId`, `empleadoId`, `fechaInicio`, `fechaFin`) es un supuesto
 **pendiente de verificar contra el catálogo**.

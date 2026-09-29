@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import com.example.vacaciones.domain.Vacation;
+import com.example.vacaciones.domain.VacationStatus;
 
 public interface VacationRepository extends JpaRepository<Vacation, String> {
 
@@ -28,4 +29,6 @@ public interface VacationRepository extends JpaRepository<Vacation, String> {
     );
 
     List<Vacation> findByEmployeeIdOrderByStartDateAsc(String employeeId);
+
+    List<Vacation> findByEmployeeIdAndStatus(String employeeId, VacationStatus status);
 }

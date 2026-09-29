@@ -85,7 +85,7 @@ se conectan además a message-broker (RabbitMQ) para publicar y/o consumir event
   |---|---|---|---|
   | `notificaciones-service` | `notificaciones.empleados` | `notificaciones.empleados.dlq` | `empleado.creado`, `empleado.retirado`, `vacaciones.programadas` (otros tipos se reconocen y se descartan sin error) |
   | `perfiles-service` | `perfiles.empleados` | (nombre de cola + `.dlq`) | `empleado.creado`, `empleado.actualizado`, `empleado.retirado` |
-  | `vacaciones-service` | `vacaciones.empleados` (por defecto) | `vacaciones.empleados.dlq` | `empleado.creado`, `empleado.retirado` |
+  | `vacaciones-service` | `vacaciones.empleados` (por defecto) | `vacaciones.empleados.dlq` | `empleado.creado`, `empleado.actualizado`, `empleado.retirado` (cancela vacaciones `PROGRAMADA` al retirar) |
 
 - Los tres consumidores toleran envelopes en PascalCase o camelCase y usan
   confirmación manual (`ack`/`nack`): un envelope mal formado va directo a la

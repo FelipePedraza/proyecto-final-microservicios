@@ -112,7 +112,7 @@ public class VacationService {
                 employeeId,
                 VacationStatus.PROGRAMADA
         );
-        scheduledVacations.forEach(vacation -> vacation.cancel());
+        scheduledVacations.forEach(Vacation::cancel);
         return scheduledVacations.size();
     }
 }

@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.example.vacaciones.service.VacationService;
 
 @Component
 public class EmployeeEventConsumer {
@@ -21,17 +22,20 @@ public class EmployeeEventConsumer {
     private final ObjectMapper mapper;
     private final ProcessedEventRepository events;
     private final EmployeeReplicaRepository employees;
+    private final VacationService vacations;
     private final java.time.Clock clock;
 
     public EmployeeEventConsumer(
             ObjectMapper mapper,
             ProcessedEventRepository events,
             EmployeeReplicaRepository employees,
+            VacationService vacations,
             java.time.Clock clock
     ) {
         this.mapper = mapper;
         this.events = events;
         this.employees = employees;
+        this.vacations = vacations;
         this.clock = clock;
     }
 
@@ -105,6 +109,15 @@ public class EmployeeEventConsumer {
 
         replica.update(name, email, status, now);
         employees.save(replica);
+        if ("empleado.retirado".equals(type)) {
+            int cancelledCount = vacations.cancelScheduledByEmployee(employeeId);
+            log.info(
+                    "Vacaciones programadas canceladas por retiro eventId={} employeeId={} cantidad={}",
+                    eventId,
+                    employeeId,
+                    cancelledCount
+            );
+        }
         events.save(new ProcessedEvent(eventId, now));
 
         log.info("employee event processed eventId={} employeeId={} type={}", eventId, employeeId, type);
