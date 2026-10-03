@@ -1,4 +1,4 @@
-name: reto-2-microservicios
+﻿name: reto-2-microservicios
 
 services:
   registro-db:
@@ -314,6 +314,52 @@ services:
       start_period: 15s
     restart: unless-stopped
 
+
+  auth-db:
+    image: postgres:17-alpine
+    container_name: auth-db
+    environment:
+      POSTGRES_DB: ${AUTH_DB_NAME:?Define AUTH_DB_NAME in .env}
+      POSTGRES_USER: ${AUTH_DB_USER:?Define AUTH_DB_USER in .env}
+      POSTGRES_PASSWORD: ${AUTH_DB_PASSWORD:?Define AUTH_DB_PASSWORD in .env}
+    volumes:
+      - auth_db_data:/var/lib/postgresql/data
+    networks:
+      - microservicios-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
+
+  auth-service:
+    build:
+      context: ./auth-service
+      dockerfile: Dockerfile
+    container_name: auth-service
+    ports:
+      - "${AUTH_SERVICE_PORT:?Define AUTH_SERVICE_PORT in .env}:8089"
+    environment:
+      - DB_HOST=auth-db
+      - DB_PORT=5432
+      - DB_NAME=${AUTH_DB_NAME}
+      - DB_USER=${AUTH_DB_USER}
+      - DB_PASSWORD=${AUTH_DB_PASSWORD}
+      - RABBITMQ_HOST=rabbitmq-broker
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=${RABBITMQ_USER}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
+      - JWT_SECRET=${JWT_SECRET_KEY}
+    depends_on:
+      auth-db:
+        condition: service_healthy
+      message-broker:
+        condition: service_healthy
+    networks:
+      - microservicios-network
+    restart: unless-stopped
 networks:
   microservicios-network:
     driver: bridge
@@ -324,3 +370,4 @@ volumes:
   notificaciones-data:
   perfiles-data:
   vacaciones-data:
+  auth_db_data:
