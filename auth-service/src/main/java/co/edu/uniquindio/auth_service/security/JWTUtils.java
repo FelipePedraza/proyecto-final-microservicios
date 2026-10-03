@@ -1,5 +1,6 @@
 ﻿package co.edu.uniquindio.auth_service.security;
 
+import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
@@ -17,16 +18,9 @@ public class JWTUtils {
     private String secretKeyString;
 
     private SecretKey getKey() {
-        // En JWT modernos de io.jsonwebtoken, las llaves deben ser de un tamaño adecuado
         return Keys.hmacShaKeyFor(secretKeyString.getBytes(StandardCharsets.UTF_8));
     }
 
-    /**
-     * Genera un token JWT genérico.
-     * @param subject El ID o correo del usuario.
-     * @param claims Diccionario con información extra (ej. role, type).
-     * @param expirationMillis Cuánto tiempo en milisegundos durará el token.
-     */
     public String generateToken(String subject, Map<String, Object> claims, long expirationMillis) {
         long nowMillis = System.currentTimeMillis();
         Date now = new Date(nowMillis);
@@ -39,5 +33,20 @@ public class JWTUtils {
                 .expiration(exp)
                 .signWith(getKey())
                 .compact();
+    }
+
+    public String validateAndGetSubject(String token, String expectedType) throws Exception {
+        Claims claims = Jwts.parser()
+                .verifyWith(getKey())
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+
+        String type = claims.get("type", String.class);
+        if (expectedType != null && !expectedType.equals(type)) {
+            throw new Exception("Tipo de token inválido");
+        }
+
+        return claims.getSubject();
     }
 }
