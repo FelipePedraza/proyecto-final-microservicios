@@ -52,3 +52,17 @@ El servicio está preparado con:
 *   RabbitTemplate: Inyectado en los métodos de recuperación y reseteo para disparar alertas al 
 otificaciones-service.
 *(La configuración de colas y Listeners es responsabilidad del Integrante 3).*
+
+## 6. Despliegue y Configuracion Docker
+Como desarrollador de este microservicio, se incluye toda la configuracion necesaria para conectarlo al ecosistema general.
+
+### Archivo .env
+Agregue las siguientes lineas al archivo .env raiz del proyecto:
+JWT_SECRET_KEY=SuperSecretaClaveDe256BitsMinimoParaQueFuncioneJJWTEnSpring2026!
+AUTH_DB_NAME=auth_db
+AUTH_DB_USER=postgres
+AUTH_DB_PASSWORD=postgres
+AUTH_SERVICE_PORT=8089
+
+### docker-compose.yml
+Agregue auth-db y auth-service a su docker-compose.yml global. El servicio expone el puerto 8089 internamente. Use las variables del .env para configurarlo.
