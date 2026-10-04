@@ -1,4 +1,4 @@
-﻿package co.edu.uniquindio.auth_service.exception;
+package co.edu.uniquindio.auth_service.exception;
 
 public class BadRequestException extends RuntimeException {
     public BadRequestException(String message) {

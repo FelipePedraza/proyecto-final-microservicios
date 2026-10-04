@@ -12,6 +12,15 @@ spring:
             connect-timeout: ${GATEWAY_CONNECT_TIMEOUT_MS:2000}
             response-timeout: ${GATEWAY_RESPONSE_TIMEOUT:5s}
           routes:
+            - id: auth-service
+              uri: ${AUTH_SERVICE_URL:http://auth-service:8089}
+              predicates:
+                - Path=/auth/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: authServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/auth-service
             - id: empleados-service
               uri: ${EMPLEADOS_SERVICE_URL:http://registro-service:8080}
               predicates:
@@ -58,19 +67,45 @@ spring:
                     name: vacacionesServiceCircuitBreaker
                     fallbackUri: forward:/fallback/vacaciones-service
 
+jwt:
+  secret: ${JWT_SECRET:SuperSecretaClaveDe256BitsMinimoParaQueFuncioneJJWTEnSpring2026!}
+
+gateway:
+  security:
+    public-paths:
+      - /health
+      - /actuator/health/**
+      - /fallback/**
+      - /auth/login
+      - /auth/recover-password
+      - /auth/reset-password
+      - /swagger-ui.html
+      - /swagger-ui/**
+      - /v3/api-docs/**
+      - /v3/api-docs.yaml
+      - /webjars/**
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    persist-authorization: true
+
 resilience4j:
   circuitbreaker:
     instances:
-      empleadosServiceCircuitBreaker: &cb
+      authServiceCircuitBreaker: &cb
         slidingWindowSize: 10
         failureRateThreshold: 50
         waitDurationInOpenState: 10s
+      empleadosServiceCircuitBreaker: *cb
       departamentosServiceCircuitBreaker: *cb
       perfilesServiceCircuitBreaker: *cb
       notificacionesServiceCircuitBreaker: *cb
       vacacionesServiceCircuitBreaker: *cb
   timelimiter:                       # FALTABA: el default de Spring Cloud CircuitBreaker es 1 s
     instances:
+      authServiceCircuitBreaker:
+        timeoutDuration: 6s
       empleadosServiceCircuitBreaker:
         timeoutDuration: 6s
       departamentosServiceCircuitBreaker:

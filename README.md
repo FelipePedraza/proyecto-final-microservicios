@@ -29,6 +29,7 @@ síncrona (HTTP, a través de un API Gateway) y asíncrona (eventos sobre Rabbit
 | `notificaciones-service` | `notificaciones-service/` | Node.js ≥20, Express, cliente `pg` sin ORM | PostgreSQL 17 (`notificaciones-db`) | `8082` |
 | `perfiles-service` | `perfiles-service/` | Go (`go.mod` declara `go 1.25`), chi router | PostgreSQL 17 (`perfiles-db`) | `8083` |
 | `vacaciones-service` | `vacaciones-service/` | Java 21, Spring Boot 4.1.1 | PostgreSQL 17 (`vacaciones-db`) | `8085` |
+| `auth-service` | `auth-service/` | Java 21, Spring Boot 4.1.1, Spring Security | PostgreSQL 17 (`auth-db`) | `8089` |
 | `message-broker` | imagen `rabbitmq:3-management` | RabbitMQ con plugin de administración | — | `5672` (AMQP) y `15672` (UI), ambos publicados al host |
 
 Todos los contenedores comparten la red `microservicios-network` (definida en
@@ -101,6 +102,7 @@ Configuración real en `gateway-service/src/main/resources/application.yml`.
 | Ruta externa | Servicio destino | Variable de entorno que define la URL |
 |---|---|---|
 | `GET /health` | Resuelto por el propio Gateway (`GatewayController`) | — |
+| `/auth/**` | `auth-service` | `AUTH_SERVICE_URL` |
 | `/empleados/**` | `registro-service` | `EMPLEADOS_SERVICE_URL` |
 | `/departamentos/**` | `departamentos-service` | `DEPARTAMENTOS_SERVICE_URL` |
 | `/perfiles/**` | `perfiles-service` | `PERFILES_SERVICE_URL` |
@@ -127,6 +129,13 @@ un cuerpo como este:
 
 `GET /health` en el Gateway solo confirma que el propio proceso responde
 (`{"status": "healthy"}`); no verifica el estado de los servicios destino.
+
+El Gateway valida los Access JWT antes de reenviar rutas protegidas. Comprueba
+la firma, expiración, `sub`, rol (`ADMIN` o `USER`) y rechaza los tokens de
+recuperación. Las rutas públicas son salud, fallbacks, documentación y
+`/auth/login`, `/auth/recover-password` y `/auth/reset-password`. Después de
+validar, elimina las cabeceras de identidad recibidas del cliente e inyecta
+`X-User-Id` y `X-User-Role` a partir de los claims verificados.
 
 ## Circuit Breaker de RegistroService
 
@@ -230,6 +239,38 @@ Todos son accesibles desde el host únicamente a través del Gateway en
 - `GET /fallback/{service}` — respuesta de indisponibilidad usada
   internamente por el enrutamiento cuando un Circuit Breaker se abre.
 
+### `auth-service` (`/auth`)
+
+- `POST /auth/login` — autentica credenciales y emite el JWT de acceso.
+- `POST /auth/recover-password` — inicia la recuperación de contraseña.
+- `POST /auth/reset-password` — consume un token de recuperación.
+- `POST /auth/change-password` — cambia la contraseña de una cuenta autenticada.
+- `GET /actuator/health` — healthcheck interno usado por Docker Compose.
+
+El servicio no publica su puerto al host; las rutas de negocio se consumen a
+través del Gateway. La validación JWT y la autorización RBAC están
+centralizadas allí.
+
+### Matriz RBAC del Gateway
+
+| Operación | `USER` | `ADMIN` |
+|---|---|---|
+| Rutas públicas y `OPTIONS` | Permitido | Permitido |
+| `GET`/`HEAD` de empleados, departamentos, perfiles, notificaciones y vacaciones | Permitido | Permitido |
+| `POST /auth/change-password` | Permitido | Permitido |
+| `PUT /perfiles/{empleadoId}` propio | Permitido | Permitido |
+| `PUT /perfiles/{empleadoId}` ajeno | `403 Forbidden` | Permitido |
+| Demás operaciones de escritura | `403 Forbidden` | Permitido |
+
+La propiedad del perfil se comprueba comparando `{empleadoId}` con el `sub`
+del JWT. Las denegaciones de un usuario autenticado se devuelven como JSON con
+estado `403`; un token ausente o inválido conserva la respuesta `401`.
+
+Swagger UI está disponible en `/swagger-ui.html` y la especificación en
+`/v3/api-docs`. OpenAPI declara el esquema HTTP `BearerAuth` con formato JWT;
+el botón **Authorize** de Swagger UI acepta el access token emitido por
+`POST /auth/login` y conserva la autorización mientras se navega por la UI.
+
 ## Puesta en marcha
 
 ### Requisitos
@@ -254,9 +295,9 @@ Según las dependencias declaradas en `docker-compose.yml`
 (`depends_on` con `condition: service_healthy`), el arranque respeta este
 orden: primero las bases de datos y `message-broker`; luego
 `departamentos-service`; después `registro-service`, `perfiles-service`,
-`notificaciones-service` y `vacaciones-service` (cada uno depende de su base
+`notificaciones-service`, `vacaciones-service` y `auth-service` (cada uno depende de su base
 de datos y, cuando aplica, de `message-broker`); y por último
-`gateway-service`, que depende de que los cinco microservicios de aplicación
+`gateway-service`, que depende de que los seis microservicios de aplicación
 estén sanos.
 
 Verificación mínima:
@@ -305,6 +346,7 @@ describe qué pruebas existen y cómo se ejecutan, no sus resultados):
 | `notificaciones-service` | `cd notificaciones-service && npm test` (Jest + Supertest) | `eventoParser.test.js`, `notificacionService.test.js`, `api.test.js` |
 | `perfiles-service` | `cd perfiles-service && go test ./...` | `internal/api/router_test.go`, `internal/messaging/consumer_test.go` |
 | `vacaciones-service` | `cd vacaciones-service && mvn test` (o el wrapper equivalente si el repositorio lo incluye) | `VacationControllerValidationTest.java` y otras pruebas en `src/test/java` |
+| `auth-service` | `cd auth-service && ./mvnw test` | `AuthServiceApplicationTests.java`, `AccountLifecycleServiceTest.java`, `JsonConverterAndConsumerTest.java` |
 | `gateway-service` | No se encontró carpeta de pruebas automatizadas para este servicio | — |
 
 ## Documentación adicional por servicio

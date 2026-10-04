@@ -1,4 +1,4 @@
-﻿package co.edu.uniquindio.auth_service.security;
+package co.edu.uniquindio.auth_service.security;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;

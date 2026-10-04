@@ -1,4 +1,4 @@
-﻿package co.edu.uniquindio.auth_service.service;
+package co.edu.uniquindio.auth_service.service;
 
 import co.edu.uniquindio.auth_service.dtos.*;
 

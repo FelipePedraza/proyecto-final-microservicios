@@ -1,4 +1,4 @@
-﻿package co.edu.uniquindio.auth_service.exception;
+package co.edu.uniquindio.auth_service.exception;
 
 import co.edu.uniquindio.auth_service.dtos.ResponseDTO;
 import co.edu.uniquindio.auth_service.dtos.ValidationDTO;

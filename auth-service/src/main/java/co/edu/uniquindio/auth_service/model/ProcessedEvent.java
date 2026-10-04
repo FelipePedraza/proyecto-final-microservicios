@@ -1,4 +1,4 @@
-﻿package co.edu.uniquindio.auth_service.model;
+package co.edu.uniquindio.auth_service.model;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

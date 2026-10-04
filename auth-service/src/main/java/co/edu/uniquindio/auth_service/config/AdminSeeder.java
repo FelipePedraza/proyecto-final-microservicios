@@ -1,4 +1,4 @@
-﻿package co.edu.uniquindio.auth_service.config;
+package co.edu.uniquindio.auth_service.config;
 
 import co.edu.uniquindio.auth_service.model.Account;
 import co.edu.uniquindio.auth_service.model.AccountStatus;

@@ -1,4 +1,4 @@
-﻿package co.edu.uniquindio.auth_service.config;
+package co.edu.uniquindio.auth_service.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -24,6 +24,7 @@ public class SecurityConfig {
             // Todo lo de /auth es público. El Gateway protegerá lo demás.
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/auth/**").permitAll()
+                .requestMatchers("/actuator/health/**").permitAll()
                 .anyRequest().authenticated()
             );
 

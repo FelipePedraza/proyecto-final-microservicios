@@ -1,4 +1,4 @@
-﻿package co.edu.uniquindio.auth_service.dtos;
+package co.edu.uniquindio.auth_service.dtos;
 
 public record ResponseDTO<T>(
     boolean error,

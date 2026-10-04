@@ -1,4 +1,4 @@
-﻿package co.edu.uniquindio.auth_service.messaging;
+package co.edu.uniquindio.auth_service.messaging;
 
 import lombok.Data;
 import java.time.Instant;

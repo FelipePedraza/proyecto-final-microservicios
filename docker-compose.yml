@@ -118,6 +118,8 @@ services:
       PERFILES_SERVICE_URL: ${PERFILES_SERVICE_URL:?Define PERFILES_SERVICE_URL in .env}
       NOTIFICACIONES_SERVICE_URL: ${NOTIFICACIONES_SERVICE_URL:?Define NOTIFICACIONES_SERVICE_URL in .env}
       VACACIONES_SERVICE_URL: ${VACACIONES_SERVICE_URL:?Define VACACIONES_SERVICE_URL in .env}
+      AUTH_SERVICE_URL: ${AUTH_SERVICE_URL:?Define AUTH_SERVICE_URL in .env}
+      JWT_SECRET: ${JWT_SECRET_KEY:?Define JWT_SECRET_KEY in .env}
     ports:
       - "${GATEWAY_SERVICE_PORT:?Define GATEWAY_SERVICE_PORT in .env}:8088"
     networks:
@@ -132,6 +134,8 @@ services:
       notificaciones-service:
         condition: service_healthy
       vacaciones-service:
+        condition: service_healthy
+      auth-service:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8088/health"]
@@ -327,7 +331,7 @@ services:
     networks:
       - microservicios-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"]
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -339,19 +343,19 @@ services:
       context: ./auth-service
       dockerfile: Dockerfile
     container_name: auth-service
-    ports:
-      - "${AUTH_SERVICE_PORT:?Define AUTH_SERVICE_PORT in .env}:8089"
+    expose:
+      - "8089"
     environment:
-      - DB_HOST=auth-db
-      - DB_PORT=5432
-      - DB_NAME=${AUTH_DB_NAME}
-      - DB_USER=${AUTH_DB_USER}
-      - DB_PASSWORD=${AUTH_DB_PASSWORD}
-      - RABBITMQ_HOST=rabbitmq-broker
-      - RABBITMQ_PORT=5672
-      - RABBITMQ_USER=${RABBITMQ_USER}
-      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
-      - JWT_SECRET=${JWT_SECRET_KEY}
+      DB_HOST: auth-db
+      DB_PORT: 5432
+      DB_NAME: ${AUTH_DB_NAME:?Define AUTH_DB_NAME in .env}
+      DB_USER: ${AUTH_DB_USER:?Define AUTH_DB_USER in .env}
+      DB_PASSWORD: ${AUTH_DB_PASSWORD:?Define AUTH_DB_PASSWORD in .env}
+      RABBITMQ_HOST: rabbitmq-broker
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER:?Define RABBITMQ_USER in .env}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Define RABBITMQ_PASSWORD in .env}
+      JWT_SECRET: ${JWT_SECRET_KEY:?Define JWT_SECRET_KEY in .env}
     depends_on:
       auth-db:
         condition: service_healthy
@@ -359,6 +363,12 @@ services:
         condition: service_healthy
     networks:
       - microservicios-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8089/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     restart: unless-stopped
 networks:
   microservicios-network:

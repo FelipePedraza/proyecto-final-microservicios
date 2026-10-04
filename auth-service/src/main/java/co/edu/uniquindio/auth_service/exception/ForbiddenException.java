@@ -1,4 +1,4 @@
-﻿package co.edu.uniquindio.auth_service.exception;
+package co.edu.uniquindio.auth_service.exception;
 
 public class ForbiddenException extends RuntimeException {
     public ForbiddenException(String message) {

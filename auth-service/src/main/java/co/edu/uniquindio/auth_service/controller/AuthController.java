@@ -1,4 +1,4 @@
-﻿package co.edu.uniquindio.auth_service.controller;
+package co.edu.uniquindio.auth_service.controller;
 
 import co.edu.uniquindio.auth_service.dtos.*;
 import co.edu.uniquindio.auth_service.service.AuthService;

@@ -8,7 +8,7 @@ En lugar de crear un JWTFilter en cada microservicio (lo cual duplicaría códig
 
 *   **Generación:** Solo el uth-service genera y firma los JWT.
 *   **Validación:** El gateway-service intercepta todas las peticiones a rutas protegidas. Utilizando la misma clave secreta, el Gateway verifica matemáticamente la firma del token, su vigencia (exp) y el rol (ole).
-*   **Propagación de Identidad:** Una vez validado, el Gateway inyecta el ID del usuario en la cabecera HTTP (X-User-Id) y reenvía la petición al microservicio correspondiente. Así, los microservicios confían en el Gateway y no necesitan importar librerías de JWT.
+*   **Propagación de Identidad:** Una vez validado, el Gateway elimina las cabeceras de identidad proporcionadas por el cliente e inyecta el ID y rol verificados en `X-User-Id` y `X-User-Role`. Después reenvía la petición al microservicio correspondiente, que no necesita importar librerías JWT.
 
 ## 2. Instrucciones: Cómo obtener un token (Flujo de Login)
 
@@ -62,7 +62,9 @@ JWT_SECRET_KEY=SuperSecretaClaveDe256BitsMinimoParaQueFuncioneJJWTEnSpring2026!
 AUTH_DB_NAME=auth_db
 AUTH_DB_USER=postgres
 AUTH_DB_PASSWORD=postgres
-AUTH_SERVICE_PORT=8089
+AUTH_SERVICE_URL=http://auth-service:8089
 
 ### docker-compose.yml
-Agregue auth-db y auth-service a su docker-compose.yml global. El servicio expone el puerto 8089 internamente. Use las variables del .env para configurarlo.
+`auth-db` y `auth-service` están integrados en el `docker-compose.yml` global.
+El puerto 8089 solo se expone dentro de la red de Docker; desde el host se debe
+acceder a `/auth/**` mediante el Gateway en el puerto 8088.

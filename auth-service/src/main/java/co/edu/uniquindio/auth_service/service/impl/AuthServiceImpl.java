@@ -1,4 +1,4 @@
-﻿package co.edu.uniquindio.auth_service.service.impl;
+package co.edu.uniquindio.auth_service.service.impl;
 
 import co.edu.uniquindio.auth_service.dtos.*;
 import co.edu.uniquindio.auth_service.exception.BadRequestException;

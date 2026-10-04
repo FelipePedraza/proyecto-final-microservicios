@@ -11,17 +11,20 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ServerWebExchange;
 
+import io.swagger.v3.oas.annotations.Operation;
 import reactor.core.publisher.Mono;
 
 @RestController
 public class GatewayController {
 
     @GetMapping(path = "/health", produces = MediaType.APPLICATION_JSON_VALUE)
+    @Operation(summary = "Salud del API Gateway", security = {})
     public Mono<ResponseEntity<Map<String, String>>> health() {
         return Mono.just(ResponseEntity.ok(Map.of("status", "healthy")));
     }
 
     @RequestMapping(path = "/fallback/{service}", produces = MediaType.APPLICATION_JSON_VALUE)
+    @Operation(summary = "Fallback interno cuando un microservicio no está disponible", security = {})
     public Mono<ResponseEntity<Map<String, String>>> unavailable(
             @PathVariable String service,
             ServerWebExchange exchange) {
