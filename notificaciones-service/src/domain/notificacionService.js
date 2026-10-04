@@ -5,6 +5,7 @@ const {
   construirMensaje,
   tipoNotificacion,
   obtenerDestinatario,
+  ocultarTokens,
 } = require('./eventoParser');
 
 /**
@@ -38,7 +39,10 @@ class NotificacionService {
       return null;
     }
 
-    const mensaje = construirMensaje(tipoEvento, data);
+    // El log lleva el token completo (es la "notificación" simulada). Lo que se persiste en el
+    // historial (mensaje y payload) lo lleva oculto: es un secreto de un solo uso.
+    const mensajeLog = construirMensaje(tipoEvento, data);
+    const mensaje = construirMensaje(tipoEvento, data, { incluirToken: false });
     const destinatario =
       obtenerDestinatario(data) ??
       (await this.repository.buscarDestinatario(empleadoId)) ??
@@ -49,12 +53,12 @@ class NotificacionService {
       tipoEvento,
       empleadoId,
       mensaje,
-      payload: envelopeCrudo,
+      payload: ocultarTokens(envelopeCrudo),
     });
 
     if (guardada) {
       console.log(
-        `[NOTIFICACIÓN] Tipo: ${tipoNotificacion(tipoEvento)} | Para: ${destinatario} | Mensaje: "${mensaje}"`,
+        `[NOTIFICACIÓN] Tipo: ${tipoNotificacion(tipoEvento)} | Para: ${destinatario} | Mensaje: "${mensajeLog}"`,
       );
     } else {
       console.log(

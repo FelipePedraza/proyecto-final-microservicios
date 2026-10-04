@@ -19,6 +19,7 @@ describe('parsearEnvelope', () => {
       eventoId: 'evt-1',
       tipoEvento: 'empleado.creado',
       empleadoId: 'E001',
+      version: '1.0',
       data: envelope.Data,
     });
   });

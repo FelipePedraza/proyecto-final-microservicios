@@ -5,6 +5,13 @@ Reto 4 — **Integrante 2**. Consume eventos publicados por `empleados-service`
 simula el envío de una notificación (log) y guarda un historial consultable, con
 deduplicación por id de evento.
 
+**Reto 5 (Integrante 3):** además consume los eventos de `auth-service` desde
+`auth_exchange` (cola `notificaciones.auth`, DLQ `notificaciones.auth.dlq`):
+`usuario.creado`, `usuario.recuperacion` (Tipo `SEGURIDAD`, el log incluye el token),
+`cuenta.activada` y `cuenta.desactivada` (Tipo `CUENTA`, mensaje según `motivo`).
+El correo de bienvenida sale con `usuario.creado`; `empleado.creado` ya no genera
+notificación. Los tokens salen en el log, pero no se guardan en el historial.
+
 No modifica código de ningún otro servicio del repositorio: en `docker-compose.yml` se
 agregaron sus propios dos bloques (`notificaciones-db` y `notificaciones-service`), el
 volumen `notificaciones-data`, y cuatro variables de entorno a `registro-service`

@@ -33,7 +33,8 @@ class FakeRepository {
 
   async buscarDestinatario(empleadoId) {
     const fila = this.filas.find(
-      (notificacion) => notificacion.empleado_id === empleadoId && notificacion.tipo_evento === 'empleado.creado',
+      (notificacion) => notificacion.empleado_id === empleadoId &&
+        ['empleado.creado', 'usuario.creado'].includes(notificacion.tipo_evento),
     );
     const data = fila?.payload?.Data ?? fila?.payload?.data ?? {};
     return data.Email ?? data.email ?? null;
@@ -48,11 +49,13 @@ class FakeRepository {
   }
 }
 
+// El correo de bienvenida sale con usuario.creado (publicado por auth-service), no con empleado.creado.
 function envelopeEmpleadoCreado(eventoId, empleadoId = 'E001') {
   return {
-    Id: eventoId,
-    Type: 'empleado.creado',
-    Data: { Id: empleadoId, Nombre: 'Juan', Apellido: 'Pérez', Email: 'juan@empresa.com', Cargo: 'Dev' },
+    id: eventoId,
+    type: 'usuario.creado',
+    version: '1.0',
+    data: { empleadoId, email: 'juan@empresa.com', tokenActivacion: 'tok-123', expiraEn: '2026-10-04T12:00:00Z' },
   };
 }
 
@@ -129,6 +132,16 @@ describe('NotificacionService.procesarEvento', () => {
       expect.stringContaining('[NOTIFICACIÓN] Tipo: VACACIONES | Para: juan@empresa.com | Mensaje:'),
     );
     log.mockRestore();
+  });
+
+  test('empleado.creado ya no genera notificación (la bienvenida sale con usuario.creado)', async () => {
+    const service = new NotificacionService(new FakeRepository());
+    const envelope = { Id: 'evt-viejo', Type: 'empleado.creado', Data: { Id: 'E001', Email: 'juan@empresa.com' } };
+
+    const resultado = await service.procesarEvento(envelope, { tiposSoportados: TIPOS_SOPORTADOS });
+
+    expect(resultado).toBeNull();
+    expect(await service.listarTodas()).toHaveLength(0);
   });
 
   test('ignora (sin error) un tipo de evento que no está en la lista soportada', async () => {

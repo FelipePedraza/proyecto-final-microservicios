@@ -17,6 +17,12 @@ const { EventoInvalidoError } = require('../domain/eventoParser');
  *                        │
  *                        └──► NotificacionService.procesarEvento()
  *
+ *   auth_exchange (fanout)               notificaciones.auth.dlq
+ *          │                                        ▲
+ *          ├──► notificaciones.auth ─────────(reject sin requeue)
+ *                        │
+ *                        └──► NotificacionService.procesarEvento()   (usuario.* y cuenta.*)
+ *
  * Se declara el exchange con `assertExchange` usando los MISMOS parámetros que el
  * productor (fanout, durable). RabbitMQ exige que quien declare un exchange que ya
  * existe use exactamente los mismos parámetros, o cierra el canal con un error
@@ -74,32 +80,37 @@ class RabbitConsumer {
       console.error('[rabbit] Error de conexión:', err.message);
     });
 
+    // Los dos exchanges se declaran aquí con los mismos argumentos que sus productores
+    // (fanout, durable), así el servicio arranca bien sin importar quién levante primero.
     await this.channel.assertExchange(env.rabbit.exchange, env.rabbit.exchangeType, { durable: true });
+    await this.channel.assertExchange(env.rabbit.authExchange, 'fanout', { durable: true });
 
+    // Un mensaje sin confirmar a la vez por consumidor: este servicio no necesita alto
+    // throughput y así se evita que una ráfaga de eventos sature el pool de Postgres.
+    await this.channel.prefetch(1);
+
+    await this._consumirCola(env.rabbit.queue, env.rabbit.deadLetterQueue, env.rabbit.exchange);
+    await this._consumirCola(env.rabbit.authQueue, env.rabbit.authDeadLetterQueue, env.rabbit.authExchange);
+  }
+
+  /** Declara cola + DLQ (durables), liga la cola al exchange fanout y empieza a consumirla. */
+  async _consumirCola(cola, colaMuerta, exchange) {
     // Cola de mensajes muertos: sin exchange propio, se liga por nombre directamente.
-    await this.channel.assertQueue(env.rabbit.deadLetterQueue, { durable: true });
+    await this.channel.assertQueue(colaMuerta, { durable: true });
 
     // Cola principal, con dead-lettering hacia la DLQ vía el exchange por defecto ("").
-    await this.channel.assertQueue(env.rabbit.queue, {
+    await this.channel.assertQueue(cola, {
       durable: true,
       arguments: {
         'x-dead-letter-exchange': '',
-        'x-dead-letter-routing-key': env.rabbit.deadLetterQueue,
+        'x-dead-letter-routing-key': colaMuerta,
       },
     });
-    await this.channel.bindQueue(env.rabbit.queue, env.rabbit.exchange, '');
+    await this.channel.bindQueue(cola, exchange, '');
 
-    // Un mensaje sin confirmar a la vez: este servicio no necesita alto throughput y
-    // así se evita que una ráfaga de eventos sature el pool de Postgres.
-    await this.channel.prefetch(1);
+    console.log(`[rabbit] Conectado. Escuchando "${cola}" ligada a "${exchange}" (fanout).`);
 
-    console.log(
-      `[rabbit] Conectado. Escuchando "${env.rabbit.queue}" ligada a "${env.rabbit.exchange}" (fanout).`,
-    );
-
-    await this.channel.consume(env.rabbit.queue, (mensaje) => this._manejarMensaje(mensaje), {
-      noAck: false,
-    });
+    await this.channel.consume(cola, (mensaje) => this._manejarMensaje(mensaje), { noAck: false });
   }
 
   async _manejarMensaje(mensaje) {

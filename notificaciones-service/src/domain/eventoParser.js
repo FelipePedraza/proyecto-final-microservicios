@@ -41,7 +41,22 @@ const TIPOS_NOTIFICACION = Object.freeze({
   'empleado.creado': 'BIENVENIDA',
   'empleado.retirado': 'DESVINCULACION',
   'vacaciones.programadas': 'VACACIONES',
+  'usuario.creado': 'SEGURIDAD',
+  'usuario.recuperacion': 'SEGURIDAD',
+  'cuenta.activada': 'CUENTA',
+  'cuenta.desactivada': 'CUENTA',
 });
+
+/** Eventos publicados por auth-service en `auth_exchange`. */
+const EVENTOS_AUTH = Object.freeze([
+  'usuario.creado',
+  'usuario.recuperacion',
+  'cuenta.activada',
+  'cuenta.desactivada',
+]);
+
+/** Campos del payload que contienen tokens (secretos de un solo uso). */
+const CAMPOS_TOKEN = Object.freeze(['tokenActivacion', 'tokenRecuperacion', 'token']);
 
 function tipoNotificacion(tipoEvento) {
   return TIPOS_NOTIFICACION[tipoEvento] ?? tipoEvento;
@@ -61,7 +76,13 @@ function parsearEnvelope(envelopeCrudo) {
   const eventoId = campo(envelopeCrudo, 'Id', 'id');
   const tipoEvento = campo(envelopeCrudo, 'Type', 'type');
   const data = campo(envelopeCrudo, 'Data', 'data') || {};
-  const empleadoId = campo(data, 'Id', 'id', 'EmpleadoId', 'empleadoId');
+  let empleadoId = campo(data, 'Id', 'id', 'EmpleadoId', 'empleadoId');
+
+  // usuario.recuperacion (auth-service) solo trae email, sin empleadoId: se usa el email
+  // como identificador del historial para no mandar el evento a la DLQ.
+  if (!empleadoId && EVENTOS_AUTH.includes(tipoEvento)) {
+    empleadoId = campo(data, 'Email', 'email');
+  }
 
   if (!eventoId || !tipoEvento || !empleadoId) {
     throw new EventoInvalidoError(
@@ -70,7 +91,36 @@ function parsearEnvelope(envelopeCrudo) {
     );
   }
 
-  return { eventoId: String(eventoId), tipoEvento: String(tipoEvento), empleadoId: String(empleadoId), data };
+  return {
+    eventoId: String(eventoId),
+    tipoEvento: String(tipoEvento),
+    empleadoId: String(empleadoId),
+    version: normalizarVersion(campo(envelopeCrudo, 'Version', 'version')),
+    data,
+  };
+}
+
+/**
+ * `version` llega como int en los eventos de auth-service (ej. 1) y como string en el resto
+ * ("1.0"). Se acepta cualquiera de las dos formas y se normaliza a string (o null si falta).
+ */
+function normalizarVersion(version) {
+  if (version === undefined || version === null || version === '') return null;
+  return String(version);
+}
+
+/** Copia de un valor JSON con los campos de token reemplazados por "[OCULTO]" (para persistir). */
+function ocultarTokens(valor) {
+  if (Array.isArray(valor)) return valor.map(ocultarTokens);
+  if (valor && typeof valor === 'object') {
+    return Object.fromEntries(
+      Object.entries(valor).map(([clave, contenido]) => [
+        clave,
+        CAMPOS_TOKEN.includes(clave) ? '[OCULTO]' : ocultarTokens(contenido),
+      ]),
+    );
+  }
+  return valor;
 }
 
 /**
@@ -78,7 +128,7 @@ function parsearEnvelope(envelopeCrudo) {
  * Es deliberadamente texto plano: el reto pide "generar logs simulando
  * notificaciones", no integrar un proveedor real de email/SMS.
  */
-function construirMensaje(tipoEvento, data) {
+function construirMensaje(tipoEvento, data, { incluirToken = true } = {}) {
   switch (tipoEvento) {
     case 'empleado.creado': {
       const nombre = campo(data, 'Nombre', 'nombre') ?? '';
@@ -111,6 +161,49 @@ function construirMensaje(tipoEvento, data) {
         : `Notificación de vacaciones programadas enviada al empleado ${empleadoId}.`;
     }
 
+    case 'usuario.creado': {
+      const token = incluirToken ? campo(data, 'tokenActivacion', 'TokenActivacion', 'token') : '[OCULTO]';
+      const expira = campo(data, 'expiraEn', 'ExpiraEn');
+      return (
+        `Bienvenido: tu cuenta fue creada. Activa tu cuenta y define tu contraseña con este token: ${token}` +
+        (expira ? ` (válido hasta ${expira}).` : '.')
+      );
+    }
+
+    case 'usuario.recuperacion': {
+      const token = incluirToken ? campo(data, 'tokenRecuperacion', 'TokenRecuperacion', 'token') : '[OCULTO]';
+      const expira = campo(data, 'expiraEn', 'ExpiraEn');
+      return (
+        `Solicitud de recuperación de contraseña. Usa este token para restablecerla: ${token}` +
+        (expira ? ` (expira ${expira}).` : '.')
+      );
+    }
+
+    case 'cuenta.activada': {
+      const motivo = campo(data, 'motivo', 'Motivo');
+      if (motivo === 'ACTIVACION_INICIAL') {
+        return 'Tu cuenta fue activada correctamente. Ya puedes iniciar sesión.';
+      }
+      if (motivo === 'FIN_VACACIONES') {
+        return 'Tus vacaciones terminaron: tu cuenta fue reactivada y ya puedes volver a iniciar sesión.';
+      }
+      return `Tu cuenta fue activada${motivo ? ` (motivo: ${motivo})` : ''}.`;
+    }
+
+    case 'cuenta.desactivada': {
+      const motivo = campo(data, 'motivo', 'Motivo');
+      if (motivo === 'VACACIONES') {
+        return 'Tu cuenta fue suspendida temporalmente mientras estás de vacaciones. Se reactivará cuando terminen.';
+      }
+      if (motivo === 'RETIRO') {
+        return 'Tu cuenta fue desactivada permanentemente por tu retiro de la empresa.';
+      }
+      const permanente = campo(data, 'permanente', 'Permanente') === true;
+      return `Tu cuenta fue ${permanente ? 'desactivada permanentemente' : 'suspendida temporalmente'}${
+        motivo ? ` (motivo: ${motivo})` : ''
+      }.`;
+    }
+
     default:
       // No debería llegar aquí: rabbitConsumer.js filtra por tipo soportado antes de
       // llamar al servicio. Se deja como red de seguridad.
@@ -120,6 +213,9 @@ function construirMensaje(tipoEvento, data) {
 
 module.exports = {
   parsearEnvelope,
+  ocultarTokens,
+  normalizarVersion,
+  EVENTOS_AUTH,
   construirMensaje,
   tipoNotificacion,
   obtenerDestinatario,

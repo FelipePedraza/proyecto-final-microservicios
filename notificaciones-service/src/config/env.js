@@ -38,15 +38,30 @@ const env = {
     // Cola de mensajes muertos: para eventos que no se pueden procesar (JSON inválido,
     // envelope sin los campos esperados). Evita un bucle infinito de redelivery.
     deadLetterQueue: process.env.RABBITMQ_DLQ || 'notificaciones.empleados.dlq',
+    // Exchange donde auth-service publica usuario.creado, usuario.recuperacion, cuenta.activada y
+    // cuenta.desactivada (fanout, durable). Se declara aquí con los mismos argumentos que en
+    // auth-service para que funcione sin importar cuál de los dos arranque primero.
+    authExchange: process.env.RABBITMQ_AUTH_EXCHANGE || 'auth_exchange',
+    authQueue: process.env.RABBITMQ_AUTH_QUEUE || 'notificaciones.auth',
+    authDeadLetterQueue: process.env.RABBITMQ_AUTH_DLQ || 'notificaciones.auth.dlq',
     // Reintentos de conexión al arrancar (RabbitMQ puede tardar más que este servicio
     // en levantar; ver messaging/rabbitConsumer.js).
     reconexionMs: parseInt(process.env.RABBITMQ_RECONEXION_MS || '5000', 10),
   },
 
   // Tipos de evento que este servicio sabe procesar. Cualquier otro tipo que llegue
-  // por el exchange fanout (p. ej. empleado.actualizado) se reconoce y se descarta
-  // sin error: el exchange es compartido por todos los eventos de empleados-service.
-  tiposDeEventoSoportados: ['empleado.creado', 'empleado.retirado', 'vacaciones.programadas'],
+  // por un exchange fanout (p. ej. empleado.actualizado) se reconoce y se descarta
+  // sin error: los exchanges son compartidos por varios servicios.
+  // empleado.creado ya no genera notificación: el correo de bienvenida sale con
+  // usuario.creado (que lleva el token de activación).
+  tiposDeEventoSoportados: [
+    'empleado.retirado',
+    'vacaciones.programadas',
+    'usuario.creado',
+    'usuario.recuperacion',
+    'cuenta.activada',
+    'cuenta.desactivada',
+  ],
 };
 
 module.exports = env;

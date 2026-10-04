@@ -16,7 +16,7 @@ function destinatarioSelect(alias) {
       SELECT ${emailDesdePayload('origen')}
       FROM notificaciones AS origen
       WHERE origen.empleado_id = ${alias}.empleado_id
-        AND origen.tipo_evento = 'empleado.creado'
+        AND origen.tipo_evento IN ('empleado.creado', 'usuario.creado')
       ORDER BY origen.creado_en ASC
       LIMIT 1
     )
@@ -86,7 +86,7 @@ class NotificacionRepository {
       `SELECT ${emailDesdePayload('n')} AS email
        FROM notificaciones AS n
        WHERE n.empleado_id = $1
-         AND n.tipo_evento = 'empleado.creado'
+         AND n.tipo_evento IN ('empleado.creado', 'usuario.creado')
        ORDER BY n.creado_en ASC
        LIMIT 1`,
       [empleadoId],
