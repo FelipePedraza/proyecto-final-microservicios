@@ -30,6 +30,7 @@ public class JWTUtils {
         Date exp = new Date(nowMillis + expirationMillis);
 
         return Jwts.builder()
+                .header().type("JWT").and()
                 .claims(claims)
                 .subject(subject)
                 .issuedAt(now)

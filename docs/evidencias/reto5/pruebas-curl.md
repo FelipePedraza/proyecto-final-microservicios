@@ -7,6 +7,8 @@ pero por terminal.
 > Los comandos están escritos para **Git Bash** (usan `$(...)`, `sed` y `date -d`). En PowerShell no
 > funcionan tal cual. Ejecútalos **en orden y en la misma terminal**, porque comparten variables.
 >
+> `GET /empleados` solo acepta `?estado=RETIRADO` (sin ese filtro registro-service responde 400, que no es un error de seguridad).
+>
 > Usan IDs nuevos (`E200`, `E201`, departamento `D02`). Si los repites, los `POST` responderán 409:
 > cambia los IDs o reinicia las bases (`docker compose down -v`).
 
@@ -35,7 +37,7 @@ echo $ADMIN | cut -c1-30
 curl -s -w " [%{http_code}]\n" $G/empleados
 curl -s -w " [%{http_code}]\n" -H "Authorization: Bearer ${ADMIN}x" $G/empleados
 curl -s -w " [%{http_code}]\n" -X POST $G/auth/login -H "$J" -d '{"email":"admin@empresa.com","password":"mala"}'
-curl -s -o /dev/null -w "[%{http_code}]\n" -H "Authorization: Bearer $ADMIN" "$G/empleados?estado=ACTIVO"
+curl -s -o /dev/null -w "[%{http_code}]\n" -H "Authorization: Bearer $ADMIN" "$G/empleados?estado=RETIRADO"
 ```
 
 ## 2. Onboarding (la cuenta se crea por evento)
@@ -88,7 +90,7 @@ U200=$(curl -s -X POST $G/auth/login -H "$J" -d '{"email":"e200@empresa.com","pa
 
 ```bash
 A="Authorization: Bearer $U200"
-curl -s -o /dev/null -w "USER lee empleados   (200): %{http_code}\n" -H "$A" $G/empleados
+curl -s -o /dev/null -w "USER lee empleados   (200): %{http_code}\n" -H "$A" "$G/empleados?estado=RETIRADO"
 curl -s -o /dev/null -w "USER crea depto      (403): %{http_code}\n" -X POST $G/departamentos -H "$A" -H "$J" -d '{"id":"X","name":"X"}'
 curl -s -o /dev/null -w "USER retira empleado (403): %{http_code}\n" -X DELETE -H "$A" $G/empleados/E201
 curl -s -o /dev/null -w "USER perfil propio   (200): %{http_code}\n" -X PUT $G/perfiles/E200 -H "$A" -H "$J" -d '{"telefono":"3001234567","direccion":"Calle 1","ciudad":"Bogota","biografia":"ok"}'

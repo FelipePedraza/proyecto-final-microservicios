@@ -92,7 +92,7 @@
       "request": {
         "method": "GET",
         "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{userTokenE001}}", "type": "string"}]},
-        "url": "{{baseUrl}}/empleados"
+        "url": "{{baseUrl}}/empleados?estado=RETIRADO"
       },
       "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('Lectura USER permitida', () => pm.response.to.have.status(200));"]}}]
     },
