@@ -20,3 +20,7 @@ springdoc:
 management:
   endpoints.web.exposure.include: health,info
   endpoint.health.probes.enabled: true
+vacaciones:
+  scheduler:
+    cron: ${VACACIONES_CRON:0 * * * * *}
+    manual-enabled: ${VACACIONES_MANUAL_ENABLED:false}

@@ -21,10 +21,10 @@ public record VacationRequest(
         LocalDate fechaFin
 ) {
 
-    @AssertTrue(message = "La fecha de fin debe ser posterior a la fecha de inicio")
+    @AssertTrue(message = "La fecha de fin no puede ser anterior a la fecha de inicio")
     public boolean isValidRange() {
         return fechaInicio != null
                 && fechaFin != null
-                && fechaFin.isAfter(fechaInicio);
+                && !fechaFin.isBefore(fechaInicio);
     }
 }

@@ -9,8 +9,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
-import com.example.vacaciones.domain.Vacation;
-
 @Component
 public class VacationEventPublisher {
 
@@ -21,21 +19,17 @@ public class VacationEventPublisher {
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    public void publish(Vacation vacation) {
-        if ("CANCELADA".equals(vacation.getStatus().name())) {
-            return;
-        }
-
+    public void publish(VacationLifecycleEvent event) {
         Map<String, Object> data = Map.of(
-                "vacacionId", vacation.getId(),
-                "empleadoId", vacation.getEmployeeId(),
-                "fechaInicio", vacation.getStartDate().toString(),
-                "fechaFin", vacation.getEndDate().toString()
+                "vacacionId", event.vacationId(),
+                "empleadoId", event.employeeId(),
+                "fechaInicio", event.startDate().toString(),
+                "fechaFin", event.endDate().toString()
         );
 
         Map<String, Object> envelope = Map.of(
                 "id", UUID.randomUUID().toString(),
-                "type", "vacaciones.programadas",
+                "type", event.type(),
                 "version", "1.0",
                 "occurredAt", Instant.now().toString(),
                 "producer", "vacaciones-service",
