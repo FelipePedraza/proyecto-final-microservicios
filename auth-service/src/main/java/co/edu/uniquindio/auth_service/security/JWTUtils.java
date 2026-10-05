@@ -18,6 +18,9 @@ public class JWTUtils {
     private String secretKeyString;
 
     private SecretKey getKey() {
+        if (secretKeyString == null || secretKeyString.getBytes(StandardCharsets.UTF_8).length < 32) {
+            throw new IllegalStateException("jwt.secret debe tener al menos 32 bytes");
+        }
         return Keys.hmacShaKeyFor(secretKeyString.getBytes(StandardCharsets.UTF_8));
     }
 
@@ -31,7 +34,7 @@ public class JWTUtils {
                 .subject(subject)
                 .issuedAt(now)
                 .expiration(exp)
-                .signWith(getKey())
+                .signWith(getKey(), Jwts.SIG.HS256)
                 .compact();
     }
 

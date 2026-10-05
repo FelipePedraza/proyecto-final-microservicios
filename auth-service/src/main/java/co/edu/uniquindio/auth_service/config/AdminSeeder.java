@@ -24,7 +24,7 @@ public class AdminSeeder implements CommandLineRunner {
     @Value("${admin.default.email:admin@empresa.com}")
     private String adminEmail;
 
-    @Value("${admin.default.password:admin123}")
+    @Value("${admin.default.password}")
     private String adminPassword;
 
     @Override
@@ -44,7 +44,7 @@ public class AdminSeeder implements CommandLineRunner {
                     .build();
                     
             accountRepository.save(adminAccount);
-            log.info("¡Administrador inicial creado con éxito! Email: {} | Password: {}", adminEmail, adminPassword);
+            log.info("¡Administrador inicial creado con éxito! Email: {}", adminEmail);
             log.warn("NOTA: Por favor cambia esta contraseña en producción usando el endpoint /auth/change-password");
         } else {
             log.info("La cuenta de Administrador ya existe en la base de datos.");

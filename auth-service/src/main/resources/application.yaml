@@ -26,12 +26,12 @@ spring:
     password: ${RABBITMQ_PASSWORD:guest}
 
 jwt:
-  secret: ${JWT_SECRET:SuperSecretaClaveDe256BitsMinimoParaQueFuncioneJJWTEnSpring2026!}
+  secret: ${JWT_SECRET}
 
 admin:
   default:
     email: ${ADMIN_EMAIL:admin@empresa.com}
-    password: ${ADMIN_PASSWORD:admin123}
+    password: ${ADMIN_PASSWORD}
 
 management:
   endpoints:

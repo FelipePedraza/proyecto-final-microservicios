@@ -39,6 +39,8 @@ Para obtener un Access JWT, se debe realizar una petición POST al endpoint púb
 Al arrancar la aplicación por primera vez, un componente llamado AdminSeeder verifica si existe el administrador. Si no existe, crea automáticamente la cuenta dmin@empresa.com con contraseña dmin123 y rol ADMIN.
 
 ## 3. Manejo de Contraseñas y Seguridad
+*   **Política de contraseña:** `newPassword` en `/auth/reset-password` y `/auth/change-password` exige entre 8 y 72 caracteres con al menos una letra y un número (responde 400 si no la cumple).
+*   **Estado al restablecer:** solo la primera activación (`PENDIENTE_ACTIVACION` a `ACTIVA`) cambia el estado y publica `cuenta.activada`. Recuperar la contraseña de una cuenta `ACTIVA` o `SUSPENDIDA_TEMPORAL` solo cambia la clave: no reactiva una suspensión.
 *   **Algoritmo:** Todas las contraseñas se almacenan fuertemente hasheadas usando BCryptPasswordEncoder de Spring Security. Nunca se guardan contraseñas en texto plano.
 *   **Tokens Desechables:** Para recuperar contraseñas, no se envía la clave por correo. En su lugar, el sistema genera un **Reset Token** (validez de 15 minutos, con claim "type": "RESET_PASSWORD"). Este token viaja en el cuerpo del JSON (no como Bearer) hacia el endpoint POST /auth/reset-password.
 *   **Clave Secreta JWT:** La clave secreta para firmar los tokens debe ser de al menos 256 bits (32 caracteres). Esta se configura vía variables de entorno en el archivo pplication.yaml o .env bajo la llave jwt.secret.
@@ -59,12 +61,64 @@ auth-service consume `empleados_exchange` (cola `auth.empleados`, con DLQ `auth.
 
 `/auth/recover-password` publica `usuario.recuperacion`. notificaciones-service consume `auth_exchange` (cola `notificaciones.auth`). Los campos de `data` de los eventos de auth están centralizados en `AuthEventPayloads` y deben validarse contra el Catálogo de Eventos.
 
+### Diagrama de secuencia del ciclo de vida de la cuenta
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Admin
+    participant GW as API Gateway
+    participant REG as registro-service
+    participant MQ as RabbitMQ
+    participant AUTH as auth-service
+    participant VAC as vacaciones-service
+    participant NOT as notificaciones-service
+
+    Admin->>GW: POST /empleados (JWT ADMIN)
+    GW->>REG: reenvía con X-User-Id / X-User-Role
+    REG-)MQ: empleado.creado (empleados_exchange)
+    MQ-)AUTH: empleado.creado
+    AUTH->>AUTH: cuenta PENDIENTE_ACTIVACION + token de activación
+    AUTH-)MQ: usuario.creado (auth_exchange)
+    MQ-)NOT: usuario.creado
+    NOT->>NOT: [NOTIFICACIÓN] Tipo: SEGURIDAD (correo de bienvenida)
+    Admin->>GW: POST /auth/reset-password (token de activación)
+    GW->>AUTH: define contraseña, cuenta ACTIVA
+    AUTH-)MQ: cuenta.activada (ACTIVACION_INICIAL)
+
+    Note over VAC: Scheduler (VACACIONES_CRON)
+    VAC-)MQ: vacaciones.iniciadas
+    MQ-)AUTH: vacaciones.iniciadas
+    AUTH->>AUTH: ACTIVA a SUSPENDIDA_TEMPORAL (login devuelve 403)
+    AUTH-)MQ: cuenta.desactivada (VACACIONES, permanente=false)
+
+    alt Termina el período sin retiro
+        VAC-)MQ: vacaciones.finalizadas
+        MQ-)AUTH: vacaciones.finalizadas
+        AUTH->>AUTH: SUSPENDIDA_TEMPORAL a ACTIVA
+        AUTH-)MQ: cuenta.activada (FIN_VACACIONES)
+    else Retiro (también durante vacaciones)
+        REG-)MQ: empleado.retirado
+        MQ-)AUTH: empleado.retirado
+        AUTH->>AUTH: DESACTIVADA_PERMANENTE
+        AUTH-)MQ: cuenta.desactivada (RETIRO, permanente=true)
+        VAC-)MQ: vacaciones.finalizadas
+        MQ-)AUTH: vacaciones.finalizadas
+        AUTH->>AUTH: se IGNORA (caso borde: no se reactiva)
+    end
+```
+
+Todos los eventos usan el mismo envelope (`id`, `type`, `version` como texto `"1.0"`, `occurredAt`, `producer`, `data`),
+publicado siempre por `AuthEventPublisher`. Los campos de `data` se construyen solo en `AuthEventPayloads`.
+
 ## 6. Despliegue y Configuracion Docker
 Como desarrollador de este microservicio, se incluye toda la configuracion necesaria para conectarlo al ecosistema general.
 
 ### Archivo .env
 Copie `.env.example` a `.env` (ya incluye todas las variables de auth-service). Las propias de este servicio son:
 JWT_SECRET_KEY=<al menos 32 bytes; igual en auth-service y gateway-service>
+ADMIN_EMAIL=admin@empresa.com
+ADMIN_PASSWORD=<contraseña del administrador semilla; cámbiela>
 AUTH_DB_NAME=auth_db
 AUTH_DB_USER=auth_user
 AUTH_DB_PASSWORD=<contraseña>
@@ -150,3 +204,13 @@ El recorrido implementa las 18 verificaciones sugeridas en el reto:
 Los requests auxiliares de crear el departamento, dar de alta E002 y recoger los
 tokens de activación/restablecimiento son parte del orden de ejecución de la
 colección; las comprobaciones de estado HTTP están automatizadas en sus tests.
+
+## 9. Decisiones y limitaciones conocidas
+
+*   **Validación solo en el Gateway.** Los microservicios internos no exponen puertos al host y confían en `X-User-Id` / `X-User-Role`, que el Gateway reescribe a partir de claims verificados. Es una decisión consciente para no duplicar un filtro JWT en cinco lenguajes distintos.
+*   **Swagger / BearerAuth.** El esquema `BearerAuth` (JWT) se declara únicamente en el Gateway (`/swagger-ui.html`), que es el único punto de entrada; los servicios internos no se consumen directamente.
+*   **Access JWT sin revocación.** El Gateway valida firma y expiración, no el estado de la cuenta. Una cuenta suspendida o retirada conserva un token ya emitido hasta que expira (1 hora); el login sí falla de inmediato.
+*   **Reset/activation token reutilizable.** Es un JWT (`type=RESET_PASSWORD`, 15 min en recuperación, 1 h en activación) y no se invalida tras usarse. No sirve como access token: el Gateway rechaza cualquier token con claim `type`, y auth-service exige ese claim en `/auth/reset-password`.
+*   **Algoritmo de firma.** HMAC-SHA256 fijado explícitamente en auth-service (`Jwts.SIG.HS256`), sin importar la longitud del secret. Auth y Gateway deben compartir el mismo `JWT_SECRET_KEY` (mínimo 32 bytes; ambos fallan al arrancar si no está definido o es más corto). No existe un valor por defecto en el código.
+*   **Scheduler con N instancias.** Ver sección 7 (ShedLock en el Reto 31).
+*   **Admin semilla.** Se crea con `ADMIN_EMAIL` / `ADMIN_PASSWORD` (`.env.example` trae `admin@empresa.com` / `admin123` y docker-compose los pasa al contenedor). `ADMIN_PASSWORD` y `JWT_SECRET` ya no tienen valor por defecto en `application.yaml`; para correr fuera de Docker hay que definirlas. La contraseña nunca se escribe en los logs. Cámbiela fuera de entornos de prueba.

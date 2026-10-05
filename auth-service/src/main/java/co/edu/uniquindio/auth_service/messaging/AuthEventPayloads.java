@@ -13,9 +13,11 @@ import java.util.Map;
 public final class AuthEventPayloads {
 
     public static final String USUARIO_CREADO = "usuario.creado";
+    public static final String USUARIO_RECUPERACION = "usuario.recuperacion";
     public static final String CUENTA_ACTIVADA = "cuenta.activada";
     public static final String CUENTA_DESACTIVADA = "cuenta.desactivada";
 
+    public static final String MOTIVO_ACTIVACION_INICIAL = "ACTIVACION_INICIAL";
     public static final String MOTIVO_RETIRO = "RETIRO";
     public static final String MOTIVO_VACACIONES = "VACACIONES";
     public static final String MOTIVO_FIN_VACACIONES = "FIN_VACACIONES";
@@ -33,6 +35,15 @@ public final class AuthEventPayloads {
         return data;
     }
 
+    // usuario.recuperacion: campos email, tokenRecuperacion, expiraEn (sin empleadoId).
+    public static Map<String, Object> usuarioRecuperacion(String email, String tokenRecuperacion, String expiraEn) {
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("email", email);
+        data.put("tokenRecuperacion", tokenRecuperacion);
+        data.put("expiraEn", expiraEn);
+        return data;
+    }
+
     // cuenta.desactivada: campos empleadoId, email,
     //  motivo ("RETIRO" | "VACACIONES"), permanente (boolean).
     public static Map<String, Object> cuentaDesactivada(String empleadoId, String email, String motivo, boolean permanente) {
@@ -44,8 +55,7 @@ public final class AuthEventPayloads {
         return data;
     }
 
-    // cuenta.activada: campos empleadoId, email, motivo,
-    //  los mismos que ya publica AuthServiceImpl.resetPassword con motivo ACTIVACION_INICIAL.
+    // cuenta.activada: campos empleadoId, email, motivo (ACTIVACION_INICIAL | FIN_VACACIONES).
     public static Map<String, Object> cuentaActivada(String empleadoId, String email, String motivo) {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("empleadoId", empleadoId);

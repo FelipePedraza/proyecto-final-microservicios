@@ -4,6 +4,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
 @SpringBootTest(properties = {
+		"jwt.secret=clave-de-pruebas-de-al-menos-32-bytes-0123456789",
+		"admin.default.password=Admin-de-pruebas-1",
 		"spring.datasource.url=jdbc:h2:mem:authdb;MODE=PostgreSQL;DB_CLOSE_DELAY=-1",
 		"spring.datasource.driver-class-name=org.h2.Driver",
 		"spring.datasource.username=sa",

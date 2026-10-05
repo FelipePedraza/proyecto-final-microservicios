@@ -358,6 +358,8 @@ services:
       RABBITMQ_USER: ${RABBITMQ_USER:?Define RABBITMQ_USER in .env}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Define RABBITMQ_PASSWORD in .env}
       JWT_SECRET: ${JWT_SECRET_KEY:?Define JWT_SECRET_KEY in .env}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@empresa.com}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
     depends_on:
       auth-db:
         condition: service_healthy

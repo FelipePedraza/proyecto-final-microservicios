@@ -6,7 +6,6 @@ import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageProperties;
 
 import java.nio.charset.StandardCharsets;
-import java.time.Instant;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -29,21 +28,21 @@ class JsonConverterAndConsumerTest {
     }
 
     @Test
-    void elConversorBeanSerializaElEventEnvelopeDelIntegrante1ComoJson() {
-        EventEnvelope<Object> envelope = new EventEnvelope<>();
-        envelope.setId("evt-1");
-        envelope.setType("cuenta.activada");
-        envelope.setVersion(1);
-        envelope.setOccurredAt(Instant.parse("2026-10-04T12:00:00Z"));
-        envelope.setProducer("auth-service");
-        envelope.setData(Map.of("empleadoId", "E001", "email", "a@b.co", "motivo", "ACTIVACION_INICIAL"));
+    void elConversorBeanSerializaUnEnvelopeComoJson() {
+        Map<String, Object> envelope = Map.of(
+                "id", "evt-1",
+                "type", "cuenta.activada",
+                "version", "1.0",
+                "occurredAt", "2026-10-04T12:00:00Z",
+                "producer", "auth-service",
+                "data", Map.of("empleadoId", "E001", "email", "a@b.co", "motivo", "ACTIVACION_INICIAL"));
 
         Message message = config.jsonMessageConverter().toMessage(envelope, new MessageProperties());
 
         String body = new String(message.getBody(), StandardCharsets.UTF_8);
         assertEquals("application/json", message.getMessageProperties().getContentType());
         assertTrue(body.contains("\"type\":\"cuenta.activada\""), body);
-        assertTrue(body.contains("\"occurredAt\":\"2026-10-04T12:00:00Z\""), body);
+        assertTrue(body.contains("\"version\":\"1.0\""), body);
         assertTrue(body.contains("\"motivo\":\"ACTIVACION_INICIAL\""), body);
     }
 
