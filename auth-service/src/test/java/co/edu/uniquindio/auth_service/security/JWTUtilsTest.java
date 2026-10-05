@@ -8,6 +8,7 @@ import java.util.Base64;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -28,6 +29,19 @@ class JWTUtilsTest {
 
         assertTrue(header.contains("\"alg\":\"HS256\""), header);
         assertTrue(header.contains("\"typ\":\"JWT\""), header);
+    }
+
+    @Test
+    void cadaTokenLlevaUnJtiUnico() {
+        JWTUtils jwt = utils("clave-de-pruebas-de-al-menos-32-bytes-0123456789");
+        String a = jwt.generateToken("E001", Map.of("role", "USER"), 60_000);
+        String b = jwt.generateToken("E001", Map.of("role", "USER"), 60_000);
+
+        String payloadA = new String(Base64.getUrlDecoder().decode(a.split("[.]")[1]), StandardCharsets.UTF_8);
+        String payloadB = new String(Base64.getUrlDecoder().decode(b.split("[.]")[1]), StandardCharsets.UTF_8);
+
+        assertTrue(payloadA.contains("\"jti\":\""), payloadA);
+        assertNotEquals(payloadA, payloadB);
     }
 
     @Test

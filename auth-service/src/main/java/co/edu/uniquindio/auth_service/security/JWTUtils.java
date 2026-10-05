@@ -10,6 +10,7 @@ import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.Map;
+import java.util.UUID;
 
 @Component
 public class JWTUtils {
@@ -32,6 +33,7 @@ public class JWTUtils {
         return Jwts.builder()
                 .header().type("JWT").and()
                 .claims(claims)
+                .id(UUID.randomUUID().toString())
                 .subject(subject)
                 .issuedAt(now)
                 .expiration(exp)
