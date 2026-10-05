@@ -1,0 +1,349 @@
+{
+  "info": {
+    "_postman_id": "c36baaf3-7a77-4f89-9f9e-5a8f0351ac42",
+    "name": "Reto 5 - Integracion (Scheduler y pruebas)",
+    "description": "Flujo de integración del Reto 5. Ejecutar en orden. Después del onboarding o la recuperación, copiar tokenRecuperacion de los logs/eventos de notificaciones-service a la variable indicada antes de hacer reset-password. Los requests de forzar inicio/fin requieren VACACIONES_MANUAL_ENABLED=true y rol ADMIN.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "pm.collectionVariables.set('today', new Date().toISOString().slice(0, 10));"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "01 - Login ADMIN semilla",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {"mode": "raw", "raw": "{\"email\":\"admin@empresa.com\",\"password\":\"admin123\"}", "options": {"raw": {"language": "json"}}},
+        "url": "{{baseUrl}}/auth/login"
+      },
+      "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('Admin inicia sesion', () => pm.response.to.have.status(200));", "pm.collectionVariables.set('adminToken', pm.response.json().token);"]}}]
+    },
+    {
+      "name": "02 - Crear departamento de prueba",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{adminToken}}", "type": "string"}]},
+        "body": {"mode": "raw", "raw": "{\"id\":\"IT\",\"name\":\"Tecnologia\",\"description\":\"Departamento de pruebas del Reto 5\"}", "options": {"raw": {"language": "json"}}},
+        "url": "{{baseUrl}}/departamentos"
+      },
+      "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('Departamento creado', () => pm.expect([201, 409]).to.include(pm.response.code));"]}}]
+    },
+    {
+      "name": "03 - Onboarding E001 (ADMIN)",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{adminToken}}", "type": "string"}]},
+        "body": {"mode": "raw", "raw": "{\"id\":\"E001\",\"nombre\":\"Juan\",\"apellido\":\"Perez\",\"email\":\"juan.perez@empresa.com\",\"numeroEmpleado\":\"EMP-R5-001\",\"cargo\":\"Ingeniero\",\"area\":\"Tecnologia\",\"departamentoId\":\"IT\",\"fechaIngreso\":\"{{today}}\"}", "options": {"raw": {"language": "json"}}},
+        "url": "{{baseUrl}}/empleados"
+      },
+      "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('E001 creado o ya existente', () => pm.expect([201, 409]).to.include(pm.response.code));"]}}]
+    },
+    {
+      "name": "04 - Activar E001 (pegar token de notificacion)",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {"mode": "raw", "raw": "{\"resetToken\":\"{{resetTokenE001}}\",\"newPassword\":\"Reto5-user-E001-1!\"}", "options": {"raw": {"language": "json"}}},
+        "url": "{{baseUrl}}/auth/reset-password"
+      },
+      "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('Contrasena inicial establecida', () => pm.response.to.have.status(200));"]}}]
+    },
+    {
+      "name": "05 - Login USER E001",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {"mode": "raw", "raw": "{\"email\":\"juan.perez@empresa.com\",\"password\":\"Reto5-user-E001-1!\"}", "options": {"raw": {"language": "json"}}},
+        "url": "{{baseUrl}}/auth/login"
+      },
+      "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('Login USER correcto', () => pm.response.to.have.status(200));", "pm.collectionVariables.set('userTokenE001', pm.response.json().token);"]}}]
+    },
+    {
+      "name": "06 - Token alterado devuelve 401",
+      "request": {
+        "method": "GET",
+        "header": [{"key": "Authorization", "value": "Bearer token.invalido.alterado"}],
+        "url": "{{baseUrl}}/empleados"
+      },
+      "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('JWT invalido rechazado', () => pm.response.to.have.status(401));"]}}]
+    },
+    {
+      "name": "07 - USER no puede retirar E001 (403)",
+      "request": {
+        "method": "DELETE",
+        "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{userTokenE001}}", "type": "string"}]},
+        "url": "{{baseUrl}}/empleados/E001"
+      },
+      "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('Escritura USER prohibida', () => pm.response.to.have.status(403));"]}}]
+    },
+    {
+      "name": "07b - USER puede leer empleados (200)",
+      "request": {
+        "method": "GET",
+        "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{userTokenE001}}", "type": "string"}]},
+        "url": "{{baseUrl}}/empleados"
+      },
+      "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('Lectura USER permitida', () => pm.response.to.have.status(200));"]}}]
+    },
+    {
+      "name": "08 - Crear E002 (ADMIN, caso borde)",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{adminToken}}", "type": "string"}]},
+        "body": {"mode": "raw", "raw": "{\"id\":\"E002\",\"nombre\":\"Maria\",\"apellido\":\"Lopez\",\"email\":\"maria.lopez@empresa.com\",\"numeroEmpleado\":\"EMP-R5-002\",\"cargo\":\"Analista\",\"area\":\"Tecnologia\",\"departamentoId\":\"IT\",\"fechaIngreso\":\"{{today}}\"}", "options": {"raw": {"language": "json"}}},
+        "url": "{{baseUrl}}/empleados"
+      },
+      "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('E002 creado o ya existente', () => pm.expect([201, 409]).to.include(pm.response.code));"]}}]
+    },
+    {
+      "name": "09 - Activar E002 (pegar token de notificacion)",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {"mode": "raw", "raw": "{\"resetToken\":\"{{resetTokenE002}}\",\"newPassword\":\"Reto5-user-E002-1!\"}", "options": {"raw": {"language": "json"}}},
+        "url": "{{baseUrl}}/auth/reset-password"
+      },
+      "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('E002 activado', () => pm.response.to.have.status(200));"]}}]
+    },
+    {
+      "name": "10 - Login USER E002",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {"mode": "raw", "raw": "{\"email\":\"maria.lopez@empresa.com\",\"password\":\"Reto5-user-E002-1!\"}", "options": {"raw": {"language": "json"}}},
+        "url": "{{baseUrl}}/auth/login"
+      },
+      "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('Login E002 correcto', () => pm.response.to.have.status(200));", "pm.collectionVariables.set('userTokenE002', pm.response.json().token);"]}}]
+    },
+    {
+      "name": "11 - Leer perfil propio E001",
+      "request": {
+        "method": "GET",
+        "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{userTokenE001}}", "type": "string"}]},
+        "url": "{{baseUrl}}/perfiles/E001"
+      },
+      "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('Perfil propio legible', () => pm.response.to.have.status(200));"]}}]
+    },
+    {
+      "name": "12 - USER actualiza su propio perfil (200)",
+      "request": {
+        "method": "PUT",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{userTokenE001}}", "type": "string"}]},
+        "body": {"mode": "raw", "raw": "{\"telefono\":\"3001234567\",\"direccion\":\"Calle 1 # 2-3\",\"ciudad\":\"Bogota\",\"biografia\":\"Perfil de pruebas Reto 5\"}", "options": {"raw": {"language": "json"}}},
+        "url": "{{baseUrl}}/perfiles/E001"
+      },
+      "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('Actualizacion propia permitida', () => pm.response.to.have.status(200));"]}}]
+    },
+    {
+      "name": "13 - USER no actualiza perfil ajeno (403)",
+      "request": {
+        "method": "PUT",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{userTokenE001}}", "type": "string"}]},
+        "body": {"mode": "raw", "raw": "{\"telefono\":\"3007654321\",\"direccion\":\"Otra direccion\",\"ciudad\":\"Medellin\",\"biografia\":\"No autorizado\"}", "options": {"raw": {"language": "json"}}},
+        "url": "{{baseUrl}}/perfiles/E002"
+      },
+      "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('Propiedad ajena prohibida', () => pm.response.to.have.status(403));"]}}]
+    },
+    {
+      "name": "14 - Cambio de contrasena de E001",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{userTokenE001}}", "type": "string"}]},
+        "body": {"mode": "raw", "raw": "{\"oldPassword\":\"Reto5-user-E001-1!\",\"newPassword\":\"Reto5-user-E001-2!\"}", "options": {"raw": {"language": "json"}}},
+        "url": "{{baseUrl}}/auth/change-password"
+      },
+      "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('Cambio de contrasena permitido', () => pm.response.to.have.status(200));"]}}]
+    },
+    {
+      "name": "15 - Login con contrasena anterior falla (401)",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {"mode": "raw", "raw": "{\"email\":\"juan.perez@empresa.com\",\"password\":\"Reto5-user-E001-1!\"}", "options": {"raw": {"language": "json"}}},
+        "url": "{{baseUrl}}/auth/login"
+      },
+      "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('Contrasena anterior rechazada', () => pm.response.to.have.status(401));"]}}]
+    },
+    {
+      "name": "16 - Solicitar recuperacion E001",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {"mode": "raw", "raw": "{\"email\":\"juan.perez@empresa.com\"}", "options": {"raw": {"language": "json"}}},
+        "url": "{{baseUrl}}/auth/recover-password"
+      },
+      "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('Recuperacion aceptada', () => pm.response.to.have.status(200));"]}}]
+    },
+    {
+      "name": "17 - Restablecer E001 (pegar token de recuperacion)",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {"mode": "raw", "raw": "{\"resetToken\":\"{{resetTokenE001}}\",\"newPassword\":\"Reto5-user-E001-3!\"}", "options": {"raw": {"language": "json"}}},
+        "url": "{{baseUrl}}/auth/reset-password"
+      },
+      "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('Password recovery completada', () => pm.response.to.have.status(200));"]}}]
+    },
+    {
+      "name": "18 - Login E001 con contrasena recuperada",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {"mode": "raw", "raw": "{\"email\":\"juan.perez@empresa.com\",\"password\":\"Reto5-user-E001-3!\"}", "options": {"raw": {"language": "json"}}},
+        "url": "{{baseUrl}}/auth/login"
+      },
+      "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('Login despues de recuperacion', () => pm.response.to.have.status(200));", "pm.collectionVariables.set('userTokenE001', pm.response.json().token);"]}}]
+    },
+    {
+      "name": "19 - Programar vacaciones E001 (hoy-hoy)",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{adminToken}}", "type": "string"}]},
+        "body": {"mode": "raw", "raw": "{\"empleadoId\":\"E001\",\"fechaInicio\":\"{{today}}\",\"fechaFin\":\"{{today}}\"}", "options": {"raw": {"language": "json"}}},
+        "url": "{{baseUrl}}/vacaciones"
+      },
+      "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('Vacaciones de un dia creadas', () => pm.response.to.have.status(201));", "pm.collectionVariables.set('vacationIdE001', pm.response.json().id);"]}}]
+    },
+    {
+      "name": "20 - Forzar inicio E001 (evento vacaciones.iniciadas)",
+      "request": {
+        "method": "POST",
+        "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{adminToken}}", "type": "string"}]},
+        "url": "{{baseUrl}}/vacaciones/{{vacationIdE001}}/forzar-inicio"
+      },
+      "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('Periodo pasa a EN_CURSO', () => pm.response.to.have.status(200));", "pm.test('Estado EN_CURSO', () => pm.expect(pm.response.json().estado).to.eql('EN_CURSO'));"]}}]
+    },
+    {
+      "name": "21 - Login E001 durante vacaciones falla (403)",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {"mode": "raw", "raw": "{\"email\":\"juan.perez@empresa.com\",\"password\":\"Reto5-user-E001-3!\"}", "options": {"raw": {"language": "json"}}},
+        "url": "{{baseUrl}}/auth/login"
+      },
+      "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('Cuenta suspendida durante vacaciones', () => pm.response.to.have.status(403));"]}}]
+    },
+    {
+      "name": "22 - Forzar fin E001 (evento vacaciones.finalizadas)",
+      "request": {
+        "method": "POST",
+        "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{adminToken}}", "type": "string"}]},
+        "url": "{{baseUrl}}/vacaciones/{{vacationIdE001}}/forzar-fin"
+      },
+      "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('Periodo pasa a FINALIZADA', () => pm.response.to.have.status(200));", "pm.test('Estado FINALIZADA', () => pm.expect(pm.response.json().estado).to.eql('FINALIZADA'));"]}}]
+    },
+    {
+      "name": "23 - Login E001 despues de vacaciones",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {"mode": "raw", "raw": "{\"email\":\"juan.perez@empresa.com\",\"password\":\"Reto5-user-E001-3!\"}", "options": {"raw": {"language": "json"}}},
+        "url": "{{baseUrl}}/auth/login"
+      },
+      "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('Cuenta reactivada', () => pm.response.to.have.status(200));", "pm.collectionVariables.set('userTokenE001', pm.response.json().token);"]}}]
+    },
+    {
+      "name": "24 - Programar vacaciones E002 (caso de retiro)",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{adminToken}}", "type": "string"}]},
+        "body": {"mode": "raw", "raw": "{\"empleadoId\":\"E002\",\"fechaInicio\":\"{{today}}\",\"fechaFin\":\"{{today}}\"}", "options": {"raw": {"language": "json"}}},
+        "url": "{{baseUrl}}/vacaciones"
+      },
+      "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('Vacaciones E002 creadas', () => pm.response.to.have.status(201));", "pm.collectionVariables.set('vacationIdE002', pm.response.json().id);"]}}]
+    },
+    {
+      "name": "25 - Forzar inicio E002",
+      "request": {
+        "method": "POST",
+        "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{adminToken}}", "type": "string"}]},
+        "url": "{{baseUrl}}/vacaciones/{{vacationIdE002}}/forzar-inicio"
+      },
+      "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('E002 EN_CURSO', () => pm.expect(pm.response.json().estado).to.eql('EN_CURSO'));"]}}]
+    },
+    {
+      "name": "26 - Retirar E002 mientras esta EN_CURSO",
+      "request": {
+        "method": "DELETE",
+        "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{adminToken}}", "type": "string"}]},
+        "url": "{{baseUrl}}/empleados/E002"
+      },
+      "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('Offboarding E002', () => pm.response.to.have.status(204));"]}}]
+    },
+    {
+      "name": "27 - Finalizar vacaciones de E002 retirado",
+      "request": {
+        "method": "POST",
+        "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{adminToken}}", "type": "string"}]},
+        "url": "{{baseUrl}}/vacaciones/{{vacationIdE002}}/forzar-fin"
+      },
+      "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('Fin de periodo retirado publicado', () => pm.response.to.have.status(200));", "pm.test('Estado FINALIZADA', () => pm.expect(pm.response.json().estado).to.eql('FINALIZADA'));"]}}]
+    },
+    {
+      "name": "28 - Login E002 sigue bloqueado despues del fin",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {"mode": "raw", "raw": "{\"email\":\"maria.lopez@empresa.com\",\"password\":\"Reto5-user-E002-1!\"}", "options": {"raw": {"language": "json"}}},
+        "url": "{{baseUrl}}/auth/login"
+      },
+      "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('Empleado retirado no se reactiva', () => pm.response.to.have.status(403));"]}}]
+    },
+    {
+      "name": "29 - Offboarding final E001",
+      "request": {
+        "method": "DELETE",
+        "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{adminToken}}", "type": "string"}]},
+        "url": "{{baseUrl}}/empleados/E001"
+      },
+      "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('Offboarding E001', () => pm.response.to.have.status(204));"]}}]
+    },
+    {
+      "name": "30 - Login E001 retirado falla",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {"mode": "raw", "raw": "{\"email\":\"juan.perez@empresa.com\",\"password\":\"Reto5-user-E001-3!\"}", "options": {"raw": {"language": "json"}}},
+        "url": "{{baseUrl}}/auth/login"
+      },
+      "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('Cuenta retirada bloqueada', () => pm.response.to.have.status(403));"]}}]
+    },
+    {
+      "name": "31 - Auditoria de empleados retirados",
+      "request": {
+        "method": "GET",
+        "auth": {"type": "bearer", "bearer": [{"key": "token", "value": "{{adminToken}}", "type": "string"}]},
+        "url": "{{baseUrl}}/empleados?estado=RETIRADO"
+      },
+      "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('Auditoria incluye E001 y fecha de retiro', () => { pm.response.to.have.status(200); const retired = pm.response.json().find(e => e.id === 'E001'); pm.expect(retired).to.exist; pm.expect(retired.fechaRetiro).to.exist; });"]}}]
+    }
+  ],
+  "variable": [
+    {"key": "baseUrl", "value": "http://localhost:8088"},
+    {"key": "today", "value": ""},
+    {"key": "adminToken", "value": ""},
+    {"key": "userTokenE001", "value": ""},
+    {"key": "userTokenE002", "value": ""},
+    {"key": "resetTokenE001", "value": ""},
+    {"key": "resetTokenE002", "value": ""},
+    {"key": "vacationIdE001", "value": ""},
+    {"key": "vacationIdE002", "value": ""}
+  ]
+}

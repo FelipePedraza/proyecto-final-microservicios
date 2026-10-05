@@ -29,4 +29,9 @@ class VacationRequestTest {
     void shouldAcceptValidVacationRequest() {
         assertTrue(validator.validate(new VacationRequest("e", today.plusDays(1), today.plusDays(2))).isEmpty());
     }
+
+    @Test
+    void shouldAcceptSingleDayVacation() {
+        assertTrue(validator.validate(new VacationRequest("e", today, today)).isEmpty());
+    }
 }

@@ -18,6 +18,7 @@ import com.example.vacaciones.exception.VacationNotFoundException;
 import com.example.vacaciones.exception.VacationStateException;
 import com.example.vacaciones.exception.VacationValidationException;
 import com.example.vacaciones.messaging.EmployeeReplicaRepository;
+import com.example.vacaciones.messaging.VacationLifecycleEvent;
 import com.example.vacaciones.repository.VacationRepository;
 
 @Service
@@ -71,7 +72,52 @@ public class VacationService {
                 Instant.now(clock)
         ));
 
-        publisher.publishEvent(vacation);
+        publishEvent(vacation, "vacaciones.programadas");
+        return VacationResponse.from(vacation);
+    }
+
+    @Transactional
+    public int advanceDueVacations() {
+        LocalDate today = LocalDate.now(clock);
+        List<Vacation> starting = repository.findByStatusAndStartDateLessThanEqual(
+                VacationStatus.PROGRAMADA,
+                today
+        );
+        starting.forEach(vacation -> {
+            vacation.start();
+            publishEvent(vacation, "vacaciones.iniciadas");
+        });
+
+        List<Vacation> ending = repository.findByStatusAndEndDateBefore(VacationStatus.EN_CURSO, today);
+        ending.forEach(vacation -> {
+            vacation.finish();
+            publishEvent(vacation, "vacaciones.finalizadas");
+        });
+
+        return starting.size() + ending.size();
+    }
+
+    @Transactional
+    public VacationResponse forceStart(String id) {
+        Vacation vacation = repository.findById(id)
+                .orElseThrow(VacationNotFoundException::new);
+        if (vacation.getStatus() != VacationStatus.PROGRAMADA) {
+            throw new VacationStateException("Solo se puede iniciar un período PROGRAMADA");
+        }
+        vacation.start();
+        publishEvent(vacation, "vacaciones.iniciadas");
+        return VacationResponse.from(vacation);
+    }
+
+    @Transactional
+    public VacationResponse forceFinish(String id) {
+        Vacation vacation = repository.findById(id)
+                .orElseThrow(VacationNotFoundException::new);
+        if (vacation.getStatus() != VacationStatus.EN_CURSO) {
+            throw new VacationStateException("Solo se puede finalizar un período EN_CURSO");
+        }
+        vacation.finish();
+        publishEvent(vacation, "vacaciones.finalizadas");
         return VacationResponse.from(vacation);
     }
 
@@ -114,5 +160,9 @@ public class VacationService {
         );
         scheduledVacations.forEach(vacation -> vacation.cancel());
         return scheduledVacations.size();
+    }
+
+    private void publishEvent(Vacation vacation, String type) {
+        publisher.publishEvent(VacationLifecycleEvent.from(vacation, type));
     }
 }

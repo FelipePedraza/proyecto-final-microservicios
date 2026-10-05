@@ -72,12 +72,10 @@ se conectan además a message-broker (RabbitMQ) para publicar y/o consumir event
 - `registro-service` publica en ese exchange los eventos `empleado.creado`,
   `empleado.actualizado` y `empleado.retirado` (ver
   `RegistroService/Domain/Services/EmpleadoService.cs`).
-- `vacaciones-service` publica adicionalmente `vacaciones.programadas` en el
-  mismo exchange, después de confirmar la transacción (ver
-  `VacationEventPublisher.java`). El README propio de `vacaciones-service`
-  advierte que la forma exacta de esa carga útil (`vacacionId`, `empleadoId`,
-  `fechaInicio`, `fechaFin`) es un supuesto **pendiente de verificar contra un
-  catálogo formal de eventos**, que no existe en el repositorio.
+- `vacaciones-service` publica `vacaciones.programadas`,
+  `vacaciones.iniciadas` y `vacaciones.finalizadas` en el mismo exchange después
+  del commit. Los eventos incluyen `version: "1.0"` y datos de vacaciones; el
+  scheduler y el contrato se documentan en [`vacaciones-service/README.md`](vacaciones-service/README.md).
 - `notificaciones-service`, `perfiles-service` y `vacaciones-service` consumen
   ese exchange, cada uno con su propia cola durable y su propia cola de
   mensajes muertos (DLQ):
@@ -336,8 +334,8 @@ database/
 ## Pruebas automatizadas
 
 Cada servicio mantiene su propia suite de pruebas, en su propia carpeta.
-No se ejecutaron las suites como parte de esta auditoría (este documento
-describe qué pruebas existen y cómo se ejecutan, no sus resultados):
+Para este cambio se ejecutó la suite de `vacaciones-service` (17 pruebas
+correctas); las demás filas indican cómo correr sus suites:
 
 | Servicio | Cómo correr las pruebas | Archivos de prueba encontrados |
 |---|---|---|
@@ -345,9 +343,9 @@ describe qué pruebas existen y cómo se ejecutan, no sus resultados):
 | `departamentos-service` | `cd departamentos-serviceReto2 && pip install -r requirements-dev.txt && pytest -q` | `test_departamentos.py`, `test_resiliencia.py` |
 | `notificaciones-service` | `cd notificaciones-service && npm test` (Jest + Supertest) | `eventoParser.test.js`, `notificacionService.test.js`, `api.test.js` |
 | `perfiles-service` | `cd perfiles-service && go test ./...` | `internal/api/router_test.go`, `internal/messaging/consumer_test.go` |
-| `vacaciones-service` | `cd vacaciones-service && mvn test` (o el wrapper equivalente si el repositorio lo incluye) | `VacationControllerValidationTest.java` y otras pruebas en `src/test/java` |
+| `vacaciones-service` | `mvn -f vacaciones-service/pom.xml test` | Validación de fechas, scheduler, transiciones tras retiro y payload RabbitMQ |
 | `auth-service` | `cd auth-service && ./mvnw test` | `AuthServiceApplicationTests.java`, `AccountLifecycleServiceTest.java`, `JsonConverterAndConsumerTest.java` |
-| `gateway-service` | No se encontró carpeta de pruebas automatizadas para este servicio | — |
+| `gateway-service` | `cd gateway-service && mvn test` | Pruebas RBAC, autenticación JWT y autorización de propiedad de perfil |
 
 ## Documentación adicional por servicio
 
@@ -359,14 +357,12 @@ decisiones técnicas):
 - [`perfiles-service/README.md`](perfiles-service/README.md)
 - [`notificaciones-service/README.md`](notificaciones-service/README.md) (incluye además `DOC/Notificaciones-Diseno.md`)
 - [`vacaciones-service/README.md`](vacaciones-service/README.md)
+- [`docs/evidencias/reto5/README.md`](docs/evidencias/reto5/README.md) y su [colección Postman](docs/evidencias/reto5/reto5-integracion.postman_collection.json)
 
 `departamentos-service` y `gateway-service` no tienen un `README.md` propio
 en el repositorio.
 
 ## Puntos no verificados / limitaciones conocidas
 
-- La forma exacta del payload de `vacaciones.programadas` está documentada
-  como un supuesto pendiente de verificar contra un catálogo de eventos que
-  no existe en el repositorio (ver sección de RabbitMQ).
-- `gateway-service` no tiene pruebas automatizadas propias en este
-  repositorio.
+- `VacationScheduler` asume una sola instancia; N réplicas pueden publicar N
+  veces. El Reto 31 incorporará coordinación distribuida con ShedLock.

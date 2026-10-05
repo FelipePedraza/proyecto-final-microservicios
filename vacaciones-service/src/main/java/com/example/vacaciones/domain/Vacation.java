@@ -87,4 +87,18 @@ public class Vacation {
         }
         status = VacationStatus.CANCELADA;
     }
+
+    public void start() {
+        if (status != VacationStatus.PROGRAMADA) {
+            throw new IllegalStateException("Solo se puede iniciar un período PROGRAMADA");
+        }
+        status = VacationStatus.EN_CURSO;
+    }
+
+    public void finish() {
+        if (status != VacationStatus.EN_CURSO) {
+            throw new IllegalStateException("Solo se puede finalizar un período EN_CURSO");
+        }
+        status = VacationStatus.FINALIZADA;
+    }
 }

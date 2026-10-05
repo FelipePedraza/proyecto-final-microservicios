@@ -31,4 +31,8 @@ public interface VacationRepository extends JpaRepository<Vacation, String> {
     List<Vacation> findByEmployeeIdOrderByStartDateAsc(String employeeId);
 
     List<Vacation> findByEmployeeIdAndStatus(String employeeId, VacationStatus status);
+
+    List<Vacation> findByStatusAndStartDateLessThanEqual(VacationStatus status, LocalDate startDate);
+
+    List<Vacation> findByStatusAndEndDateBefore(VacationStatus status, LocalDate endDate);
 }

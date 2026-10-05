@@ -301,6 +301,8 @@ services:
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Define RABBITMQ_PASSWORD in .env}
       RABBITMQ_EXCHANGE: ${RABBITMQ_EXCHANGE:-empleados_exchange}
       RABBITMQ_QUEUE: ${RABBITMQ_QUEUE:-vacaciones.empleados}
+      VACACIONES_CRON: ${VACACIONES_CRON:-0 * * * * *}
+      VACACIONES_MANUAL_ENABLED: ${VACACIONES_MANUAL_ENABLED:-false}
     expose:
       - "8085"
     networks:
