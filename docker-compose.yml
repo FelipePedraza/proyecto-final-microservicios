@@ -198,7 +198,7 @@ services:
       RABBITMQ_USER: ${RABBITMQ_USER:?Define RABBITMQ_USER in .env}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Define RABBITMQ_PASSWORD in .env}
     expose:
-      - "${NOTIFICACIONES_SERVICE_PORT:?Define NOTIFICACIONES_SERVICE_PORT in .env}:8082"
+      - "8082"
     networks:
       - microservicios-network
     depends_on:

@@ -47,24 +47,30 @@ Al arrancar la aplicación por primera vez, un componente llamado AdminSeeder ve
 Para garantizar un estándar en las respuestas de error y evitar que se filtren trazas de Java al cliente, se implementó un RestExceptionHandler (@RestControllerAdvice).
 Este componente captura excepciones personalizadas (UnauthorizedException, ResourceNotFoundException, etc.) y validaciones de DTOs (@Valid), formateándolas en un ResponseDTO estándar.
 
-## 5. Eventos y RabbitMQ (Preparación)
-El servicio está preparado con:
-*   EventEnvelope<T>: Estructura exigida por el catálogo de eventos.
-*   ProcessedEvent: Tabla de deduplicación requerida para el patrón Inbox.
-*   RabbitTemplate: Inyectado en los métodos de recuperación y reseteo para disparar alertas al 
-otificaciones-service.
-*(La configuración de colas y Listeners es responsabilidad del Integrante 3).*
+## 5. Eventos y RabbitMQ
+auth-service consume `empleados_exchange` (cola `auth.empleados`, con DLQ `auth.empleados.dlq`) y deduplica con la tabla `ProcessedEvent` (patrón Inbox):
+
+| Evento recibido | Efecto en la cuenta | Evento publicado en `auth_exchange` |
+| :--- | :--- | :--- |
+| `empleado.creado` | Cuenta `PENDIENTE_ACTIVACION` | `usuario.creado` (con token de activación) |
+| `empleado.retirado` | `DESACTIVADA_PERMANENTE` | `cuenta.desactivada` (permanente) |
+| `vacaciones.iniciadas` | `SUSPENDIDA_TEMPORAL` | `cuenta.desactivada` (VACACIONES) |
+| `vacaciones.finalizadas` | `ACTIVA` (se ignora si está desactivada permanente) | `cuenta.activada` |
+
+`/auth/recover-password` publica `usuario.recuperacion`. notificaciones-service consume `auth_exchange` (cola `notificaciones.auth`). Los campos de `data` de los eventos de auth están centralizados en `AuthEventPayloads` y deben validarse contra el Catálogo de Eventos.
 
 ## 6. Despliegue y Configuracion Docker
 Como desarrollador de este microservicio, se incluye toda la configuracion necesaria para conectarlo al ecosistema general.
 
 ### Archivo .env
-Agregue las siguientes lineas al archivo .env raiz del proyecto:
-JWT_SECRET_KEY=SuperSecretaClaveDe256BitsMinimoParaQueFuncioneJJWTEnSpring2026!
+Copie `.env.example` a `.env` (ya incluye todas las variables de auth-service). Las propias de este servicio son:
+JWT_SECRET_KEY=<al menos 32 bytes; igual en auth-service y gateway-service>
 AUTH_DB_NAME=auth_db
-AUTH_DB_USER=postgres
-AUTH_DB_PASSWORD=postgres
+AUTH_DB_USER=auth_user
+AUTH_DB_PASSWORD=<contraseña>
 AUTH_SERVICE_URL=http://auth-service:8089
+
+Si una BD falla con "password authentication failed", el volumen de Docker conserva credenciales de una ejecución anterior: elimine ese volumen (`docker volume rm`) y vuelva a levantar.
 
 ### docker-compose.yml
 `auth-db` y `auth-service` están integrados en el `docker-compose.yml` global.
