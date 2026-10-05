@@ -6,6 +6,9 @@ import java.util.Map;
 /**
  * Único lugar donde se construye el {@code data} de los eventos que publica el ciclo de vida de cuentas.
  * Si el Catálogo de Eventos cambia algún campo, se ajusta aquí y en ningún otro sitio.
+ *
+ * <p>Estado: los campos coinciden con los que lee {@code eventoParser.js} de notificaciones-service (verificado
+ * de punta a punta con Docker). Pendiente: confirmarlos contra el Catálogo de Eventos 3.x.
  */
 public final class AuthEventPayloads {
 
@@ -19,7 +22,7 @@ public final class AuthEventPayloads {
 
     private AuthEventPayloads() {}
 
-    // TODO: validar contra Catálogo de Eventos 3.x (usuario.creado). Campos asumidos: empleadoId, email,
+    // usuario.creado: campos empleadoId, email,
     //  tokenActivacion (por analogía con tokenRecuperacion) y expiraEn (igual que usuario.recuperacion).
     public static Map<String, Object> usuarioCreado(String empleadoId, String email, String tokenActivacion, String expiraEn) {
         Map<String, Object> data = new LinkedHashMap<>();
@@ -30,7 +33,7 @@ public final class AuthEventPayloads {
         return data;
     }
 
-    // TODO: validar contra Catálogo de Eventos 3.x (cuenta.desactivada). Campos asumidos: empleadoId, email,
+    // cuenta.desactivada: campos empleadoId, email,
     //  motivo ("RETIRO" | "VACACIONES"), permanente (boolean).
     public static Map<String, Object> cuentaDesactivada(String empleadoId, String email, String motivo, boolean permanente) {
         Map<String, Object> data = new LinkedHashMap<>();
@@ -41,7 +44,7 @@ public final class AuthEventPayloads {
         return data;
     }
 
-    // TODO: validar contra Catálogo de Eventos 3.x (cuenta.activada). Campos asumidos: empleadoId, email, motivo,
+    // cuenta.activada: campos empleadoId, email, motivo,
     //  los mismos que ya publica AuthServiceImpl.resetPassword con motivo ACTIVACION_INICIAL.
     public static Map<String, Object> cuentaActivada(String empleadoId, String email, String motivo) {
         Map<String, Object> data = new LinkedHashMap<>();
