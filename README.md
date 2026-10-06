@@ -268,6 +268,24 @@ Swagger UI está disponible en `/swagger-ui.html` y la especificación en
 `/v3/api-docs`. OpenAPI declara el esquema HTTP `BearerAuth` con formato JWT;
 el botón **Authorize** de Swagger UI acepta el access token emitido por
 `POST /auth/login` y conserva la autorización mientras se navega por la UI.
+La interfaz del Gateway agrega las especificaciones de los servicios en un
+selector: Gateway, autenticación, empleados, departamentos, perfiles,
+notificaciones y vacaciones. Cada especificación también se puede consultar en
+`/openapi/{servicio}` (por ejemplo, `/openapi/vacaciones`). Las rutas OpenAPI se
+mantienen públicas para cargar la documentación; las operaciones de negocio
+siguen sujetas al JWT y a las reglas RBAC descritas arriba. Para probar
+operaciones desde Swagger, primero ejecuta `POST /auth/login`, copia el valor
+`token` y pégalo en **Authorize** (Swagger UI añade automáticamente el prefijo
+`Bearer`).
+
+Las rutas de especificaciones agregadas son `/v3/api-docs` (Gateway),
+`/openapi/auth`, `/openapi/registro`, `/openapi/departamentos`,
+`/openapi/perfiles`, `/openapi/notificaciones` y `/openapi/vacaciones`. Algunas
+especificaciones también pueden consultarse directamente si el servicio está
+accesible: Departamentos en `/docs`, Notificaciones en `/docs`, Perfiles en
+`/swagger/index.html` y Vacaciones en `/swagger-ui.html`. En el despliegue
+Docker normal, el Gateway es el único puerto de aplicación publicado al host;
+por ello se recomienda usar la interfaz agregada.
 
 ## Puesta en marcha
 
@@ -358,6 +376,7 @@ decisiones técnicas):
 - [`notificaciones-service/README.md`](notificaciones-service/README.md) (incluye además `DOC/Notificaciones-Diseno.md`)
 - [`vacaciones-service/README.md`](vacaciones-service/README.md)
 - [`docs/evidencias/reto5/README.md`](docs/evidencias/reto5/README.md) y su [colección Postman](docs/evidencias/reto5/reto5-integracion.postman_collection.json)
+- [Flujo de empleado con autenticación JWT desde PowerShell](docs/evidencias/reto5/pruebas-flujo-auth-powershell.md)
 
 `departamentos-service` y `gateway-service` no tienen un `README.md` propio
 en el repositorio.

@@ -39,6 +39,12 @@ microservicio.
 | `GET` | `/health` | Liveness: el proceso está vivo. |
 | `GET` | `/health/ready` | Readiness: además, la base de datos responde. |
 | `GET` | `/docs` | Swagger UI (OpenAPI generado desde el código de las rutas). |
+| `GET` | `/openapi.json` | Especificación OpenAPI 3.0.3 en JSON; ruta estable para agregadores. |
+
+El Gateway agrega esta especificación en `GET /openapi/notificaciones`. Al invocar las
+rutas de notificaciones a través del Gateway, se debe enviar `Authorization: Bearer
+<JWT>` con rol `USER` o `ADMIN`. El servicio interno no valida JWT por sí mismo. Los
+endpoints de salud no requieren autenticación cuando se consultan directamente.
 
 Cada notificación usa la estructura `id`, `tipo` (`BIENVENIDA`, `DESVINCULACION` o
 `VACACIONES`), `destinatario`, `mensaje`, `fechaEnvio` y `empleadoId`. El correo de

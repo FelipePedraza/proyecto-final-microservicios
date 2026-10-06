@@ -17,6 +17,7 @@ function crearApp({ notificacionService, estaListaLaBaseDeDatos }) {
   app.use(express.json());
 
   app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+  app.get('/openapi.json', (req, res) => res.json(swaggerSpec));
 
   app.use(crearHealthRouter(estaListaLaBaseDeDatos));
   app.use(crearNotificacionesRouter(notificacionService));

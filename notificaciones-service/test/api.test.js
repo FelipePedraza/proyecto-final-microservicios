@@ -118,4 +118,23 @@ describe('API HTTP de notificaciones-service', () => {
     expect(respuesta.status).toBe(200);
     expect(respuesta.text).toContain('swagger');
   });
+
+  test('GET /openapi.json expone el contrato completo para el agregador del gateway', async () => {
+    const respuesta = await request(app).get('/openapi.json');
+
+    expect(respuesta.status).toBe(200);
+    expect(respuesta.body.openapi).toBe('3.0.3');
+    expect(respuesta.body.paths['/notificaciones/{empleadoId}'].get.security).toEqual([
+      { BearerAuth: [] },
+    ]);
+    expect(respuesta.body.paths['/health/ready'].get.responses['503']).toBeDefined();
+    expect(respuesta.body.components.securitySchemes.BearerAuth.scheme).toBe('bearer');
+    expect(respuesta.body.components.schemas.Notificacion.properties.tipo.enum).toEqual([
+      'BIENVENIDA',
+      'DESVINCULACION',
+      'VACACIONES',
+      'SEGURIDAD',
+      'CUENTA',
+    ]);
+  });
 });

@@ -16,11 +16,11 @@ const { tipoNotificacion, obtenerDestinatario } = require('../domain/eventoParse
  *           example: "1"
  *         tipo:
  *           type: string
- *           enum: [BIENVENIDA, DESVINCULACION, VACACIONES]
+ *           enum: [BIENVENIDA, DESVINCULACION, VACACIONES, SEGURIDAD, CUENTA]
  *           example: DESVINCULACION
  *         destinatario:
  *           type: string
- *           format: email
+ *           description: Correo del destinatario o "no informado" si el evento no proporcionó uno.
  *           example: "juan.perez@empresa.com"
  *         mensaje:
  *           type: string
@@ -30,6 +30,7 @@ const { tipoNotificacion, obtenerDestinatario } = require('../domain/eventoParse
  *           format: date-time
  *         empleadoId:
  *           type: string
+ *           description: Identificador del empleado; para usuario.recuperacion puede ser el correo de la cuenta.
  *           example: "E001"
  */
 
@@ -62,6 +63,9 @@ function crearNotificacionesRouter(notificacionService) {
    *   get:
    *     summary: Lista el historial completo de notificaciones, más recientes primero.
    *     tags: [Notificaciones]
+   *     description: Al pasar por el gateway requiere un JWT Bearer válido con rol USER o ADMIN. El servicio interno no valida tokens.
+   *     security:
+   *       - BearerAuth: []
    *     responses:
    *       200:
    *         description: Historial de notificaciones.
@@ -71,6 +75,24 @@ function crearNotificacionesRouter(notificacionService) {
    *               type: array
    *               items:
    *                 $ref: '#/components/schemas/Notificacion'
+   *       401:
+   *         description: Falta un JWT válido al acceder por el gateway.
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/GatewayError'
+   *       403:
+   *         description: El usuario autenticado no tiene rol USER o ADMIN.
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/GatewayError'
+   *       500:
+   *         description: Error interno al consultar el historial.
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/Error'
    */
   router.get('/notificaciones', async (req, res, next) => {
     try {
@@ -87,6 +109,9 @@ function crearNotificacionesRouter(notificacionService) {
    *   get:
    *     summary: Lista el historial de notificaciones de un empleado, más recientes primero.
    *     tags: [Notificaciones]
+   *     description: Al pasar por el gateway requiere un JWT Bearer válido con rol USER o ADMIN. El servicio interno no valida tokens.
+   *     security:
+   *       - BearerAuth: []
    *     parameters:
    *       - in: path
    *         name: empleadoId
@@ -103,6 +128,24 @@ function crearNotificacionesRouter(notificacionService) {
    *               type: array
    *               items:
    *                 $ref: '#/components/schemas/Notificacion'
+   *       401:
+   *         description: Falta un JWT válido al acceder por el gateway.
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/GatewayError'
+   *       403:
+   *         description: El usuario autenticado no tiene rol USER o ADMIN.
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/GatewayError'
+   *       500:
+   *         description: Error interno al consultar el historial.
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/Error'
    */
   router.get('/notificaciones/:empleadoId', async (req, res, next) => {
     try {

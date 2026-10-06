@@ -1,19 +1,101 @@
 import logging
 from fastapi import FastAPI, Request, status
 from fastapi.encoders import jsonable_encoder
+from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError, InterfaceError, SQLAlchemyError
+from fastapi.openapi.utils import get_openapi
 
 from app.api.departments_api import router as departamentos_router
 from app.db.database import engine
 from app.exceptions import DepartamentoNoEncontradoError, DepartamentoYaExisteError
+from app.schemas.respuestas import (
+    DatabaseUnavailableResponse,
+    HealthResponse,
+    ReadyResponse,
+)
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Departamentos Service", version="1.0.0")
+app = FastAPI(
+    title="Departamentos Service",
+    description=(
+        "API para crear, consultar y listar departamentos. "
+        "Las operaciones de departamentos deben enviarse mediante el gateway "
+        "con un JWT Bearer; la autenticación y autorización son responsabilidad "
+        "del gateway, no de este servicio."
+    ),
+    version="1.0.0",
+    openapi_tags=[
+        {"name": "Departamentos", "description": "Operaciones de departamentos."},
+        {"name": "Health", "description": "Liveness y disponibilidad de la base de datos."},
+    ],
+)
+
+
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+
+    schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        description=app.description,
+        routes=app.routes,
+        tags=app.openapi_tags,
+    )
+    schema.setdefault("components", {}).setdefault("securitySchemes", {})[
+        "BearerAuth"
+    ] = {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "JWT validado por el gateway.",
+    }
+    for path, path_item in schema["paths"].items():
+        if path in (
+            "/departamentos",
+            "/departamentos/{id}",
+            "/health/ready",
+        ):
+            for operation in path_item.values():
+                if isinstance(operation, dict) and "responses" in operation:
+                    operation["security"] = [{"BearerAuth": []}]
+
+    app.openapi_schema = schema
+    return app.openapi_schema
+
+
+app.openapi = custom_openapi
+
+
+@app.get("/departamentos/openapi.json", include_in_schema=False)
+def prefixed_openapi():
+    """Alias para servir OpenAPI mediante el prefijo /departamentos del gateway."""
+    return app.openapi()
+
+
+@app.get("/departamentos/docs", include_in_schema=False)
+def prefixed_swagger_ui():
+    """Swagger UI accesible a través de la ruta del servicio en el gateway."""
+    return get_swagger_ui_html(
+        openapi_url="/departamentos/openapi.json",
+        title=f"{app.title} - Swagger UI",
+    )
+
+
+@app.get("/departamentos/redoc", include_in_schema=False)
+def prefixed_redoc():
+    """ReDoc accesible a través de la ruta del servicio en el gateway."""
+    return get_redoc_html(
+        openapi_url="/departamentos/openapi.json",
+        title=f"{app.title} - ReDoc",
+    )
+
+
 app.include_router(departamentos_router)
 
 
@@ -82,13 +164,35 @@ async def unhandled_handler(request: Request, exc: Exception):
 
 
 # ---------- Health: liveness vs readiness ----------
-@app.get("/health", tags=["Health"])
+@app.get(
+    "/health",
+    tags=["Health"],
+    response_model=HealthResponse,
+    response_description="El proceso está en ejecución.",
+)
 def health():
     """Liveness: el proceso está vivo."""
     return {"status": "healthy"}
 
 
-@app.get("/health/ready", tags=["Health"])
+@app.get(
+    "/health/ready",
+    tags=["Health"],
+    response_model=ReadyResponse,
+    response_description="La base de datos está disponible.",
+    responses={
+        503: {
+            "model": DatabaseUnavailableResponse,
+            "description": "La base de datos no está disponible.",
+            "headers": {
+                "Retry-After": {
+                    "description": "Segundos sugeridos antes de reintentar.",
+                    "schema": {"type": "string", "example": "5"},
+                }
+            },
+        }
+    },
+)
 def ready():
     """Readiness: el servicio puede atender tráfico (incluye su base de datos)."""
     try:
