@@ -46,6 +46,7 @@ class AuthServiceApplicationTests {
 		JsonNode document = objectMapper.readTree(response);
 		JsonNode paths = document.path("paths");
 
+		assertEquals("/", document.path("servers").get(0).path("url").asText());
 		assertTrue(paths.has("/auth/login"));
 		assertTrue(paths.has("/auth/recover-password"));
 		assertTrue(paths.has("/auth/reset-password"));

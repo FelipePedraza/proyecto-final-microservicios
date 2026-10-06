@@ -286,6 +286,9 @@ accesible: Departamentos en `/docs`, Notificaciones en `/docs`, Perfiles en
 `/swagger/index.html` y Vacaciones en `/swagger-ui.html`. En el despliegue
 Docker normal, el Gateway es el único puerto de aplicación publicado al host;
 por ello se recomienda usar la interfaz agregada.
+La especificación de autenticación usa una URL relativa para que Swagger envíe
+`/auth/login` al mismo origen del Gateway (por ejemplo, `http://localhost:8088`)
+y no intente acceder desde el navegador al hostname interno `auth-service`.
 
 ## Puesta en marcha
 
