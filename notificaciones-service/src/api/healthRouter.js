@@ -16,10 +16,44 @@ const { Router } = require('express');
 function crearHealthRouter(estaListaLaBaseDeDatos) {
   const router = Router();
 
+  /**
+   * @openapi
+   * /health:
+   *   get:
+   *     summary: Comprueba que el proceso HTTP está vivo.
+   *     tags: [Salud]
+   *     responses:
+   *       200:
+   *         description: El proceso está activo.
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/HealthStatus'
+   */
   router.get('/health', (req, res) => {
     res.json({ status: 'healthy' });
   });
 
+  /**
+   * @openapi
+   * /health/ready:
+   *   get:
+   *     summary: Comprueba que el servicio puede consultar su base de datos.
+   *     tags: [Salud]
+   *     responses:
+   *       200:
+   *         description: La base de datos está disponible.
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/HealthStatus'
+   *       503:
+   *         description: La base de datos no está disponible.
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/HealthStatus'
+   */
   router.get('/health/ready', async (req, res) => {
     const dbOk = await estaListaLaBaseDeDatos();
     if (dbOk) {

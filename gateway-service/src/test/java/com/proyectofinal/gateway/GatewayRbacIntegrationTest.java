@@ -14,6 +14,8 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "jwt.secret=" + GatewayRbacIntegrationTest.SECRET
 })
@@ -52,6 +54,23 @@ class GatewayRbacIntegrationTest {
                 .jsonPath("$.components.securitySchemes.BearerAuth.scheme").isEqualTo("bearer")
                 .jsonPath("$.components.securitySchemes.BearerAuth.bearerFormat").isEqualTo("JWT")
                 .jsonPath("$.security[0].BearerAuth").isArray();
+    }
+
+    @Test
+    void swaggerUiAgregaLasEspecificacionesDeLosServicios() {
+        client.get()
+                .uri("/v3/api-docs/swagger-config")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(String.class)
+                .value(config -> {
+                    assertTrue(config.contains("/openapi/auth"));
+                    assertTrue(config.contains("/openapi/registro"));
+                    assertTrue(config.contains("/openapi/departamentos"));
+                    assertTrue(config.contains("/openapi/perfiles"));
+                    assertTrue(config.contains("/openapi/notificaciones"));
+                    assertTrue(config.contains("/openapi/vacaciones"));
+                });
     }
 
     @Test

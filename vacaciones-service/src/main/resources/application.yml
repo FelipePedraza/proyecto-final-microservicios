@@ -15,8 +15,8 @@ spring:
     username: ${RABBITMQ_USER:guest}
     password: ${RABBITMQ_PASSWORD:guest}
 springdoc:
-  api-docs.path: /vacaciones/api-docs
-  swagger-ui.path: /vacaciones/docs
+  api-docs.path: /v3/api-docs
+  swagger-ui.path: /swagger-ui.html
 management:
   endpoints.web.exposure.include: health,info
   endpoint.health.probes.enabled: true

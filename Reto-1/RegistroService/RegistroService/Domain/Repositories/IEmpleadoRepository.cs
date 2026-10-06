@@ -15,22 +15,12 @@ public interface IEmpleadoRepository
         Empleado empleado,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-
-    /// Actualiza la información de un empleado existente (usado para PUT y para la baja lógica).
-
-    /// </summary>
-
+    /// <summary>Actualiza un empleado existente, incluso para realizar su baja lÃ³gica.</summary>
     Task ActualizarAsync(
         Empleado empleado,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-
-    /// Filtra empleados por estado RETIRADO y rango de fechas (Auditoría Reto 4).
-
-    /// </summary>
-
+    /// <summary>Filtra empleados retirados por un rango opcional de fechas de retiro.</summary>
     Task<IEnumerable<Empleado>> ObtenerRetiradosAsync(
         DateTime? desde,
         DateTime? hasta,

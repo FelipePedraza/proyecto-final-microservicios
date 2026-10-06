@@ -11,7 +11,12 @@ con transiciones automáticas y eventos de ciclo de vida.
 * `GET /vacaciones/{id}` y `GET /vacaciones?empleadoId=...` consultan períodos.
 * `DELETE /vacaciones/{id}` cancela únicamente períodos `PROGRAMADA`.
 * `GET /health` y `/health/ready` exponen salud.
-* OpenAPI: `/vacaciones/api-docs`; Swagger UI: `/vacaciones/docs`.
+* OpenAPI: `/v3/api-docs`; Swagger UI: `/swagger-ui.html` (interfaz en
+  `/swagger-ui/index.html`). Ambas rutas se sirven desde la raíz del servicio.
+  La especificación incluye el esquema bearer JWT que aplica el API Gateway a
+  las operaciones de negocio; requiere el rol `ADMIN` para escrituras. Salud y
+  documentación son públicas. Los endpoints manuales aparecen solo cuando
+  `VACACIONES_MANUAL_ENABLED=true`.
 
 ## Scheduler y eventos
 

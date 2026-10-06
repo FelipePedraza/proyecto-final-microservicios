@@ -17,7 +17,8 @@ RegistroService/
 │   ├── API/
 │   │   ├── DTOs/
 │   │   │   ├── CreateEmpleadoRequest.cs
-│   │   │   └── EmpleadoResponse.cs
+│   │   │   ├── EmpleadoResponse.cs
+│   │   │   └── ApiResponseContracts.cs
 │   │   └── Extensions/
 │   │       └── MappingExtensions.cs
 │   ├── Domain/
@@ -69,6 +70,11 @@ dotnet run --project RegistroService/RegistroService.csproj
 - HTTPS: `https://localhost:7217`
 
 Swagger UI queda disponible en `/swagger` y el documento OpenAPI en `/swagger/v1/swagger.json`.
+La especificación describe los endpoints de empleados y health, sus cuerpos JSON, códigos de
+respuesta y parámetros. Las operaciones `/empleados` incluyen el esquema Bearer JWT que aplica
+el Gateway para que su Swagger agregado pueda enviar el token. Es metadata de documentación:
+RegistroService no valida JWT directamente. Los endpoints de health permanecen públicos en la
+especificación.
 
 ### Persistencia y configuración
 
@@ -85,7 +91,10 @@ El esquema de la base de datos se crea mediante el script `database/registro/001
 }
 ```
 
-RegistroService no implementa ni almacena Departamentos. Al registrar un empleado, únicamente consume `GET {BaseUrl}/departamentos/{departamentoId}` del microservicio externo. Un `404` rechaza el registro porque el departamento no existe; cualquier otro error del servicio remoto se propaga como error de comunicación.
+RegistroService no implementa ni almacena Departamentos. Al registrar un empleado, consume
+`GET {BaseUrl}/departamentos/{departamentoId}` del microservicio externo. Un `404` rechaza el
+registro porque el departamento no existe; si el servicio remoto no está disponible, se aplica el
+fallback y el empleado queda con estado `PENDIENTE_VALIDACION`.
 
 ## Probar la API
 
@@ -134,17 +143,25 @@ curl http://localhost:8080/empleados/E001
 **Respuesta 200 OK:** misma estructura que el POST.
 
 **Respuesta 404 (empleado no existe):**
-```
-El empleado con id NO-EXISTE no existe
+```json
+{
+  "error": "El empleado con id NO-EXISTE no existe"
+}
 ```
 
 ## Contratos de API
 
-| Método | Ruta | Descripción | Éxito | Error |
-|--------|------|-------------|-------|-------|
-| POST | `/empleados` | Registra un empleado | 201 Created + `EmpleadoResponse` y `Location` | 400 Bad Request / 409 Conflict |
-| GET | `/empleados/{id}` | Consulta por ID | 200 OK + `EmpleadoResponse` | 404 Not Found |
-| * | Cualquier otra ruta | No soportado | — | 404 Not Found |
+| Método | Ruta | Descripción | Respuestas |
+|--------|------|-------------|-------------|
+| GET | `/health` | Liveness de RegistroService | 200 `HealthResponse` |
+| GET | `/health/ready` | Disponibilidad de base de datos | 200 `ReadinessResponse` / 503 no listo |
+| GET | `/health/circuit-breaker` | Estado del circuito de DepartamentosService | 200 `CircuitBreakerHealthResponse` |
+| POST | `/empleados` | Registra empleado; responde `Location` | 201 `EmpleadoResponse` / 400 / 409 / 503 / 500 |
+| GET | `/empleados/{id}` | Consulta por ID | 200 `EmpleadoResponse` / 404 / 503 / 500 |
+| PUT | `/empleados/{id}` | Actualiza empleado usando el cuerpo de creación | 200 `EmpleadoResponse` / 400 / 404 / 503 / 500 |
+| GET | `/empleados?estado=RETIRADO&desde={fecha}&hasta={fecha}` | Consulta retirados con filtros de fecha opcionales | 200 lista de `RetiredEmpleadoResponse` / 400 / 503 / 500 |
+| DELETE | `/empleados/{id}` | Baja lógica | 204 / 404 / 503 / 500 |
+| * | Cualquier otra ruta | No soportado | 404 `ErrorResponse` |
 
 ### Esquema de request (POST /empleados)
 
@@ -175,23 +192,23 @@ El empleado con id NO-EXISTE no existe
   "area": "string",
   "departamentoId": "string",
   "fechaIngreso": "date",
-  "estado": "ACTIVO | EN_VACACIONES | RETIRADO"
+  "estado": "ACTIVO | EN_VACACIONES | RETIRADO | PENDIENTE_VALIDACION"
 }
 ```
 
 ### Códigos de error
 
-| Código | Condición | Cuerpo de respuesta |
-|--------|-----------|---------------------|
+| Código | Condición | Valor de `error` |
+|--------|-----------|--------------------|
 | 409 | Email duplicado | `Ya existe un empleado con email 'xxx'.` |
 | 409 | Número de empleado duplicado | `Ya existe un empleado con numeroEmpleado 'xxx'.` |
 | 400 | Departamento inexistente | `El departamento con id xxx no existe.` |
-| 400 | Campo vacío o inválido | `El valor es obligatorio.` (texto plano) |
-| 404 | Empleado no encontrado | `El empleado con id {id} no existe` (texto plano) |
-| 404 | Ruta no soportada | `Recurso no encontrado` (texto plano) |
-| 500 | Error inesperado | `Ocurrió un error interno del servidor.` (texto plano) |
+| 400 | Campo vacío o inválido | `El valor es obligatorio.` |
+| 404 | Empleado no encontrado | `El empleado con id {id} no existe` |
+| 404 | Ruta no soportada | `Recurso no encontrado` |
+| 500 | Error inesperado | `Ocurrió un error interno del servidor.` |
 
-> Nota: Todas las respuestas de error tienen `Content-Type: text/plain; charset=utf-8`.
+Las respuestas de error usan JSON con la propiedad `error`.
 
 ## Validaciones y reglas de negocio
 

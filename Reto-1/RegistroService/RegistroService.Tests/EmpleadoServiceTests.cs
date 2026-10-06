@@ -11,6 +11,7 @@ using RegistroService.Domain.Exceptions;
 using RegistroService.Domain.Repositories;
 using RegistroService.Domain.Services;
 using RegistroService.Infrastructure.Departamentos;
+using RegistroService.Infrastructure.Messaging;
 using Xunit;
 
 namespace RegistroService.Tests;
@@ -54,6 +55,22 @@ public sealed class EmpleadoServiceTests
             _numeros.Add(empleado.NumeroEmpleado);
             return Task.CompletedTask;
         }
+
+        public Task ActualizarAsync(Empleado empleado, CancellationToken ct = default)
+        {
+            _empleados[empleado.Id] = empleado;
+            return Task.CompletedTask;
+        }
+
+        public Task<IEnumerable<Empleado>> ObtenerRetiradosAsync(
+            DateTime? desde,
+            DateTime? hasta,
+            CancellationToken ct = default)
+            => Task.FromResult<IEnumerable<Empleado>>(_empleados.Values
+                .Where(e => e.Estado == EstadoEmpleado.Retirado)
+                .Where(e => desde is null || (e.FechaRetiro.HasValue && e.FechaRetiro.Value >= desde.Value))
+                .Where(e => hasta is null || (e.FechaRetiro.HasValue && e.FechaRetiro.Value <= hasta.Value))
+                .ToArray());
     }
 
     // =========================================================================
@@ -223,7 +240,12 @@ public sealed class EmpleadoServiceTests
     private static EmpleadoService CrearServicio(
         IEmpleadoRepository repository,
         IDepartamentoClient? departamentoClient = null)
-        => new(repository, departamentoClient ?? new FakeDepartamentoClient());
+        => new(repository, departamentoClient ?? new FakeDepartamentoClient(), new NoOpEventPublisher());
+
+    private sealed class NoOpEventPublisher : IEventPublisher
+    {
+        public void Publish<T>(string eventType, T data) { }
+    }
 
     private sealed class FakeDepartamentoClient(Func<bool>? respuesta = null) : IDepartamentoClient
     {
