@@ -21,7 +21,7 @@ public class ProfileOwnershipAuthorizationManager
         String employeeId = String.valueOf(context.getVariables().get("empleadoId"));
 
         return authentication
-                .filter(Authentication::isAuthenticated)
+                .filter(current -> current.isAuthenticated())
                 .map(current -> (AuthorizationResult) new AuthorizationDecision(
                         hasRole(current, "ROLE_ADMIN")
                                 || current.getName().equals(employeeId)))

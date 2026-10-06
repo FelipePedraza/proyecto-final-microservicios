@@ -48,10 +48,10 @@ public class SecurityConfig {
             GatewaySecurityProperties securityProperties,
             ProfileOwnershipAuthorizationManager profileOwnership) {
         return http
-                .csrf(ServerHttpSecurity.CsrfSpec::disable)
-                .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)
-                .formLogin(ServerHttpSecurity.FormLoginSpec::disable)
-                .logout(ServerHttpSecurity.LogoutSpec::disable)
+                .csrf(csrf -> csrf.disable())
+                .httpBasic(httpBasic -> httpBasic.disable())
+                .formLogin(formLogin -> formLogin.disable())
+                .logout(logout -> logout.disable())
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint((exchange, exception) ->
                                 writeError(exchange, HttpStatus.UNAUTHORIZED, UNAUTHORIZED_BODY))
