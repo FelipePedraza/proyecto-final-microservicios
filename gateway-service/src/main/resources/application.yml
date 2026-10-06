@@ -12,6 +12,42 @@ spring:
             connect-timeout: ${GATEWAY_CONNECT_TIMEOUT_MS:2000}
             response-timeout: ${GATEWAY_RESPONSE_TIMEOUT:5s}
           routes:
+            - id: auth-openapi
+              uri: ${AUTH_SERVICE_URL:http://auth-service:8089}
+              predicates:
+                - Path=/openapi/auth
+              filters:
+                - RewritePath=/openapi/auth, /v3/api-docs
+            - id: registro-openapi
+              uri: ${EMPLEADOS_SERVICE_URL:http://registro-service:8080}
+              predicates:
+                - Path=/openapi/registro
+              filters:
+                - RewritePath=/openapi/registro, /swagger/v1/swagger.json
+            - id: departamentos-openapi
+              uri: ${DEPARTAMENTOS_SERVICE_URL:http://departamentos-service:8081}
+              predicates:
+                - Path=/openapi/departamentos
+              filters:
+                - RewritePath=/openapi/departamentos, /openapi.json
+            - id: perfiles-openapi
+              uri: ${PERFILES_SERVICE_URL:http://perfiles-service:8083}
+              predicates:
+                - Path=/openapi/perfiles
+              filters:
+                - RewritePath=/openapi/perfiles, /swagger/doc.json
+            - id: notificaciones-openapi
+              uri: ${NOTIFICACIONES_SERVICE_URL:http://notificaciones-service:8082}
+              predicates:
+                - Path=/openapi/notificaciones
+              filters:
+                - RewritePath=/openapi/notificaciones, /openapi.json
+            - id: vacaciones-openapi
+              uri: ${VACACIONES_SERVICE_URL:http://vacaciones-service:8085}
+              predicates:
+                - Path=/openapi/vacaciones
+              filters:
+                - RewritePath=/openapi/vacaciones, /v3/api-docs
             - id: auth-service
               uri: ${AUTH_SERVICE_URL:http://auth-service:8089}
               predicates:
@@ -83,12 +119,29 @@ gateway:
       - /swagger-ui/**
       - /v3/api-docs/**
       - /v3/api-docs.yaml
+      - /openapi/**
       - /webjars/**
 
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
     persist-authorization: true
+    urls:
+      - name: API Gateway
+        url: /v3/api-docs
+      - name: Autenticación
+        url: /openapi/auth
+      - name: Empleados (Registro)
+        url: /openapi/registro
+      - name: Departamentos
+        url: /openapi/departamentos
+      - name: Perfiles
+        url: /openapi/perfiles
+      - name: Notificaciones
+        url: /openapi/notificaciones
+      - name: Vacaciones
+        url: /openapi/vacaciones
+    urls-primary-name: Autenticación
 
 resilience4j:
   circuitbreaker:

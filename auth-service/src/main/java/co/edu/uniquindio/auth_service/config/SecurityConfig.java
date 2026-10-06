@@ -23,6 +23,7 @@ public class SecurityConfig {
             // Todo lo de /auth es público. El Gateway protegerá lo demás.
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/auth/**").permitAll()
+                .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                 .requestMatchers("/actuator/health/**").permitAll()
                 .anyRequest().authenticated()
             );

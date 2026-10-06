@@ -12,6 +12,7 @@ using RegistroService.Infrastructure.Persistence;
 using RegistroService.Domain.Entities;
 using RegistroService.Domain.Exceptions;
 using RegistroService.Domain.Repositories;
+using RegistroService.Infrastructure.Messaging;
 using Xunit;
 
 namespace RegistroService.Tests;
@@ -27,9 +28,16 @@ public sealed class EmpleadoWebApplicationFactory : WebApplicationFactory<Progra
             services.AddSingleton<IEmpleadoRepository, TestEmpleadoRepository>();
             services.RemoveAll<IDepartamentoClient>();
             services.AddSingleton<IDepartamentoClient, DepartamentoClientFake>();
+            services.RemoveAll<IEventPublisher>();
+            services.AddSingleton<IEventPublisher, EndpointNoOpEventPublisher>();
         });
         builder.UseSetting("environment", "Testing");
     }
+}
+
+internal sealed class EndpointNoOpEventPublisher : IEventPublisher
+{
+    public void Publish<T>(string eventType, T data) { }
 }
 
 internal sealed class TestEmpleadoRepository : IEmpleadoRepository
@@ -67,6 +75,24 @@ internal sealed class TestEmpleadoRepository : IEmpleadoRepository
 
         return Task.CompletedTask;
     }
+
+    public Task ActualizarAsync(
+        Empleado empleado,
+        CancellationToken cancellationToken = default)
+    {
+        empleados[empleado.Id] = empleado;
+        return Task.CompletedTask;
+    }
+
+    public Task<IEnumerable<Empleado>> ObtenerRetiradosAsync(
+        DateTime? desde,
+        DateTime? hasta,
+        CancellationToken cancellationToken = default)
+        => Task.FromResult<IEnumerable<Empleado>>(empleados.Values
+            .Where(e => e.Estado == RegistroService.Domain.Enums.EstadoEmpleado.Retirado)
+            .Where(e => desde is null || (e.FechaRetiro.HasValue && e.FechaRetiro.Value >= desde.Value))
+            .Where(e => hasta is null || (e.FechaRetiro.HasValue && e.FechaRetiro.Value <= hasta.Value))
+            .ToArray());
 }
 
 internal sealed class DepartamentoClientFake : IDepartamentoClient
@@ -89,6 +115,76 @@ public sealed class EmpleadosEndpointsTests : IClassFixture<EmpleadoWebApplicati
     public EmpleadosEndpointsTests(EmpleadoWebApplicationFactory factory)
     {
         _client = factory.CreateClient();
+    }
+
+    [Fact]
+    public async Task SwaggerDocument_DescribeEndpointSecurityForGateway()
+    {
+        var response = await _client.GetAsync("/swagger/v1/swagger.json");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var root = document.RootElement;
+        var paths = root.GetProperty("paths");
+
+        Assert.Equal(
+            new[]
+            {
+                "/health",
+                "/health/ready",
+                "/health/circuit-breaker",
+                "/empleados",
+                "/empleados/{id}"
+            }.OrderBy(path => path),
+            paths.EnumerateObject().Select(path => path.Name).OrderBy(path => path));
+        AssertOperation(paths, "/health", "get", "200");
+        AssertOperation(paths, "/health/ready", "get", "200", "503");
+        AssertOperation(paths, "/health/circuit-breaker", "get", "200");
+        AssertOperation(paths, "/empleados", "post", "201", "400", "409", "503", "500");
+        AssertOperation(paths, "/empleados", "get", "200", "400", "503", "500");
+        AssertOperation(paths, "/empleados/{id}", "get", "200", "404", "503", "500");
+        AssertOperation(paths, "/empleados/{id}", "put", "200", "400", "404", "503", "500");
+        AssertOperation(paths, "/empleados/{id}", "delete", "204", "404", "503", "500");
+        AssertBearerSecurity(paths.GetProperty("/empleados").GetProperty("post"));
+        AssertBearerSecurity(paths.GetProperty("/empleados").GetProperty("get"));
+        AssertBearerSecurity(paths.GetProperty("/empleados/{id}").GetProperty("get"));
+        AssertBearerSecurity(paths.GetProperty("/empleados/{id}").GetProperty("put"));
+        AssertBearerSecurity(paths.GetProperty("/empleados/{id}").GetProperty("delete"));
+        Assert.False(paths.GetProperty("/health").GetProperty("get").TryGetProperty("security", out _));
+        Assert.False(paths.GetProperty("/health/ready").GetProperty("get").TryGetProperty("security", out _));
+        Assert.False(paths.GetProperty("/health/circuit-breaker").GetProperty("get").TryGetProperty("security", out _));
+
+        var bearerScheme = root.GetProperty("components").GetProperty("securitySchemes").GetProperty("Bearer");
+        Assert.Equal("http", bearerScheme.GetProperty("type").GetString());
+        Assert.Equal("bearer", bearerScheme.GetProperty("scheme").GetString());
+        Assert.Equal("JWT", bearerScheme.GetProperty("bearerFormat").GetString());
+
+        var createOperation = paths.GetProperty("/empleados").GetProperty("post");
+        Assert.Equal(
+            "application/json",
+            createOperation.GetProperty("requestBody").GetProperty("content")
+                .EnumerateObject().Single().Name);
+        AssertResponseSchema(createOperation, "201", "EmpleadoResponse");
+        AssertResponseSchema(createOperation, "400", "ErrorResponse");
+        AssertResponseSchema(
+            paths.GetProperty("/empleados/{id}").GetProperty("get"),
+            "200",
+            "EmpleadoResponse");
+        AssertResponseSchema(
+            paths.GetProperty("/empleados/{id}").GetProperty("get"),
+            "404",
+            "ErrorResponse");
+
+        var listOperation = paths.GetProperty("/empleados").GetProperty("get");
+        var queryParameters = listOperation.GetProperty("parameters")
+            .EnumerateArray()
+            .Where(parameter => parameter.GetProperty("in").GetString() == "query")
+            .Select(parameter => parameter.GetProperty("name").GetString())
+            .ToHashSet();
+        Assert.Contains("estado", queryParameters);
+        Assert.Contains("desde", queryParameters);
+        Assert.Contains("hasta", queryParameters);
+
     }
 
     [Fact]
@@ -255,6 +351,39 @@ public sealed class EmpleadosEndpointsTests : IClassFixture<EmpleadoWebApplicati
             "Tecnología",
             "IT",
             new DateOnly(2026, 2, 10));
+
+    private static void AssertOperation(
+        JsonElement paths,
+        string path,
+        string method,
+        params string[] expectedStatusCodes)
+    {
+        var operation = paths.GetProperty(path).GetProperty(method);
+        var responses = operation.GetProperty("responses");
+
+        foreach (var statusCode in expectedStatusCodes)
+        {
+            Assert.True(responses.TryGetProperty(statusCode, out _), $"{method.ToUpperInvariant()} {path} should document {statusCode}.");
+        }
+    }
+
+    private static void AssertResponseSchema(JsonElement operation, string statusCode, string schemaName)
+    {
+        var response = operation.GetProperty("responses").GetProperty(statusCode);
+        Assert.Equal(
+            $"#/components/schemas/{schemaName}",
+            response.GetProperty("content").GetProperty("application/json")
+                .GetProperty("schema").GetProperty("$ref").GetString());
+    }
+
+    private static void AssertBearerSecurity(JsonElement operation)
+    {
+        var requirements = operation.GetProperty("security").EnumerateArray().ToArray();
+        Assert.Contains(requirements, requirement =>
+            requirement.TryGetProperty("Bearer", out var scopes)
+            && scopes.ValueKind == JsonValueKind.Array
+            && !scopes.EnumerateArray().Any());
+    }
 
     private sealed record CrearEmpleadoRequest(
         string Id,
