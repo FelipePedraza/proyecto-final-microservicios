@@ -2,6 +2,7 @@ package com.example.vacaciones.domain;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -79,6 +80,11 @@ public class Vacation {
 
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    /** Días de vacaciones del período; ambos extremos son inclusivos, por lo que un período de un solo día vale 1. */
+    public long totalDays() {
+        return ChronoUnit.DAYS.between(startDate, endDate) + 1;
     }
 
     public void cancel() {
