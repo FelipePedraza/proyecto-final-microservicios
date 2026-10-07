@@ -1,0 +1,473 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Perfiles Service API",
+    "version": "1.0.0",
+    "description": "API HTTP del servicio de perfiles. La autenticación y autorización se aplican en el API Gateway."
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "Mismo origen de Swagger UI; las solicitudes pasan por el API Gateway."
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "JWT de acceso emitido por POST /auth/login."
+      }
+    },
+    "schemas": {
+      "Perfil": {
+        "type": "object",
+        "required": [
+          "id",
+          "empleadoId",
+          "nombre",
+          "email",
+          "telefono",
+          "direccion",
+          "ciudad",
+          "biografia",
+          "archivado",
+          "fechaCreacion"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "example": "c5c5aa15-30f8-49e9-b90d-650b7f70d7c1"
+          },
+          "empleadoId": {
+            "type": "string",
+            "example": "E001"
+          },
+          "nombre": {
+            "type": "string",
+            "example": "Juan Pérez"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "juan.perez@empresa.com"
+          },
+          "telefono": {
+            "type": "string",
+            "example": "+525512345678"
+          },
+          "direccion": {
+            "type": "string",
+            "example": "Av. Reforma 100"
+          },
+          "ciudad": {
+            "type": "string",
+            "example": "Ciudad de México"
+          },
+          "biografia": {
+            "type": "string",
+            "example": "Ingeniero de software"
+          },
+          "archivado": {
+            "type": "boolean",
+            "example": false
+          },
+          "fechaCreacion": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-02-10T10:00:00Z"
+          },
+          "fechaArchivado": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-03-01T10:00:00Z"
+          }
+        }
+      },
+      "UpdatePerfil": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "telefono",
+          "direccion",
+          "ciudad",
+          "biografia"
+        ],
+        "properties": {
+          "telefono": {
+            "type": "string",
+            "example": "+525512345678"
+          },
+          "direccion": {
+            "type": "string",
+            "example": "Av. Reforma 100"
+          },
+          "ciudad": {
+            "type": "string",
+            "example": "Ciudad de México"
+          },
+          "biografia": {
+            "type": "string",
+            "example": "Ingeniero de software"
+          }
+        },
+        "example": {
+          "telefono": "+525512345678",
+          "direccion": "Av. Reforma 100",
+          "ciudad": "Ciudad de México",
+          "biografia": "Ingeniero de software"
+        }
+      },
+      "Error": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "string",
+            "example": "body inválido"
+          }
+        }
+      },
+      "GatewayError": {
+        "type": "object",
+        "required": [
+          "error",
+          "message"
+        ],
+        "properties": {
+          "error": {
+            "type": "string",
+            "enum": [
+              "unauthorized",
+              "forbidden"
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "HealthLive": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "healthy"
+            ],
+            "example": "healthy"
+          }
+        }
+      },
+      "HealthReady": {
+        "type": "object",
+        "required": [
+          "status",
+          "database"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ready"
+            ],
+            "example": "ready"
+          },
+          "database": {
+            "type": "string",
+            "enum": [
+              "up"
+            ],
+            "example": "up"
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/perfiles": {
+      "get": {
+        "tags": [
+          "Perfiles"
+        ],
+        "summary": "Lista todos los perfiles",
+        "description": "Requiere un JWT con rol USER o ADMIN cuando se accede por el Gateway.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Perfiles ordenados por identificador de empleado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Perfil"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta un JWT válido al acceder por el Gateway.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GatewayError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "El usuario no tiene rol USER o ADMIN.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GatewayError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "No se pudieron consultar los perfiles.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/perfiles/{empleadoId}": {
+      "parameters": [
+        {
+          "name": "empleadoId",
+          "in": "path",
+          "required": true,
+          "description": "Identificador del empleado.",
+          "schema": {
+            "type": "string",
+            "example": "E001"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "Perfiles"
+        ],
+        "summary": "Obtiene el perfil de un empleado",
+        "description": "Requiere un JWT con rol USER o ADMIN cuando se accede por el Gateway.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Perfil encontrado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Perfil"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta un JWT válido al acceder por el Gateway.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GatewayError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "El usuario no tiene rol USER o ADMIN.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GatewayError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No existe un perfil para el empleado solicitado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "No se pudo consultar el perfil.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Perfiles"
+        ],
+        "summary": "Actualiza los datos editables de un perfil",
+        "description": "Requiere un JWT; se autoriza a ADMIN o al USER dueño del perfil. Envíe los cuatro campos editables.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePerfil"
+              },
+              "example": {
+                "telefono": "+525512345678",
+                "direccion": "Av. Reforma 100",
+                "ciudad": "Ciudad de México",
+                "biografia": "Ingeniero de software"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Perfil actualizado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Perfil"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "JSON inválido, campos requeridos omitidos o propiedades desconocidas.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Falta un JWT válido al acceder por el Gateway.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GatewayError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "El usuario no es ADMIN ni dueño del perfil solicitado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GatewayError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No existe un perfil para el empleado solicitado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "No se pudo actualizar el perfil.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/live": {
+      "get": {
+        "tags": [
+          "Salud"
+        ],
+        "summary": "Comprueba que el proceso está vivo",
+        "responses": {
+          "200": {
+            "description": "Proceso activo.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthLive"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "tags": [
+          "Salud"
+        ],
+        "summary": "Comprueba la disponibilidad de la base de datos",
+        "responses": {
+          "200": {
+            "description": "Base de datos disponible.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthReady"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Base de datos no disponible.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

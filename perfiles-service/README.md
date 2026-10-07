@@ -11,11 +11,29 @@ Endpoints internos (expuestos por el Gateway):
 - `PUT /perfiles/{empleadoId}` con `telefono`, `direccion`, `ciudad` y `biografia`
 - `GET /health/live`, `GET /health/ready`
 - Swagger UI: `/swagger/index.html`
-- Especificación Swagger 2.0 JSON: `/swagger/doc.json` (ruta estable para agregadores)
+- Especificación OpenAPI 3 JSON: `/openapi.json`
+- Especificación Swagger 2.0 heredada: `/swagger/doc.json`
 
-El Gateway agrega la especificación en `GET /openapi/perfiles`. Al invocar los
-endpoints de perfiles por el Gateway, se debe enviar `Authorization: Bearer <JWT>`.
-Las consultas GET requieren rol `USER` o `ADMIN`; el PUT permite a `ADMIN` o al `USER`
-dueño del perfil indicado en la ruta. El servicio interno no valida JWT por sí mismo.
+En Swagger UI, use **Authorize** y pegue el JWT sin prefijo. La especificación
+OpenAPI 3 usa autenticación HTTP Bearer, por lo que el `curl` generado incluye
+automáticamente `Authorization: Bearer <JWT>`.
 
-Prueba: `docker compose up --build`, crea un empleado a través de `/empleados`, consulta `/perfiles/E001`, actualiza campos con `PUT` y repite el mismo mensaje en RabbitMQ. El segundo mensaje se registra como duplicado y no modifica el perfil.
+El Gateway agrega la especificación en `GET /openapi/perfiles`. Las consultas
+GET requieren rol `USER` o `ADMIN`; el PUT permite a `ADMIN` o al `USER` dueño
+del perfil indicado en la ruta. El servicio interno no valida JWT por sí mismo.
+
+El cuerpo de `PUT /perfiles/{empleadoId}` debe incluir los cuatro campos:
+
+```json
+{
+  "telefono": "+525512345678",
+  "direccion": "Av. Reforma 100",
+  "ciudad": "Ciudad de México",
+  "biografia": "Ingeniero de software"
+}
+```
+
+Prueba: `docker compose up --build`, crea un empleado a través de `/empleados`,
+consulta `/perfiles/E001`, actualiza los campos con `PUT` y repite el mismo
+mensaje en RabbitMQ. El segundo mensaje se registra como duplicado y no modifica
+el perfil.
