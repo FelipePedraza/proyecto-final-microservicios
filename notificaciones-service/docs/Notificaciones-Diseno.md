@@ -1,7 +1,7 @@
 # notificaciones-service — Qué se hizo, en qué archivos y por qué
 
 Reto 4, responsabilidad de **Integrante 2**. Este documento sigue el mismo formato que
-[`Reto3-CircuitBreaker.md`](../../Reto-1/RegistroService/RegistroService/DOC/Reto3-CircuitBreaker.md):
+[`Reto3-CircuitBreaker.md`](../../empleado-service/empleadoService/docs/Reto3-CircuitBreaker.md):
 qué se creó, dónde, y el razonamiento detrás de cada decisión.
 
 ## 1. Objetivo y alcance
@@ -187,7 +187,7 @@ bloquea el arranque del servidor HTTP.
 
 Los cambios de integración fuera de esta carpeta se hicieron en `docker-compose.yml`,
 `.env.example` y la configuración de rutas de `gateway-service`. En Compose se agregó
-la sección de `registro-service`, a la que se le agregaron las variables
+la sección de `empleado-service`, a la que se le agregaron las variables
 `RABBITMQ_HOST=message-broker`, `RABBITMQ_PORT`, `RABBITMQ_USER` y
 `RABBITMQ_PASSWORD`, y se agregó `message-broker` a su `depends_on` (con
 `condition: service_started`, porque `message-broker` no tiene healthcheck en este

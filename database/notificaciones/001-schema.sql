@@ -1,7 +1,7 @@
 -- Esquema de notificaciones-service.
 -- Se ejecuta automaticamente por la imagen oficial de Postgres la PRIMERA vez que crea el
--- volumen (carpeta /docker-entrypoint-initdb.d), igual que database/registro/001-schema.sql
--- y database/departamentos/001-schema.sql. Es la unica fuente de verdad de este esquema:
+-- volumen (carpeta /docker-entrypoint-initdb.d), igual que database/empleado/001-schema.sql
+-- y database/departamento/001-schema.sql. Es la unica fuente de verdad de este esquema:
 -- no hay migraciones ni ORM en este servicio.
 
 CREATE TABLE IF NOT EXISTS notificaciones (

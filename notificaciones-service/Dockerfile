@@ -7,7 +7,7 @@
 #   docker run --rm -p 8082:8082 notificaciones-service
 #
 # Sigue el mismo patron de seguridad ya establecido en el resto del proyecto
-# (Reto-1/RegistroService/Dockerfile, gateway-service/Dockerfile): build
+# (empleado-service/Dockerfile, gateway-service/Dockerfile): build
 # multi-stage y ejecucion como usuario sin privilegios (appuser, UID 10001).
 # ==========================================================================
 

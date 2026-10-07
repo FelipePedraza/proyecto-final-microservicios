@@ -14,11 +14,11 @@ notificación. Los tokens salen en el log, pero no se guardan en el historial.
 
 No modifica código de ningún otro servicio del repositorio: en `docker-compose.yml` se
 agregaron sus propios dos bloques (`notificaciones-db` y `notificaciones-service`), el
-volumen `notificaciones-data`, y cuatro variables de entorno a `registro-service`
+volumen `notificaciones-data`, y cuatro variables de entorno a `empleado-service`
 (`RABBITMQ_HOST` y credenciales) que le faltaban para poder conectarse al broker
 dentro de Docker Compose — sin esa configuración, los eventos de empleados no salían de
 su contenedor y este servicio no recibía nada. Ese cambio se coordinó primero con el
-responsable de `registro-service` (Integrante 1). No se tocó `message-broker`; el
+responsable de `empleado-service` (Integrante 1). No se tocó `message-broker`; el
 Gateway ahora registra la ruta `/notificaciones/**` hacia este servicio. El detalle
 está en la sección 7 de
 [`DOC/Notificaciones-Diseno.md`](DOC/Notificaciones-Diseno.md).
@@ -26,7 +26,7 @@ está en la sección 7 de
 ## Stack
 
 Node.js 20 + Express, `pg` (PostgreSQL sin ORM) y `amqplib` (cliente de RabbitMQ).
-Elegido porque el equipo ya cubre .NET (RegistroService), Python (DepartamentosService)
+Elegido porque el equipo ya cubre .NET (EmpleadoService), Python (DepartamentoService)
 y Java (Gateway); no había un patrón de repositorio único que seguir para un nuevo
 microservicio.
 

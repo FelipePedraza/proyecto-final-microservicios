@@ -11,7 +11,7 @@ pero por terminal y verificando también los eventos (logs de auth y notificacio
 >   (`docker compose ps`). Si acabas de recrear un contenedor, espera ~1 minuto o ejecuta la sección 0.
 > - Usan IDs `E310`, `E311`, `E312` y el departamento `D04`. Si repites la guía, cámbialos
 >   (un empleado repetido responde **409**) o reinicia las bases con `docker compose down -v`.
-> - `GET /empleados` solo acepta `?estado=RETIRADO`; sin ese filtro registro-service responde 400
+> - `GET /empleados` solo acepta `?estado=RETIRADO`; sin ese filtro empleado-service responde 400
 >   (no es un error de seguridad).
 
 ## 0. Preparación y calentamiento
@@ -74,7 +74,7 @@ curl -s -o /dev/null -w "ADMIN lee [%{http_code}]\n" -H "Authorization: Bearer $
 
 ## 2. Onboarding: crear empleados y verificar los eventos
 
-Flujo: `POST /empleados` → registro-service publica `empleado.creado` en `empleados_exchange` → auth-service crea la
+Flujo: `POST /empleados` → empleado-service publica `empleado.creado` en `empleados_exchange` → auth-service crea la
 cuenta `PENDIENTE_ACTIVACION` y publica `usuario.creado` en `auth_exchange` → notificaciones registra el correo
 de bienvenida con el token de activación.
 

@@ -4,7 +4,7 @@ const { Router } = require('express');
 
 /**
  * Endpoints de salud, con la misma distinción liveness/readiness que ya usan
- * RegistroService y DepartamentosService en este proyecto:
+ * EmpleadoService y DepartamentoService en este proyecto:
  *   - /health        : el proceso está vivo (no depende de nada externo).
  *   - /health/ready  : el servicio puede atender tráfico de verdad (su base responde).
  *

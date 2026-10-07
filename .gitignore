@@ -28,6 +28,7 @@ Thumbs.db
 bin/
 obj/
 out/
+**/TestResults/
 *.user
 *.userosscache
 *.sln.docstates

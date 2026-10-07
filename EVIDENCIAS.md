@@ -8,9 +8,9 @@ docker compose ps
 
 Resultado esperado:
 
-- `departamentos-db` en estado `healthy`
-- `departamentos-service` en estado `healthy`
-- `registro-service` en estado `healthy` si el servicio ya fue arrancado por dependencias
+- `departamento-db` en estado `healthy`
+- `departamento-service` en estado `healthy`
+- `empleado-service` en estado `healthy` si el servicio ya fue arrancado por dependencias
 
 ## 2. Salud de cada servicio
 
@@ -30,7 +30,7 @@ Comportamiento esperado:
 Se añadió una prueba de cliente que simula una primera respuesta `503` y una segunda respuesta `200`.
 
 ```powershell
-dotnet test RegistroService.Tests/RegistroService.Tests.csproj --filter DepartamentoClientTests
+dotnet test empleadoService.Tests/EmpleadoService.Tests.csproj --filter DepartamentoClientTests
 ```
 
 Se espera:
@@ -41,7 +41,7 @@ Se espera:
 ## 4. Pruebas de integración de la API
 
 ```powershell
-dotnet test RegistroService.Tests/RegistroService.Tests.csproj
+dotnet test empleadoService.Tests/EmpleadoService.Tests.csproj
 ```
 
 Se espera:
@@ -60,8 +60,8 @@ docker compose up --build -d
 
 Esto regenerará los esquemas iniciales desde:
 
-- `database/registro/001-schema.sql`
-- `database/departamentos/001-schema.sql`
+- `database/empleado/001-schema.sql`
+- `database/departamento/001-schema.sql`
 - `database/notificaciones/001-schema.sql`
 - `database/perfiles/001-schema.sql`
 
@@ -71,16 +71,16 @@ El arranque de Compose se asegura con:
 
 - healthchecks de PostgreSQL
 - `depends_on` con condición `service_healthy` para el servicio de departamentos
-- `depends_on` con condición `service_healthy` para `registro-service`
+- `depends_on` con condición `service_healthy` para `empleado-service`
 
-Esto garantiza que RegistroService no intente consumir DepartamentosService antes de que esté listo.
+Esto garantiza que EmpleadoService no intente consumir DepartamentoService antes de que esté listo.
 
 ## 7. Circuit breaker y fallback (Reto 3)
 
 Pruebas automatizadas de la máquina de estados (Polly real, sin mocks del breaker):
 
 ```powershell
-dotnet test RegistroService.Tests/RegistroService.Tests.csproj --filter "DepartamentoClientTests|EmpleadoServiceTests|EmpleadosEndpointsTests"
+dotnet test empleadoService.Tests/EmpleadoService.Tests.csproj --filter "DepartamentoClientTests|EmpleadoServiceTests|EmpleadosEndpointsTests"
 ```
 
 Cubren: apertura tras 3 fallos consecutivos, rechazo sin tocar la red con el circuito OPEN, apertura a
@@ -92,12 +92,12 @@ Verificación manual con Docker Compose:
 
 ```powershell
 Invoke-RestMethod http://localhost:8080/health/circuit-breaker   # estado: CLOSED
-docker compose stop departamentos-service
+docker compose stop departamento-service
 # POST /empleados (x3): 201 con "estado": "PENDIENTE_VALIDACION"; el circuito pasa a OPEN
 Invoke-RestMethod http://localhost:8080/health/circuit-breaker   # estado: OPEN (respuesta inmediata)
-docker compose start departamentos-service
+docker compose start departamento-service
 # tras 30 s: HALF_OPEN; el siguiente POST /empleados devuelve "ACTIVO" y el circuito vuelve a CLOSED
-docker compose logs registro-service | Select-String "Circuito de departamentos"
+docker compose logs empleado-service | Select-String "Circuito de departamentos"
 ```
 
 Transiciones esperadas en los logs:
