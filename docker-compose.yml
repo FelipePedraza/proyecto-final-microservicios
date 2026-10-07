@@ -1,4 +1,4 @@
-﻿name: reto-2-microservicios
+﻿name: microservicios
 
 services:
   empleado-db:
