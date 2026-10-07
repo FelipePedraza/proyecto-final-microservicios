@@ -1,7 +1,7 @@
 # notificaciones-service — Qué se hizo, en qué archivos y por qué
 
 Reto 4, responsabilidad de **Integrante 2**. Este documento sigue el mismo formato que
-[`Reto3-CircuitBreaker.md`](../../Reto-1/RegistroService/RegistroService/DOC/Reto3-CircuitBreaker.md):
+[`Reto3-CircuitBreaker.md`](../../empleado-service/empleadoService/docs/Reto3-CircuitBreaker.md):
 qué se creó, dónde, y el razonamiento detrás de cada decisión.
 
 ## 1. Objetivo y alcance
@@ -26,7 +26,7 @@ creó ni se tocó código de ninguno de esos servicios.
 ## 2. Por qué Node.js/Express
 
 El repositorio ya usa tres stacks distintos para sus tres servicios (.NET para
-RegistroService, Python/FastAPI para DepartamentosService, Java/Spring para el
+EmpleadoService, Python/FastAPI para DepartamentoService, Java/Spring para el
 Gateway), así que no existía un patrón único de "el próximo microservicio se hace
 así". Se decidió por Node/Express como una cuarta opción liviana, sin dependencias del
 resto del proyecto (ni siquiera comparte librerías con `empleados-service`, que
@@ -79,7 +79,7 @@ Postgres ni RabbitMQ para correr `npm test`.
 | `src/docs/swagger.js` | Genera el documento OpenAPI a partir de los comentarios de las rutas. |
 | `src/app.js` | Construye la app de Express sin arrancarla ni tocar RabbitMQ (para poder probarla con Supertest). |
 | `src/server.js` | Punto de entrada: arranca `app.js`, el consumidor de RabbitMQ, y el apagado ordenado (`SIGTERM`/`SIGINT`). |
-| `init.sql` | Esquema de la tabla `notificaciones` (mismo patrón que `database/registro/001-schema.sql` y `departamentos-serviceReto2/init.sql`: lo ejecuta Postgres solo, la primera vez que crea el volumen). |
+| `init.sql` | Esquema de la tabla `notificaciones` (mismo patrón que `database/empleado/001-schema.sql` y `database/departamento/001-schema.sql`: lo ejecuta Postgres solo, la primera vez que crea el volumen). |
 | `Dockerfile`, `.dockerignore` | Build multi-stage, usuario sin privilegios (UID 10001), mismo patrón que los demás `Dockerfile` del repositorio. |
 | `test/*.test.js` | 26 pruebas con Jest + Supertest (detalladas en el `README.md` del servicio). |
 
@@ -87,8 +87,8 @@ Postgres ni RabbitMQ para correr `npm test`.
 
 | Archivo | Cambio |
 |---|---|
-| `docker-compose.yml` | Dos bloques nuevos: `notificaciones-db` y `notificaciones-service`, más el volumen `notificaciones-data`. También la sección de `registro-service` (ver §7). |
-| `.env.example` | Variables de la base de datos de `notificaciones-service` (mismo patrón que las de `REGISTRO_DB_*`/`DEPARTAMENTOS_DB_*` que ya estaban). |
+| `docker-compose.yml` | Dos bloques nuevos: `notificaciones-db` y `notificaciones-service`, más el volumen `notificaciones-data`. También la sección de `empleado-service` (ver §7). |
+| `.env.example` | Variables de la base de datos de `notificaciones-service` (mismo patrón que las de `EMPLEADO_DB_*`/`DEPARTAMENTO_DB_*` que ya estaban). |
 
 En Docker Compose, `notificaciones-service` escucha en el puerto interno `8082` y se
 expone únicamente dentro de `microservicios-network`. El Gateway lo publica hacia el
@@ -99,7 +99,7 @@ Dockerfile corresponde solo a una ejecución aislada del contenedor.
 
 No hay un catálogo de eventos aparte en el repositorio; la única fuente de verdad es
 el código de `empleados-service`
-(`Reto-1/RegistroService/RegistroService/Infrastructure/Messaging/EventEnvelope.cs` y
+(`empleado-service/empleadoService/infrastructure/messaging/EventEnvelope.cs` y
 `RabbitMqPublisher.cs`). De ahí:
 
 ```json
@@ -187,7 +187,7 @@ bloquea el arranque del servidor HTTP.
 
 Los cambios de integración fuera de esta carpeta se hicieron en `docker-compose.yml`,
 `.env.example` y la configuración de rutas de `gateway-service`. En Compose se agregó
-la sección de `registro-service`, a la que se le agregaron las variables
+la sección de `empleado-service`, a la que se le agregaron las variables
 `RABBITMQ_HOST=message-broker`, `RABBITMQ_PORT`, `RABBITMQ_USER` y
 `RABBITMQ_PASSWORD`, y se agregó `message-broker` a su `depends_on` (con
 `condition: service_started`, porque `message-broker` no tiene healthcheck en este
@@ -195,7 +195,7 @@ compose).
 
 Esas variables son las que `RabbitMqPublisher.cs` (en `empleados-service`) necesita
 para conectarse al broker; sin ellas usa por defecto `"localhost"`, que dentro del
-propio contenedor de `registro-service` no llega a `message-broker`. Es la
+propio contenedor de `empleado-service` no llega a `message-broker`. Es la
 configuración que hace posible que `empleado.creado` le llegue a este servicio (y a
 cualquier otro consumidor) cuando todo corre junto con Docker Compose. No se modificó
 ninguna línea de código C#, solo configuración de despliegue, y se coordinó con el

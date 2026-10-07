@@ -153,7 +153,7 @@ function crearNotificacionesRouter(notificacionService) {
       // Nota deliberada: se devuelve 200 con [] cuando el empleado no tiene notificaciones,
       // no 404. No poder distinguir "empleado sin notificaciones" de "empleado inexistente"
       // es aceptable aquí: este servicio no es dueño del catálogo de empleados (ese es
-      // RegistroService) y no vale la pena consultarlo solo para decidir el código HTTP.
+      // EmpleadoService) y no vale la pena consultarlo solo para decidir el código HTTP.
       res.json(filas.map(aRespuesta));
     } catch (err) {
       next(err);

@@ -68,7 +68,7 @@ sequenceDiagram
     autonumber
     actor Admin
     participant GW as API Gateway
-    participant REG as registro-service
+    participant REG as empleado-service
     participant MQ as RabbitMQ
     participant AUTH as auth-service
     participant VAC as vacaciones-service

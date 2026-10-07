@@ -11,7 +11,7 @@ síncrona (HTTP, a través de un API Gateway) y asíncrona (eventos sobre Rabbit
 - [Arquitectura](#arquitectura)
 - [Comunicación asíncrona (RabbitMQ)](#comunicación-asíncrona-rabbitmq)
 - [API Gateway](#api-gateway)
-- [Circuit Breaker de RegistroService](#circuit-breaker-de-registroservice)
+- [Circuit Breaker de EmpleadoService](#circuit-breaker-de-empleadoservice)
 - [Endpoints por servicio](#endpoints-por-servicio)
 - [Puesta en marcha](#puesta-en-marcha)
 - [Esquemas de base de datos](#esquemas-de-base-de-datos)
@@ -24,8 +24,8 @@ síncrona (HTTP, a través de un API Gateway) y asíncrona (eventos sobre Rabbit
 | Servicio | Carpeta | Tecnología (según código) | Base de datos | Puerto interno |
 |---|---|---|---|---|
 | `gateway-service` | `gateway-service/` | Java 21, Spring Boot 4.0.8, Spring Cloud Gateway (`spring-cloud.version` 2025.1.3) | — | `8088` (único puerto publicado al host) |
-| `registro-service` | `Reto-1/RegistroService/` | ASP.NET Core (.NET 10) | PostgreSQL 17 (`registro-db`) | `8080` |
-| `departamentos-service` | `departamentos-serviceReto2/` | Python 3.11, FastAPI 0.116, SQLAlchemy 2.0 | PostgreSQL 17 (`departamentos-db`) | `8081` |
+| `empleado-service` | `empleado-service/` | ASP.NET Core (.NET 10) | PostgreSQL 17 (`empleado-db`) | `8080` |
+| `departamento-service` | `departamento-service/` | Python 3.11, FastAPI 0.116, SQLAlchemy 2.0 | PostgreSQL 17 (`departamento-db`) | `8081` |
 | `notificaciones-service` | `notificaciones-service/` | Node.js ≥20, Express, cliente `pg` sin ORM | PostgreSQL 17 (`notificaciones-db`) | `8082` |
 | `perfiles-service` | `perfiles-service/` | Go (`go.mod` declara `go 1.25`), chi router | PostgreSQL 17 (`perfiles-db`) | `8083` |
 | `vacaciones-service` | `vacaciones-service/` | Java 21, Spring Boot 4.1.1 | PostgreSQL 17 (`vacaciones-db`) | `8085` |
@@ -57,9 +57,9 @@ service     service         service     service         service
 registro-   departamentos-  perfiles-   notificaciones-  vacaciones-
 db          db              db          db               db
 
-registro-service --- REST síncrono con Circuit Breaker (Polly) ---> departamentos-service
+empleado-service --- REST síncrono con Circuit Breaker (Polly) ---> departamento-service
 
-registro-service, perfiles-service, notificaciones-service y vacaciones-service
+empleado-service, perfiles-service, notificaciones-service y vacaciones-service
 se conectan además a message-broker (RabbitMQ) para publicar y/o consumir eventos.
 ```
 
@@ -68,10 +68,10 @@ se conectan además a message-broker (RabbitMQ) para publicar y/o consumir event
 
 - El broker es una única instancia de `rabbitmq:3-management` (contenedor
   `rabbitmq-broker`), con un exchange **fanout** llamado `empleados_exchange`
-  (declarado como `durable: true` en `RegistroService/Infrastructure/Messaging/RabbitMqPublisher.cs`).
-- `registro-service` publica en ese exchange los eventos `empleado.creado`,
+  (declarado como `durable: true` en `empleadoService/infrastructure/messaging/RabbitMqPublisher.cs`).
+- `empleado-service` publica en ese exchange los eventos `empleado.creado`,
   `empleado.actualizado` y `empleado.retirado` (ver
-  `RegistroService/Domain/Services/EmpleadoService.cs`).
+  `empleadoService/domain/services/EmpleadoService.cs`).
 - `vacaciones-service` publica `vacaciones.programadas`,
   `vacaciones.iniciadas` y `vacaciones.finalizadas` en el mismo exchange después
   del commit. Los eventos incluyen `version: "1.0"` y datos de vacaciones; el
@@ -101,14 +101,14 @@ Configuración real en `gateway-service/src/main/resources/application.yml`.
 |---|---|---|
 | `GET /health` | Resuelto por el propio Gateway (`GatewayController`) | — |
 | `/auth/**` | `auth-service` | `AUTH_SERVICE_URL` |
-| `/empleados/**` | `registro-service` | `EMPLEADOS_SERVICE_URL` |
-| `/departamentos/**` | `departamentos-service` | `DEPARTAMENTOS_SERVICE_URL` |
+| `/empleados/**` | `empleado-service` | `EMPLEADOS_SERVICE_URL` |
+| `/departamentos/**` | `departamento-service` | `DEPARTAMENTO_SERVICE_URL` |
 | `/perfiles/**` | `perfiles-service` | `PERFILES_SERVICE_URL` |
 | `/notificaciones/**` | `notificaciones-service` | `NOTIFICACIONES_SERVICE_URL` |
 | `/vacaciones/**` | `vacaciones-service` | `VACACIONES_SERVICE_URL` |
 
 Cada ruta tiene su propio Circuit Breaker de Resilience4j
-(`empleadosServiceCircuitBreaker`, `departamentosServiceCircuitBreaker`, etc.),
+(`empleadosServiceCircuitBreaker`, `departamentoServiceCircuitBreaker`, etc.),
 todos configurados con la misma plantilla: ventana deslizante de 10 llamadas,
 umbral de fallos del 50 % y 10 segundos en estado abierto, con un
 `timeLimiter` de 6 segundos por llamada. Si el destino no responde a tiempo o
@@ -120,8 +120,8 @@ un cuerpo como este:
 {
   "error": "service_unavailable",
   "message": "El microservicio destino no está disponible",
-  "service": "departamentos-service",
-  "path": "/fallback/departamentos-service"
+  "service": "departamento-service",
+  "path": "/fallback/departamento-service"
 }
 ```
 
@@ -135,11 +135,11 @@ recuperación. Las rutas públicas son salud, fallbacks, documentación y
 validar, elimina las cabeceras de identidad recibidas del cliente e inyecta
 `X-User-Id` y `X-User-Role` a partir de los claims verificados.
 
-## Circuit Breaker de RegistroService
+## Circuit Breaker de EmpleadoService
 
-Independientemente del Circuit Breaker del Gateway, `registro-service`
+Independientemente del Circuit Breaker del Gateway, `empleado-service`
 implementa el suyo propio para su llamada síncrona hacia
-`departamentos-service`, usando Polly (`DepartamentoCircuitBreaker.cs`,
+`departamento-service`, usando Polly (`DepartamentoCircuitBreaker.cs`,
 `DepartamentoClient.cs`).
 
 | Parámetro | Variable de entorno | Rango válido según `DepartamentosResilienceOptions` |
@@ -154,11 +154,11 @@ mantiene en un singleton y puede consultarse desde la red interna del
 contenedor:
 
 ```bash
-docker compose exec -T registro-service curl -s http://localhost:8080/health/circuit-breaker
+docker compose exec -T empleado-service curl -s http://localhost:8080/health/circuit-breaker
 ```
 
-Cuando `departamentos-service` no está disponible o el circuito está abierto,
-`registro-service` registra al empleado igualmente con estado
+Cuando `departamento-service` no está disponible o el circuito está abierto,
+`empleado-service` registra al empleado igualmente con estado
 `PENDIENTE_VALIDACION` (fallback orientado a disponibilidad), mientras que un
 error propio del dominio (por ejemplo, un `departamentoId` inexistente
 respondido con `404`) no activa el fallback y se traduce en `400 Bad Request`.
@@ -170,11 +170,11 @@ de cada servicio (rutas HTTP definidas en su respectivo router/controlador).
 Todos son accesibles desde el host únicamente a través del Gateway en
 `http://localhost:8088`, salvo indicación contraria.
 
-### `registro-service` (`/empleados`)
+### `empleado-service` (`/empleados`)
 
 - `POST /empleados` — registra un empleado. Responde `201 Created`
   (`ACTIVO` o `PENDIENTE_VALIDACION` según la disponibilidad de
-  `departamentos-service`), `400` en errores de validación o departamento
+  `departamento-service`), `400` en errores de validación o departamento
   inexistente, `409` si el email, `numeroEmpleado` o `id` ya existen.
 - `GET /empleados/{id}` — consulta un empleado por id. `404` si no existe.
 - `PUT /empleados/{id}` — actualiza los datos de un empleado y publica
@@ -186,11 +186,11 @@ Todos son accesibles desde el host únicamente a través del Gateway en
 - `DELETE /empleados/{id}` — baja lógica: cambia el estado a `RETIRADO`,
   registra `fechaRetiro`, publica `empleado.retirado` y responde `204`.
 - `GET /health` y `GET /health/ready` — liveness y readiness (este último
-  valida la conexión a `registro-db`).
+  valida la conexión a `empleado-db`).
 - `GET /health/circuit-breaker` — estado del circuito hacia
-  `departamentos-service` (ver sección anterior).
+  `departamento-service` (ver sección anterior).
 
-### `departamentos-service` (`/departamentos`)
+### `departamento-service` (`/departamentos`)
 
 - `POST /departamentos` — crea un departamento. `201 Created`.
 - `GET /departamentos/{id}` — consulta un departamento por id. `404` si no
@@ -313,7 +313,7 @@ docker compose ps
 Según las dependencias declaradas en `docker-compose.yml`
 (`depends_on` con `condition: service_healthy`), el arranque respeta este
 orden: primero las bases de datos y `message-broker`; luego
-`departamentos-service`; después `registro-service`, `perfiles-service`,
+`departamento-service`; después `empleado-service`, `perfiles-service`,
 `notificaciones-service`, `vacaciones-service` y `auth-service` (cada uno depende de su base
 de datos y, cuando aplica, de `message-broker`); y por último
 `gateway-service`, que depende de que los seis microservicios de aplicación
@@ -332,8 +332,8 @@ curl -i http://localhost:8088/departamentos
 docker compose down
 ```
 
-`docker compose down --volumes` elimina los volúmenes (`registro-data`,
-`departamentos-data`, `notificaciones-data`, `perfiles-data`,
+`docker compose down --volumes` elimina los volúmenes (`empleado-data`,
+`departamento-data`, `notificaciones-data`, `perfiles-data`,
 `vacaciones-data`) y obliga a que las bases de datos vuelvan a inicializarse
 desde los scripts en `database/`.
 
@@ -345,7 +345,7 @@ por servicio, y se montan como `/docker-entrypoint-initdb.d` de forma
 
 ```text
 database/
-  registro/001-schema.sql
+  empleado/001-schema.sql
   departamentos/001-schema.sql
   notificaciones/001-schema.sql
   perfiles/001-schema.sql
@@ -360,8 +360,8 @@ correctas); las demás filas indican cómo correr sus suites:
 
 | Servicio | Cómo correr las pruebas | Archivos de prueba encontrados |
 |---|---|---|
-| `registro-service` | `cd Reto-1/RegistroService && dotnet test RegistroService.sln` | `EmpleadosEndpointsTests.cs`, `EmpleadoServiceTests.cs`, `EmpleadoRepositoryTests.cs`, `DepartamentosResilienceOptionsTests.cs`, `DepartamentoClientTests.cs` |
-| `departamentos-service` | `cd departamentos-serviceReto2 && pip install -r requirements-dev.txt && pytest -q` | `test_departamentos.py`, `test_resiliencia.py` |
+| `empleado-service` | `cd empleado-service && dotnet test EmpleadoService.sln` | `EmpleadosEndpointsTests.cs`, `EmpleadoServiceTests.cs`, `EmpleadoRepositoryTests.cs`, `DepartamentosResilienceOptionsTests.cs`, `DepartamentoClientTests.cs` |
+| `departamento-service` | `cd departamento-service && pip install -r requirements-dev.txt && pytest -q` | `test_departamentos.py`, `test_resiliencia.py` |
 | `notificaciones-service` | `cd notificaciones-service && npm test` (Jest + Supertest) | `eventoParser.test.js`, `notificacionService.test.js`, `api.test.js` |
 | `perfiles-service` | `cd perfiles-service && go test ./...` | `internal/api/router_test.go`, `internal/messaging/consumer_test.go` |
 | `vacaciones-service` | `mvn -f vacaciones-service/pom.xml test` | Validación de fechas, scheduler, transiciones tras retiro y payload RabbitMQ |
@@ -374,14 +374,14 @@ Varios servicios incluyen su propio `README.md` con más detalle del que cabe
 aquí (variables de entorno completas, estructura interna, justificación de
 decisiones técnicas):
 
-- [`Reto-1/RegistroService/README.md`](Reto-1/RegistroService/README.md)
+- [`empleado-service/README.md`](empleado-service/README.md)
 - [`perfiles-service/README.md`](perfiles-service/README.md)
 - [`notificaciones-service/README.md`](notificaciones-service/README.md) (incluye además `DOC/Notificaciones-Diseno.md`)
 - [`vacaciones-service/README.md`](vacaciones-service/README.md)
 - [`docs/evidencias/reto5/README.md`](docs/evidencias/reto5/README.md) y su [colección Postman](docs/evidencias/reto5/reto5-integracion.postman_collection.json)
 - [Flujo de empleado con autenticación JWT desde PowerShell](docs/evidencias/reto5/pruebas-flujo-auth-powershell.md)
 
-`departamentos-service` y `gateway-service` no tienen un `README.md` propio
+`departamento-service` y `gateway-service` no tienen un `README.md` propio
 en el repositorio.
 
 ## Puntos no verificados / limitaciones conocidas

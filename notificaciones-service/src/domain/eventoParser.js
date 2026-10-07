@@ -2,7 +2,7 @@
 
 /**
  * Traduce un EventEnvelope crudo (JSON publicado por empleados-service, ver
- * Reto-1/RegistroService/RegistroService/Infrastructure/Messaging/EventEnvelope.cs)
+ * empleado-service/empleadoService/infrastructure/messaging/EventEnvelope.cs)
  * en los datos que este servicio necesita para guardar una notificación.
  *
  * Contrato observado en el código fuente de empleados-service (no hay un catálogo de

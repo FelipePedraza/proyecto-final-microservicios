@@ -18,14 +18,14 @@ spring:
                 - Path=/openapi/auth
               filters:
                 - RewritePath=/openapi/auth, /v3/api-docs
-            - id: registro-openapi
-              uri: ${EMPLEADOS_SERVICE_URL:http://registro-service:8080}
+            - id: empleado-openapi
+              uri: ${EMPLEADOS_SERVICE_URL:http://empleado-service:8080}
               predicates:
                 - Path=/openapi/registro
               filters:
                 - RewritePath=/openapi/registro, /swagger/v1/swagger.json
             - id: departamentos-openapi
-              uri: ${DEPARTAMENTOS_SERVICE_URL:http://departamentos-service:8081}
+              uri: ${DEPARTAMENTO_SERVICE_URL:http://departamento-service:8081}
               predicates:
                 - Path=/openapi/departamentos
               filters:
@@ -58,7 +58,7 @@ spring:
                     name: authServiceCircuitBreaker
                     fallbackUri: forward:/fallback/auth-service
             - id: empleados-service
-              uri: ${EMPLEADOS_SERVICE_URL:http://registro-service:8080}
+              uri: ${EMPLEADOS_SERVICE_URL:http://empleado-service:8080}
               predicates:
                 - Path=/empleados/**
               filters:
@@ -66,15 +66,15 @@ spring:
                   args:
                     name: empleadosServiceCircuitBreaker
                     fallbackUri: forward:/fallback/empleados-service
-            - id: departamentos-service
-              uri: ${DEPARTAMENTOS_SERVICE_URL:http://departamentos-service:8081}
+            - id: departamento-service
+              uri: ${DEPARTAMENTO_SERVICE_URL:http://departamento-service:8081}
               predicates:
                 - Path=/departamentos/**
               filters:
                 - name: CircuitBreaker
                   args:
-                    name: departamentosServiceCircuitBreaker
-                    fallbackUri: forward:/fallback/departamentos-service
+                    name: departamentoServiceCircuitBreaker
+                    fallbackUri: forward:/fallback/departamento-service
             - id: perfiles-service
               uri: ${PERFILES_SERVICE_URL:http://perfiles-service:8083}
               predicates:
@@ -131,7 +131,7 @@ springdoc:
         url: /v3/api-docs
       - name: Autenticación
         url: /openapi/auth
-      - name: Empleados (Registro)
+      - name: Empleados
         url: /openapi/registro
       - name: Departamentos
         url: /openapi/departamentos
@@ -151,7 +151,7 @@ resilience4j:
         failureRateThreshold: 50
         waitDurationInOpenState: 10s
       empleadosServiceCircuitBreaker: *cb
-      departamentosServiceCircuitBreaker: *cb
+      departamentoServiceCircuitBreaker: *cb
       perfilesServiceCircuitBreaker: *cb
       notificacionesServiceCircuitBreaker: *cb
       vacacionesServiceCircuitBreaker: *cb
@@ -161,7 +161,7 @@ resilience4j:
         timeoutDuration: 6s
       empleadosServiceCircuitBreaker:
         timeoutDuration: 6s
-      departamentosServiceCircuitBreaker:
+      departamentoServiceCircuitBreaker:
         timeoutDuration: 6s
       perfilesServiceCircuitBreaker:
         timeoutDuration: 6s

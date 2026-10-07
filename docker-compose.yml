@@ -1,15 +1,15 @@
 ﻿name: reto-2-microservicios
 
 services:
-  registro-db:
+  empleado-db:
     image: postgres:17-alpine
     environment:
-      POSTGRES_DB: ${REGISTRO_DB_NAME:?Define REGISTRO_DB_NAME in .env}
-      POSTGRES_USER: ${REGISTRO_DB_USER:?Define REGISTRO_DB_USER in .env}
-      POSTGRES_PASSWORD: ${REGISTRO_DB_PASSWORD:?Define REGISTRO_DB_PASSWORD in .env}
+      POSTGRES_DB: ${EMPLEADO_DB_NAME:?Define EMPLEADO_DB_NAME in .env}
+      POSTGRES_USER: ${EMPLEADO_DB_USER:?Define EMPLEADO_DB_USER in .env}
+      POSTGRES_PASSWORD: ${EMPLEADO_DB_PASSWORD:?Define EMPLEADO_DB_PASSWORD in .env}
     volumes:
-      - registro-data:/var/lib/postgresql/data
-      - ./database/registro:/docker-entrypoint-initdb.d:ro
+      - empleado-data:/var/lib/postgresql/data
+      - ./database/empleado:/docker-entrypoint-initdb.d:ro
     networks:
       - microservicios-network
     healthcheck:
@@ -20,15 +20,15 @@ services:
       start_period: 5s
     restart: unless-stopped
 
-  departamentos-db:
+  departamento-db:
     image: postgres:17-alpine
     environment:
-      POSTGRES_DB: ${DEPARTAMENTOS_DB_NAME:?Define DEPARTAMENTOS_DB_NAME in .env}
-      POSTGRES_USER: ${DEPARTAMENTOS_DB_USER:?Define DEPARTAMENTOS_DB_USER in .env}
-      POSTGRES_PASSWORD: ${DEPARTAMENTOS_DB_PASSWORD:?Define DEPARTAMENTOS_DB_PASSWORD in .env}
+      POSTGRES_DB: ${DEPARTAMENTO_DB_NAME:?Define DEPARTAMENTO_DB_NAME in .env}
+      POSTGRES_USER: ${DEPARTAMENTO_DB_USER:?Define DEPARTAMENTO_DB_USER in .env}
+      POSTGRES_PASSWORD: ${DEPARTAMENTO_DB_PASSWORD:?Define DEPARTAMENTO_DB_PASSWORD in .env}
     volumes:
-      - departamentos-data:/var/lib/postgresql/data
-      - ./database/departamentos:/docker-entrypoint-initdb.d:ro
+      - departamento-data:/var/lib/postgresql/data
+      - ./database/departamento:/docker-entrypoint-initdb.d:ro
     networks:
       - microservicios-network
     healthcheck:
@@ -39,21 +39,21 @@ services:
       start_period: 5s
     restart: unless-stopped
 
-  departamentos-service:
+  departamento-service:
     build:
-      context: ./departamentos-serviceReto2
+      context: ./departamento-service
     environment:
-      DB_DEPARTAMENTOS_HOST: departamentos-db
-      DB_DEPARTAMENTOS_PORT: 5432
-      DB_DEPARTAMENTOS_NAME: ${DEPARTAMENTOS_DB_NAME:?Define DEPARTAMENTOS_DB_NAME in .env}
-      DB_DEPARTAMENTOS_USER: ${DEPARTAMENTOS_DB_USER:?Define DEPARTAMENTOS_DB_USER in .env}
-      DB_DEPARTAMENTOS_PASSWORD: ${DEPARTAMENTOS_DB_PASSWORD:?Define DEPARTAMENTOS_DB_PASSWORD in .env}
+      DB_DEPARTAMENTO_HOST: departamento-db
+      DB_DEPARTAMENTO_PORT: 5432
+      DB_DEPARTAMENTO_NAME: ${DEPARTAMENTO_DB_NAME:?Define DEPARTAMENTO_DB_NAME in .env}
+      DB_DEPARTAMENTO_USER: ${DEPARTAMENTO_DB_USER:?Define DEPARTAMENTO_DB_USER in .env}
+      DB_DEPARTAMENTO_PASSWORD: ${DEPARTAMENTO_DB_PASSWORD:?Define DEPARTAMENTO_DB_PASSWORD in .env}
     expose:
-      - "${DEPARTAMENTOS_SERVICE_PORT:?Define DEPARTAMENTOS_SERVICE_PORT in .env}"
+      - "${DEPARTAMENTO_SERVICE_PORT:?Define DEPARTAMENTO_SERVICE_PORT in .env}"
     networks:
       - microservicios-network
     depends_on:
-      departamentos-db:
+      departamento-db:
         condition: service_healthy
     healthcheck:
       test:
@@ -67,20 +67,20 @@ services:
       start_period: 10s
     restart: unless-stopped
 
-  registro-service:
+  empleado-service:
     build:
-      context: ./Reto-1/RegistroService
+      context: ./empleado-service
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:?Define ASPNETCORE_ENVIRONMENT in .env}
       ASPNETCORE_URLS: http://+:8080
-      ConnectionStrings__Registro: Host=registro-db;Port=5432;Database=${REGISTRO_DB_NAME:?Define REGISTRO_DB_NAME in .env};Username=${REGISTRO_DB_USER:?Define REGISTRO_DB_USER in .env};Password=${REGISTRO_DB_PASSWORD:?Define REGISTRO_DB_PASSWORD in .env}
-      Departamentos__BaseUrl: http://departamentos-service:8081/
+      ConnectionStrings__EmpleadoService: Host=empleado-db;Port=5432;Database=${EMPLEADO_DB_NAME:?Define EMPLEADO_DB_NAME in .env};Username=${EMPLEADO_DB_USER:?Define EMPLEADO_DB_USER in .env};Password=${EMPLEADO_DB_PASSWORD:?Define EMPLEADO_DB_PASSWORD in .env}
+      Departamentos__BaseUrl: http://departamento-service:8081/
       # Circuits breaker hacia Departamentos (reto: 3-5 fallos consecutivos, circuito abierto 30-60 s)
       Departamentos__Resilience__FallosConsecutivos: ${CB_FALLOS_CONSECUTIVOS:?Define CB_FALLOS_CONSECUTIVOS in .env}
       Departamentos__Resilience__TimeoutLlamada: ${CB_TIMEOUT_LLAMADA:?Define CB_TIMEOUT_LLAMADA in .env}
       Departamentos__Resilience__DuracionCircuitoAbierto: ${CB_DURACION_CIRCUITO_ABIERTO:?Define CB_DURACION_CIRCUITO_ABIERTO in .env}
       # RabbitMQ (Reto 4): sin esto, RabbitMqPublisher usa su default "localhost", que
-      # dentro del contenedor de registro-service apunta a si mismo, no al broker. Con
+      # dentro del contenedor de empleado-service apunta a si mismo, no al broker. Con
       # eso empleado.creado nunca sale y ningun consumidor (notificaciones-service) lo
       # recibe. Debe coincidir con las credenciales configuradas en message-broker abajo.
       RabbitMQ__Host: ${RABBITMQ_HOST:?Define RABBITMQ_HOST in .env}
@@ -88,13 +88,13 @@ services:
       RabbitMQ__Username: ${RABBITMQ_USER:?Define RABBITMQ_USER in .env}
       RabbitMQ__Password: ${RABBITMQ_PASSWORD:?Define RABBITMQ_PASSWORD in .env}
     expose:
-      - "${REGISTRO_SERVICE_PORT:?Define REGISTRO_SERVICE_PORT in .env}"
+      - "8080"
     networks:
       - microservicios-network
     depends_on:
-      registro-db:
+      empleado-db:
         condition: service_healthy
-      departamentos-service:
+      departamento-service:
         condition: service_healthy
       message-broker:
         condition: service_healthy
@@ -114,7 +114,7 @@ services:
       GATEWAY_CONNECT_TIMEOUT_MS: ${GATEWAY_CONNECT_TIMEOUT_MS:?Define GATEWAY_CONNECT_TIMEOUT_MS in .env}
       GATEWAY_RESPONSE_TIMEOUT: ${GATEWAY_RESPONSE_TIMEOUT:?Define GATEWAY_RESPONSE_TIMEOUT in .env}
       EMPLEADOS_SERVICE_URL: ${EMPLEADOS_SERVICE_URL:?Define EMPLEADOS_SERVICE_URL in .env}
-      DEPARTAMENTOS_SERVICE_URL: ${DEPARTAMENTOS_SERVICE_URL:?Define DEPARTAMENTOS_SERVICE_URL in .env}
+      DEPARTAMENTO_SERVICE_URL: ${DEPARTAMENTO_SERVICE_URL:?Define DEPARTAMENTO_SERVICE_URL in .env}
       PERFILES_SERVICE_URL: ${PERFILES_SERVICE_URL:?Define PERFILES_SERVICE_URL in .env}
       NOTIFICACIONES_SERVICE_URL: ${NOTIFICACIONES_SERVICE_URL:?Define NOTIFICACIONES_SERVICE_URL in .env}
       VACACIONES_SERVICE_URL: ${VACACIONES_SERVICE_URL:?Define VACACIONES_SERVICE_URL in .env}
@@ -125,9 +125,9 @@ services:
     networks:
       - microservicios-network
     depends_on:
-      registro-service:
+      empleado-service:
         condition: service_healthy
-      departamentos-service:
+      departamento-service:
         condition: service_healthy
       perfiles-service:
         condition: service_healthy
@@ -379,8 +379,8 @@ networks:
     driver: bridge
 
 volumes:
-  registro-data:
-  departamentos-data:
+  empleado-data:
+  departamento-data:
   notificaciones-data:
   perfiles-data:
   vacaciones-data:
