@@ -35,7 +35,7 @@ spring:
               predicates:
                 - Path=/openapi/perfiles
               filters:
-                - RewritePath=/openapi/perfiles, /swagger/doc.json
+                - RewritePath=/openapi/perfiles, /openapi.json
             - id: notificaciones-openapi
               uri: ${NOTIFICACIONES_SERVICE_URL:http://notificaciones-service:8082}
               predicates:

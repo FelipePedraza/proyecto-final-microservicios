@@ -162,6 +162,7 @@ var SwaggerInfo = &swag.Spec{
     "UpdatePerfil": {
       "type": "object",
       "additionalProperties": false,
+      "required": ["telefono", "direccion", "ciudad", "biografia"],
       "properties": {
         "telefono": {"type": "string", "example": "+525512345678"},
         "direccion": {"type": "string", "example": "Av. Reforma 100"},
