@@ -388,3 +388,26 @@ en el repositorio.
 
 - `VacationScheduler` asume una sola instancia; N réplicas pueden publicar N
   veces. El Reto 31 incorporará coordinación distribuida con ShedLock.
+
+## Pruebas Automatizadas y Reportes (Reto 6)
+
+El sistema cuenta con una estrategia de pruebas estructurada según la pirámide de pruebas. El framework elegido para las pruebas funcionales E2E es **Cucumber-JVM (Java)** usando **Gherkin**, ya que nos permite escribir escenarios vivos (documentación ejecutable) directamente en español, acoplando negocio y tecnología de forma limpia. 
+
+A continuación, se detalla la ruta estricta donde se generan los reportes requeridos por la rúbrica (los cuales serán consumidos automáticamente por Jenkins en el Reto 7):
+
+| Suite | Comando | Reporte de resultados (XML/JSON) | Reporte de cobertura (HTML) |
+|---|---|---|---|
+| empleados-service (unit + int) | mvn verify | 	arget/surefire-reports/*.xml | 	arget/site/jacoco/jacoco.xml |
+| vacaciones-service (unit) | mvn verify | 	arget/surefire-reports/*.xml | 	arget/site/jacoco/jacoco.xml |
+| auth-service (unit + int) | mvn verify | 	arget/surefire-reports/*.xml | 	arget/site/jacoco/jacoco.xml |
+| **e2e-tests (BDD)** | mvn test | e2e-tests/reports/junit.xml<br>e2e-tests/reports/cucumber.json | e2e-tests/reports/cucumber.html |
+
+### Ejecución de Pruebas BDD
+Para correr las pruebas de extremo a extremo, asegúrese de tener la base de datos y los microservicios corriendo en Docker.
+1. Levantar el entorno: docker compose up --build -d
+2. Ir a la carpeta: cd e2e-tests
+3. Ejecutar suite BDD: mvn clean test
+
+**Escenarios Implementados:**
+* **Gestión de Vacaciones (acaciones.feature):** Se valida el rechazo por solapamiento de fechas, rechazo por fechas incoherentes, y el **ciclo completo de suspensión de cuenta**, verificando mediante *polling asíncrono* que cuando las vacaciones inician el empleado pierde acceso, y cuando finalizan recupera acceso automáticamente.
+* **Offboarding (offboarding.feature):** Se verifica el flujo de desvinculación total de un empleado (eliminación). Comprueba que el usuario ya no puede iniciar sesión, que la recuperación de contraseña falla intencionalmente para empleados retirados, y que su registro aparece intacto en el reporte de auditoría de RRHH (GET /empleados?estado=RETIRADO).

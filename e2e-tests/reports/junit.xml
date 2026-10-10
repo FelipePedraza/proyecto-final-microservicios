@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="Cucumber" time="9.307" tests="7" skipped="0" failures="0" errors="0">
+<testcase classname="Offboarding y desvinculación de empleados" name="Desvinculación completa de un empleado" time="4.887">
+<system-out><![CDATA[
+Dado que estoy autenticado como "ADMIN".....................................passed
+Y que existe un empleado activo con credenciales establecidas...............passed
+Cuando registro la desvinculación del empleado..............................passed
+Entonces la respuesta debe tener código 204.................................passed
+Y eventualmente el empleado no puede iniciar sesión.........................passed
+Y la recuperación de contraseña falla para el empleado retirado.............passed
+]]></system-out>
+</testcase>
+<testcase classname="Offboarding y desvinculación de empleados" name="Consulta de auditoría de empleados retirados" time="1.047">
+<system-out><![CDATA[
+Dado que estoy autenticado como "ADMIN".....................................passed
+Y que existe un empleado activo con credenciales establecidas...............passed
+Cuando registro la desvinculación del empleado..............................passed
+Y consulto la lista de empleados con estado "RETIRADO"......................passed
+Entonces el empleado retirado aparece en la respuesta.......................passed
+]]></system-out>
+</testcase>
+<testcase classname="Escenario de humo del sistema desplegado" name="El endpoint de salud del gateway está activo" time="0.17">
+<system-out><![CDATA[
+Dado que el sistema está desplegado y accesible a través del gateway........passed
+Cuando consulto el endpoint "/health".......................................passed
+Entonces la respuesta HTTP es 200...........................................passed
+Y el campo "status" de la respuesta es "healthy"............................passed
+]]></system-out>
+</testcase>
+<testcase classname="Escenario de humo del sistema desplegado" name="La especificación OpenAPI del gateway está disponible sin autenticación" time="0.096">
+<system-out><![CDATA[
+Dado que el sistema está desplegado y accesible a través del gateway........passed
+Cuando consulto el endpoint "/v3/api-docs"..................................passed
+Entonces la respuesta HTTP es 200...........................................passed
+Y la respuesta contiene el campo "openapi"..................................passed
+]]></system-out>
+</testcase>
+<testcase classname="Gestión de vacaciones y suspensión de cuentas" name="Programación de vacaciones y ciclo de suspensión/reactivación" time="0.901">
+<system-out><![CDATA[
+Dado que estoy autenticado como "ADMIN".....................................passed
+Y que existe un empleado activo con credenciales establecidas...............passed
+Cuando programo un período de vacaciones que inicia de inmediato............passed
+Entonces la respuesta debe tener código 201.................................passed
+Y eventualmente el empleado no puede iniciar sesión.........................passed
+Cuando el período de vacaciones finaliza....................................passed
+Entonces eventualmente el empleado puede iniciar sesión nuevamente..........passed
+]]></system-out>
+</testcase>
+<testcase classname="Gestión de vacaciones y suspensión de cuentas" name="Rechazo por fechas incoherentes" time="0.825">
+<system-out><![CDATA[
+Dado que estoy autenticado como "ADMIN".....................................passed
+Y que existe un empleado activo con credenciales establecidas...............passed
+Cuando programo un período de vacaciones con fecha de fin anterior a la de inicio.passed
+Entonces la respuesta debe tener código 400.................................passed
+]]></system-out>
+</testcase>
+<testcase classname="Gestión de vacaciones y suspensión de cuentas" name="Rechazo por solapamiento con un período existente" time="0.922">
+<system-out><![CDATA[
+Dado que estoy autenticado como "ADMIN".....................................passed
+Y que existe un empleado activo con credenciales establecidas...............passed
+Cuando programo un período de vacaciones para la próxima semana.............passed
+Y programo otro período de vacaciones que se solapa con el anterior.........passed
+Entonces la respuesta debe tener código 400.................................passed
+]]></system-out>
+</testcase>
+</testsuite>
