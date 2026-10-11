@@ -3,15 +3,13 @@ package steps;
 import static io.restassured.RestAssured.given;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.time.Duration;
-import java.time.Instant;
-
 import config.E2EConfig;
 import context.TestContext;
 import io.cucumber.java.es.Cuando;
 import io.cucumber.java.es.Dado;
 import io.cucumber.java.es.Entonces;
 import io.restassured.response.Response;
+import support.Polling;
 
 public class SmokeSteps {
 
@@ -22,21 +20,15 @@ public class SmokeSteps {
     }
 
     @Dado("que el sistema está desplegado y accesible a través del gateway")
-    public void systemIsDeployed() throws InterruptedException {
-        Instant deadline = Instant.now().plus(Duration.ofSeconds(E2EConfig.startupTimeoutSeconds()));
-        Exception lastError = null;
-        while (Instant.now().isBefore(deadline)) {
-            try {
-                given().get(context.baseUrl() + "/health").then().statusCode(200);
-                return;
-            } catch (Exception error) {
-                lastError = error;
-                Thread.sleep(2000);
-            }
-        }
-        throw new AssertionError("El gateway no respondió en " + context.baseUrl()
-                + " tras " + E2EConfig.startupTimeoutSeconds() + " s. ¿Está levantado con 'docker compose up -d'?",
-                lastError);
+    public void systemIsDeployed() {
+        int attempts = Math.max(1, E2EConfig.startupTimeoutSeconds() / 2);
+        Polling.until(
+                "el gateway debe responder en " + context.baseUrl(),
+                () -> given().get(context.baseUrl() + "/health").statusCode(),
+                status -> status == 200,
+                attempts,
+                java.time.Duration.ofSeconds(2),
+                java.time.Duration.ofSeconds(E2EConfig.startupTimeoutSeconds()));
     }
 
     @Cuando("consulto el endpoint {string}")

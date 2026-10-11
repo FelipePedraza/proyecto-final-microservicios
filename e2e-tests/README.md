@@ -38,9 +38,43 @@ Reportes en `target/cucumber-reports/` (`cucumber.html`, `cucumber.json`, `cucum
 | Variable | Por defecto | Uso |
 |---|---|---|
 | `E2E_BASE_URL` | `http://localhost:8088` | URL del gateway |
-| `E2E_ADMIN_EMAIL` / `E2E_ADMIN_PASSWORD` | vacío | Login ADMIN en escenarios que lo necesiten |
+| `E2E_ADMIN_EMAIL` / `E2E_ADMIN_PASSWORD` | `admin@empresa.com` / `admin123` | Login ADMIN en escenarios que lo necesiten |
+| `E2E_USER_EMAIL` / `E2E_USER_PASSWORD` | vacío | Cuenta USER activa para validar permisos RBAC |
 | `E2E_STARTUP_TIMEOUT_SECONDS` | `60` | Espera máxima a que el gateway responda |
 | `E2E_REQUEST_TIMEOUT_MS` | `30000` | Timeout por petición |
+| `E2E_POLLING_MAX_ATTEMPTS` | `15` | Número máximo de consultas de una condición asincrónica |
+| `E2E_POLLING_INTERVAL_MS` | `2000` | Intervalo entre consultas de polling |
+| `E2E_POLLING_TIMEOUT_SECONDS` | `30` | Límite total de una espera asincrónica |
+| `E2E_JWT_SECRET` | vacío | Mismo valor de `JWT_SECRET_KEY`; permite activar las cuentas efímeras de onboarding |
+
+## Polling y consistencia eventual
+
+Los pasos que comienzan con `eventualmente` usan la utilidad compartida `support/Polling.java`. La
+condición se consulta inmediatamente y luego cada 2 segundos, hasta un máximo de 15 intentos o 30
+segundos. Esta calibración permite que una prueba termine tan pronto como el evento sea procesado,
+pero tolera la variación normal introducida por RabbitMQ y sus consumidores. Los valores pueden
+ajustarse mediante las variables anteriores sin recompilar la suite. Si se agota el límite, el paso
+falla con el número de intentos y la condición que no se cumplió.
+
+El historial de notificaciones oculta deliberadamente los tokens de activación. Por ello, la suite
+espera primero la notificación `SEGURIDAD` que confirma que `auth-service` procesó el evento y luego
+emite un token temporal E2E firmado con `E2E_JWT_SECRET`. Ese token solo se utiliza contra la cuenta
+efímera creada por el escenario y evita consultar directamente las bases de datos.
+
+## Independencia de escenarios
+
+- PicoContainer construye un `TestContext` nuevo para cada escenario; JWT, respuestas e IDs no se
+  comparten entre escenarios.
+- Cada empleado usa un ID, número y correo derivados de un UUID. Por ello, una ejecución anterior no
+  puede provocar conflictos de unicidad en otra.
+- Los `Antecedentes` recrean desde cero las precondiciones complejas. En vacaciones y offboarding se
+  registra el empleado, se espera su cuenta asincrónica, se establece la contraseña y se comprueba el
+  login antes de comenzar cada escenario.
+- Toda creación exitosa registra una acción `onCleanup`. Como empleados solo ofrece baja lógica, el
+  hook `@After` los deja `RETIRADO`; los UUID evitan reutilizarlos. Los departamentos de fixtures usan
+  IDs estables y aceptan `409` si ya existen, evitando acumular un departamento por escenario.
+- La limpieza se ejecuta en orden inverso al setup y sus fallos quedan registrados en el reporte sin
+  ocultar el resultado funcional del escenario.
 
 ## Cómo añadir escenarios (David, Samuel)
 

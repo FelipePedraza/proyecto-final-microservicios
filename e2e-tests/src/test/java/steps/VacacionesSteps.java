@@ -7,6 +7,7 @@ import io.restassured.RestAssured;
 import io.restassured.http.ContentType;
 import io.restassured.response.Response;
 import java.time.LocalDate;
+import support.Polling;
 
 public class VacacionesSteps {
 
@@ -53,14 +54,19 @@ public class VacacionesSteps {
         String email = context.get("empleadoEmail", String.class);
         String pass = context.get("empleadoPassword", String.class);
         
-        boolean suspendido = esperarHastaQueSuspension(email, pass, 15, 2000);
-        org.junit.jupiter.api.Assertions.assertTrue(suspendido, "La cuenta nunca fue suspendida tras programar vacaciones");
+        Polling.waitUntil("la cuenta del empleado debe quedar suspendida", () -> {
+            Response response = intentarLogin(email, pass);
+            return response.statusCode() == 401 || response.statusCode() == 403;
+        });
     }
 
     @Entonces("eventualmente el empleado puede iniciar sesión nuevamente")
     public void eventualmentePuedeIniciarSesion() {
-        // Lógica de polling para esperar el 200 OK
-        System.out.println("Esperando que el polling retorne éxito...");
+        String email = context.get("empleadoEmail", String.class);
+        String pass = context.get("empleadoPassword", String.class);
+
+        Polling.waitUntil("la cuenta del empleado debe quedar activa nuevamente",
+                () -> intentarLogin(email, pass).statusCode() == 200);
     }
 
     @Cuando("programo un período de vacaciones con fecha de fin anterior a la de inicio")
@@ -117,22 +123,13 @@ public class VacacionesSteps {
         context.setLastResponse(res);
     }
 
-    // -- HELPER de Polling --
-    private boolean esperarHastaQueSuspension(String email, String pass, int maxIntentos, int intervaloMs) {
+    private Response intentarLogin(String email, String pass) {
         String payload = "{ \"email\": \"" + email + "\", \"password\": \"" + pass + "\" }";
-        
-        for (int i = 0; i < maxIntentos; i++) {
-            Response response = RestAssured.given()
-                .baseUri(context.baseUrl())
-                .contentType(ContentType.JSON)
-                .body(payload)
-                .post("/auth/login");
-            
-            if (response.statusCode() == 401 || response.statusCode() == 403) {
-                return true; // Ya no puede entrar = Éxito!
-            }
-            try { Thread.sleep(intervaloMs); } catch (InterruptedException e) {}
-        }
-        return false;
+
+        return RestAssured.given()
+            .baseUri(context.baseUrl())
+            .contentType(ContentType.JSON)
+            .body(payload)
+            .post("/auth/login");
     }
 }
