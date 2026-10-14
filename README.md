@@ -401,7 +401,7 @@ en el repositorio.
 
 **BDD** (Behavior-Driven Development): los escenarios se escriben en Gherkin en español (`Dado / Cuando / Entonces`),
 así negocio y QA leen el mismo documento ejecutable. Se usa **Cucumber-JVM** con Rest Assured. Los resultados asincrónicos
-(RabbitMQ) se verifican con *polling* con reintentos (`support/Polling.java`: 15 intentos, cada 2 s, tope de 30 s), sin pausas fijas.
+(RabbitMQ) se verifican con *polling* con reintentos (`support/Polling.java`: 15 intentos, cada 2 s, tope de 90 s), sin pausas fijas.
 
 ### Reportes por suite
 
@@ -414,7 +414,7 @@ Cada suite se ejecuta con un único comando y falla con código de salida distin
 | `auth-service` | `cd auth-service && ./mvnw clean verify` | `auth-service/target/surefire-reports/*.xml` | `auth-service/target/site/jacoco/index.html` y `jacoco.xml` (71,0 % de líneas; solo reporte, sin umbral) |
 | **`e2e-tests` (BDD)** | `cd e2e-tests && mvn clean test` | `e2e-tests/reports/junit.xml` (JUnit XML)<br>`e2e-tests/reports/cucumber.json` (Cucumber JSON) | `e2e-tests/reports/cucumber.html` (informe HTML navegable) |
 
-Los reportes BDD se versionan en `e2e-tests/reports/` y se sobrescriben en cada ejecución; Jenkins (Reto 7) los consume desde esa ruta.
+Los reportes BDD se generan en `e2e-tests/reports/` en cada ejecución (carpeta ignorada por git, no se versiona); Jenkins (Reto 7) los consume desde esa ruta.
 
 ### Ejecución de las pruebas BDD (paso a paso)
 

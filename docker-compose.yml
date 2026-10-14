@@ -157,11 +157,12 @@ services:
     networks:
       - microservicios-network
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping", "--timeout", "5"]
       interval: 10s
       timeout: 10s
-      retries: 6
-      start_period: 30s
+      retries: 12
+      # En arranque en frio (Docker recien iniciado o equipo cargado) RabbitMQ puede tardar ~50 s.
+      start_period: 60s
     restart: unless-stopped
 
   notificaciones-db:

@@ -83,3 +83,14 @@ ENV/
 # ==========================================
 *.log
 docker-compose.override.yml
+
+# ==========================================
+# 9. Herramientas locales y cobertura
+# ==========================================
+.claude/
+coverage/
+*.trx
+hs_err_pid*
+replay_pid*
+# Reportes BDD generados en cada ejecucion (Jenkins / mvn test)
+e2e-tests/reports/

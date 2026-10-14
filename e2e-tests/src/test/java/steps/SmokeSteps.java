@@ -30,24 +30,37 @@ public class SmokeSteps {
                 java.time.Duration.ofSeconds(2),
                 java.time.Duration.ofSeconds(E2EConfig.startupTimeoutSeconds()));
 
-        // /health responde antes de que las rutas hacia auth y departamentos estén listas (arranque en
-        // frío del gateway): un 503 /fallback indica que la ruta aún no funciona; 401/400 indica que sí.
-        for (String ruta : new String[] {"/departamentos", "/vacaciones"}) {
-            Polling.until(
-                    "la ruta " + ruta + " del gateway debe estar enrutada (no 503)",
-                    () -> given().get(context.baseUrl() + ruta).statusCode(),
-                    status -> status != 503,
-                    attempts,
-                    java.time.Duration.ofSeconds(2),
-                    java.time.Duration.ofSeconds(E2EConfig.startupTimeoutSeconds()));
+        calentarRutas(attempts);
+    }
+
+    /**
+     * /health responde antes de que auth, empleados, departamentos y vacaciones estén listos (arranque en
+     * frío): las primeras peticiones tardan o reciben 503 del circuit breaker del gateway. Se calientan las
+     * rutas con reintentos para que los escenarios no paguen ese costo. Es tolerante: si las credenciales
+     * ADMIN no son válidas (p. ej. solo se corre el smoke), solo se espera a que /auth/login esté enrutado.
+     */
+    private void calentarRutas(int attempts) {
+        java.time.Duration interval = java.time.Duration.ofSeconds(2);
+        java.time.Duration timeout = java.time.Duration.ofSeconds(E2EConfig.startupTimeoutSeconds());
+        String payload = "{ \"email\": \"" + E2EConfig.adminEmail()
+                + "\", \"password\": \"" + E2EConfig.adminPassword() + "\" }";
+
+        Response login = Polling.until(
+                "/auth/login del gateway debe responder (no 5xx)",
+                () -> given().contentType("application/json").body(payload).post(context.baseUrl() + "/auth/login"),
+                response -> response.statusCode() < 500,
+                attempts, interval, timeout);
+        if (login.statusCode() != 200) {
+            return;
         }
-        Polling.until(
-                "la ruta /auth/login del gateway debe estar enrutada (no 503)",
-                () -> given().contentType("application/json").body("{}").post(context.baseUrl() + "/auth/login").statusCode(),
-                status -> status != 503,
-                attempts,
-                java.time.Duration.ofSeconds(2),
-                java.time.Duration.ofSeconds(E2EConfig.startupTimeoutSeconds()));
+        String token = login.jsonPath().getString("token");
+        for (String ruta : new String[] {"/departamentos", "/empleados", "/vacaciones", "/notificaciones/calentamiento"}) {
+            Polling.until(
+                    "la ruta " + ruta + " debe responder (no 5xx)",
+                    () -> given().header("Authorization", "Bearer " + token).get(context.baseUrl() + ruta).statusCode(),
+                    status -> status < 500,
+                    attempts, interval, timeout);
+        }
     }
 
     @Cuando("consulto el endpoint {string}")

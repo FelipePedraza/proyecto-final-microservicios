@@ -85,11 +85,15 @@ public class CommonSteps {
 
     private String login(String email, String password, String rol) {
         String payload = "{ \"email\": \"" + email + "\", \"password\": \"" + password + "\" }";
-        Response response = RestAssured.given()
-                .baseUri(context.baseUrl())
-                .contentType(ContentType.JSON)
-                .body(payload)
-                .post("/auth/login");
+        // Se reintenta solo ante timeout o 5xx (sistema lento o circuit breaker abierto); un 401 falla de inmediato.
+        Response response = Polling.until(
+                "el login del rol " + rol + " debe obtener respuesta del sistema (no 5xx)",
+                () -> RestAssured.given()
+                        .baseUri(context.baseUrl())
+                        .contentType(ContentType.JSON)
+                        .body(payload)
+                        .post("/auth/login"),
+                current -> current.statusCode() < 500);
 
         Assertions.assertEquals(200, response.statusCode(),
                 "El login del rol " + rol + " falló. Respuesta: " + response.asString());

@@ -32,7 +32,7 @@ public final class E2EConfig {
 
     /** Tiempo máximo (segundos) de espera a que el sistema esté disponible antes de fallar. */
     public static int startupTimeoutSeconds() {
-        return Integer.parseInt(read("E2E_STARTUP_TIMEOUT_SECONDS", "e2e.startupTimeoutSeconds", "60"));
+        return Integer.parseInt(read("E2E_STARTUP_TIMEOUT_SECONDS", "e2e.startupTimeoutSeconds", "120"));
     }
 
     public static int requestTimeoutMillis() {
@@ -48,7 +48,7 @@ public final class E2EConfig {
     }
 
     public static int pollingTimeoutSeconds() {
-        return positiveInt("E2E_POLLING_TIMEOUT_SECONDS", "e2e.pollingTimeoutSeconds", "30");
+        return positiveInt("E2E_POLLING_TIMEOUT_SECONDS", "e2e.pollingTimeoutSeconds", "90");
     }
 
     /** Secreto compartido solo para emitir tokens temporales dentro del entorno E2E. */

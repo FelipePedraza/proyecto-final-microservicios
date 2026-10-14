@@ -50,19 +50,21 @@ Además, Surefire deja su resumen en `target/surefire-reports/`.
 | `E2E_BASE_URL` | `http://localhost:8088` | URL del gateway |
 | `E2E_ADMIN_EMAIL` / `E2E_ADMIN_PASSWORD` | `admin@empresa.com` / `admin123` | Login ADMIN en escenarios que lo necesiten |
 | `E2E_USER_EMAIL` / `E2E_USER_PASSWORD` | vacío | Opcional. Si están vacías, la suite crea una cuenta USER efímera por el flujo de onboarding |
-| `E2E_STARTUP_TIMEOUT_SECONDS` | `60` | Espera máxima a que el gateway responda |
+| `E2E_STARTUP_TIMEOUT_SECONDS` | `120` | Espera máxima (arranque en frío) a que el gateway y sus rutas respondan |
 | `E2E_REQUEST_TIMEOUT_MS` | `30000` | Timeout por petición |
 | `E2E_POLLING_MAX_ATTEMPTS` | `15` | Número máximo de consultas de una condición asincrónica |
 | `E2E_POLLING_INTERVAL_MS` | `2000` | Intervalo entre consultas de polling |
-| `E2E_POLLING_TIMEOUT_SECONDS` | `30` | Límite total de una espera asincrónica |
+| `E2E_POLLING_TIMEOUT_SECONDS` | `90` | Límite total de una espera asincrónica |
 | `E2E_JWT_SECRET` | vacío | Mismo valor de `JWT_SECRET_KEY`; permite activar las cuentas efímeras de onboarding |
 
 ## Polling y consistencia eventual
 
 Los pasos que comienzan con `eventualmente` usan la utilidad compartida `support/Polling.java`. La
-condición se consulta inmediatamente y luego cada 2 segundos, hasta un máximo de 15 intentos o 30
-segundos. Esta calibración permite que una prueba termine tan pronto como el evento sea procesado,
-pero tolera la variación normal introducida por RabbitMQ y sus consumidores. Los valores pueden
+condición se consulta inmediatamente y luego cada 2 segundos, hasta un máximo de 15 intentos o 90
+segundos. Los 2 s bastan para detectar el evento poco después de procesarse; el tope de 90 s cubre
+una petición lenta en arranque en frío (el timeout por petición es de 30 s) más reintentos, sin que
+una sola respuesta lenta agote la espera. La prueba termina tan pronto como el evento es procesado y se
+tolera la variación normal de RabbitMQ y sus consumidores. Los valores pueden
 ajustarse mediante las variables anteriores sin recompilar la suite. Si se agota el límite, el paso
 falla con el número de intentos y la condición que no se cumplió.
 
