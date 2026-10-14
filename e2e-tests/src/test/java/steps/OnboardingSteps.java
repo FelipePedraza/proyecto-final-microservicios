@@ -29,7 +29,7 @@ public class OnboardingSteps {
         this.context = context;
     }
 
-    @Cuando("registro un nuevo empleado con datos válidos y únicos")
+    @Cuando("creo un empleado nuevo con datos bien puestos")
     public void registrarEmpleadoValido() {
         String adminToken = tokenActual();
         asegurarDepartamento(adminToken);
@@ -42,7 +42,7 @@ public class OnboardingSteps {
         }
     }
 
-    @Entonces("eventualmente el servicio de autenticación debe haber creado una cuenta para el nuevo empleado")
+    @Entonces("al rato auth ya le tiene creada su cuenta")
     public void esperarCuentaDeAutenticacion() {
         String activationToken = generarTokenActivacion();
         context.put("onboardingActivationToken", activationToken);
@@ -55,14 +55,14 @@ public class OnboardingSteps {
         context.put("onboardingPassword", EMPLOYEE_PASSWORD);
     }
 
-    @Entonces("eventualmente debe existir una notificación de bienvenida para el nuevo empleado")
+    @Entonces("al rato le llega su notificación de bienvenida")
     public void esperarNotificacionBienvenida() {
         // notificaciones-service ya no emite BIENVENIDA con empleado.creado: el correo de bienvenida
         // (con el acceso a la cuenta) sale con usuario.creado y se registra como tipo SEGURIDAD.
         esperarNotificacion("SEGURIDAD");
     }
 
-    @Entonces("eventualmente obtengo el token de activación del nuevo empleado")
+    @Entonces("al rato consigo su token de activación")
     public void obtenerTokenActivacion() {
         // usuario.creado produce una notificación SEGURIDAD. El historial oculta el token real,
         // por lo que su presencia demuestra que auth procesó el evento antes de emitir un token E2E equivalente.
@@ -70,7 +70,7 @@ public class OnboardingSteps {
         context.put("onboardingActivationToken", generarTokenActivacion());
     }
 
-    @Cuando("el nuevo empleado establece una contraseña válida")
+    @Cuando("el empleado nuevo define su contraseña")
     public void establecerPassword() {
         String activationToken = context.get("onboardingActivationToken", String.class);
         Response response = Polling.until(
@@ -81,7 +81,7 @@ public class OnboardingSteps {
         context.put("onboardingPassword", EMPLOYEE_PASSWORD);
     }
 
-    @Cuando("el nuevo empleado inicia sesión con su contraseña")
+    @Cuando("el empleado nuevo hace login con esa contraseña")
     public void iniciarSesionNuevoEmpleado() {
         String password = context.get("onboardingPassword", String.class);
         String payload = "{ \"email\": \"" + empleadoEmail()
@@ -94,20 +94,20 @@ public class OnboardingSteps {
                 .post("/auth/login"));
     }
 
-    @Entonces("la respuesta debe contener un token de autenticación")
+    @Entonces("en la respuesta viene un token")
     public void verificarTokenAutenticacion() {
         String token = context.lastResponse().jsonPath().getString("token");
         Assertions.assertNotNull(token, "La respuesta de login no contiene el campo token");
         Assertions.assertFalse(token.isBlank(), "La respuesta de login contiene un token vacío");
     }
 
-    @Cuando("intento registrar un nuevo empleado en un departamento inexistente")
+    @Cuando("intento crear un empleado en un departamento que no existe")
     public void registrarConDepartamentoInexistente() {
         prepararEmpleado("NO-EXISTE-" + UUID.randomUUID().toString().substring(0, 8));
         context.setLastResponse(crearEmpleado(tokenActual(), true));
     }
 
-    @Cuando("intento registrar un nuevo empleado sin nombre ni correo electrónico")
+    @Cuando("intento crear un empleado sin nombre ni email")
     public void registrarSinCamposObligatorios() {
         asegurarDepartamento(tokenActual());
         prepararEmpleado(ONBOARDING_DEPARTMENT_ID);

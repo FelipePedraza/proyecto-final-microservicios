@@ -1,41 +1,40 @@
 # language: es
 @seguridad
-Característica: Seguridad y control de acceso
-  Como sistema de autenticación
-  Quiero controlar el acceso a los recursos protegidos
-  Para garantizar que solo los usuarios autorizados realicen operaciones
+Característica: Quién puede entrar y qué puede hacer
+  Sin token no se entra, un USER solo mira
+  y un ADMIN puede hacer de todo
 
   Antecedentes:
-    Dado que el sistema está desplegado y accesible a través del gateway
+    Dado que el sistema está arriba y responde por el gateway
 
-  Escenario: Acceso denegado sin token de autenticación
-    Cuando consulto la lista de empleados sin token de autenticación
-    Entonces la respuesta debe tener código 401
+  Escenario: Sin token no deja pasar
+    Cuando pido la lista de empleados sin token
+    Entonces me devuelve un 401
 
-  Escenario: Acceso denegado con un token malformado
-    Dado que uso un token de autenticación malformado
-    Cuando consulto la lista de empleados
-    Entonces la respuesta debe tener código 401
+  Escenario: Con un token inventado tampoco
+    Dado que mando un token inventado
+    Cuando pido la lista de empleados
+    Entonces me devuelve un 401
 
-  Escenario: Un usuario puede consultar recursos protegidos
-    Dado que estoy autenticado como "USER"
-    Cuando consulto la lista de empleados
-    Entonces la respuesta debe tener código 200
+  Escenario: Un USER puede ver la lista de empleados
+    Dado que entro como "USER"
+    Cuando pido la lista de empleados
+    Entonces me devuelve un 200
 
-  Escenario: Un usuario no puede crear empleados
-    Dado que estoy autenticado como "USER"
-    Cuando intento registrar un empleado con datos válidos
-    Entonces la respuesta debe tener código 403
+  Escenario: Un USER no puede crear empleados
+    Dado que entro como "USER"
+    Cuando intento crear un empleado
+    Entonces me devuelve un 403
 
-  Escenario: Un usuario no puede eliminar empleados
-    Dado que existe un empleado de prueba para verificar el control de acceso
-    Y que estoy autenticado como "USER"
-    Cuando intento eliminar el empleado de prueba
-    Entonces la respuesta debe tener código 403
+  Escenario: Un USER no puede borrar empleados
+    Dado que hay un empleado de prueba ya creado
+    Y que entro como "USER"
+    Cuando intento borrar ese empleado
+    Entonces me devuelve un 403
 
-  Escenario: Un administrador puede crear y eliminar empleados
-    Dado que estoy autenticado como "ADMIN"
-    Cuando registro un empleado con datos válidos
-    Entonces la respuesta debe tener código 201
-    Cuando elimino el empleado registrado
-    Entonces la respuesta debe tener código 204
+  Escenario: Un ADMIN sí puede crear y borrar empleados
+    Dado que entro como "ADMIN"
+    Cuando creo un empleado
+    Entonces me devuelve un 201
+    Cuando borro el empleado que creé
+    Entonces me devuelve un 204

@@ -24,7 +24,7 @@ public class SecuritySteps {
         this.context = context;
     }
 
-    @Cuando("consulto la lista de empleados sin token de autenticación")
+    @Cuando("pido la lista de empleados sin token")
     public void consultarEmpleadosSinToken() {
         context.setLastResponse(RestAssured.given()
                 .baseUri(context.baseUrl())
@@ -32,12 +32,12 @@ public class SecuritySteps {
                 .get("/empleados"));
     }
 
-    @Dado("que uso un token de autenticación malformado")
+    @Dado("que mando un token inventado")
     public void usarTokenMalformado() {
         context.setToken("esto-no-es-un-jwt-valido");
     }
 
-    @Cuando("consulto la lista de empleados")
+    @Cuando("pido la lista de empleados")
     public void consultarEmpleados() {
         context.setLastResponse(RestAssured.given()
                 .baseUri(context.baseUrl())
@@ -46,13 +46,13 @@ public class SecuritySteps {
                 .get("/empleados"));
     }
 
-    @Cuando("intento registrar un empleado con datos válidos")
+    @Cuando("intento crear un empleado")
     public void intentarRegistrarEmpleado() {
         String empleadoId = prepararDatosEmpleado();
         context.setLastResponse(crearEmpleado(empleadoId, bearerToken()));
     }
 
-    @Dado("que existe un empleado de prueba para verificar el control de acceso")
+    @Dado("que hay un empleado de prueba ya creado")
     public void crearEmpleadoDePrueba() {
         String adminToken = login(E2EConfig.adminEmail(), E2EConfig.adminPassword(), "ADMIN");
         asegurarDepartamento(adminToken);
@@ -64,12 +64,12 @@ public class SecuritySteps {
         registrarLimpieza(empleadoId, adminToken);
     }
 
-    @Cuando("intento eliminar el empleado de prueba")
+    @Cuando("intento borrar ese empleado")
     public void intentarEliminarEmpleado() {
         eliminarEmpleadoConToken(bearerToken());
     }
 
-    @Cuando("registro un empleado con datos válidos")
+    @Cuando("creo un empleado")
     public void registrarEmpleadoComoAdministrador() {
         String adminToken = context.token()
                 .orElseThrow(() -> new IllegalStateException("El escenario no tiene un token ADMIN"));
@@ -82,7 +82,7 @@ public class SecuritySteps {
         }
     }
 
-    @Cuando("elimino el empleado registrado")
+    @Cuando("borro el empleado que creé")
     public void eliminarEmpleadoRegistrado() {
         eliminarEmpleadoConToken(bearerToken());
     }

@@ -1,38 +1,37 @@
 # language: es
 @onboarding
-Característica: Onboarding de empleados
-  Como administrador de recursos humanos
-  Quiero registrar nuevos empleados y habilitar sus credenciales
-  Para que puedan incorporarse y acceder al sistema de forma segura
+Característica: Llegada de un empleado nuevo
+  Se crea el empleado, le aparece su cuenta y su notificación de bienvenida,
+  y con eso ya puede poner su contraseña y entrar
 
   Antecedentes:
-    Dado que el sistema está desplegado y accesible a través del gateway
-    Y que estoy autenticado como "ADMIN"
+    Dado que el sistema está arriba y responde por el gateway
+    Y que entro como "ADMIN"
 
-  Escenario: El registro de un empleado crea su cuenta de acceso
-    Cuando registro un nuevo empleado con datos válidos y únicos
-    Entonces la respuesta debe tener código 201
-    Y eventualmente el servicio de autenticación debe haber creado una cuenta para el nuevo empleado
+  Escenario: Al crear el empleado también se le crea la cuenta
+    Cuando creo un empleado nuevo con datos bien puestos
+    Entonces me devuelve un 201
+    Y al rato auth ya le tiene creada su cuenta
 
-  Escenario: El registro de un empleado genera una notificación de bienvenida
-    Cuando registro un nuevo empleado con datos válidos y únicos
-    Entonces la respuesta debe tener código 201
-    Y eventualmente debe existir una notificación de bienvenida para el nuevo empleado
+  Escenario: Al crear el empleado le llega la bienvenida
+    Cuando creo un empleado nuevo con datos bien puestos
+    Entonces me devuelve un 201
+    Y al rato le llega su notificación de bienvenida
 
-  Escenario: El nuevo empleado establece su contraseña e inicia sesión
-    Cuando registro un nuevo empleado con datos válidos y únicos
-    Entonces la respuesta debe tener código 201
-    Y eventualmente obtengo el token de activación del nuevo empleado
-    Cuando el nuevo empleado establece una contraseña válida
-    Entonces la respuesta debe tener código 200
-    Cuando el nuevo empleado inicia sesión con su contraseña
-    Entonces la respuesta debe tener código 200
-    Y la respuesta debe contener un token de autenticación
+  Escenario: El empleado nuevo pone su contraseña y entra
+    Cuando creo un empleado nuevo con datos bien puestos
+    Entonces me devuelve un 201
+    Y al rato consigo su token de activación
+    Cuando el empleado nuevo define su contraseña
+    Entonces me devuelve un 200
+    Cuando el empleado nuevo hace login con esa contraseña
+    Entonces me devuelve un 200
+    Y en la respuesta viene un token
 
-  Escenario: El registro falla cuando el departamento no existe
-    Cuando intento registrar un nuevo empleado en un departamento inexistente
-    Entonces la respuesta debe tener código 400
+  Escenario: No se puede crear un empleado en un departamento que no existe
+    Cuando intento crear un empleado en un departamento que no existe
+    Entonces me devuelve un 400
 
-  Escenario: El registro falla cuando faltan campos obligatorios
-    Cuando intento registrar un nuevo empleado sin nombre ni correo electrónico
-    Entonces la respuesta debe tener código 400
+  Escenario: No se puede crear un empleado sin nombre ni email
+    Cuando intento crear un empleado sin nombre ni email
+    Entonces me devuelve un 400

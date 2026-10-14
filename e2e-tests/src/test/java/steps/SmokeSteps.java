@@ -19,7 +19,7 @@ public class SmokeSteps {
         this.context = context;
     }
 
-    @Dado("que el sistema está desplegado y accesible a través del gateway")
+    @Dado("que el sistema está arriba y responde por el gateway")
     public void systemIsDeployed() {
         int attempts = Math.max(1, E2EConfig.startupTimeoutSeconds() / 2);
         Polling.until(
@@ -63,23 +63,23 @@ public class SmokeSteps {
         }
     }
 
-    @Cuando("consulto el endpoint {string}")
+    @Cuando("llamo a {string}")
     public void getEndpoint(String path) {
         Response response = given().get(context.baseUrl() + path);
         context.setLastResponse(response);
     }
 
-    @Entonces("la respuesta HTTP es {int}")
+    @Entonces("el status es {int}")
     public void statusIs(int expected) {
         assertThat(context.lastResponse().statusCode()).isEqualTo(expected);
     }
 
-    @Entonces("el campo {string} de la respuesta es {string}")
+    @Entonces("el campo {string} vale {string}")
     public void jsonFieldIs(String field, String expected) {
         assertThat(context.lastResponse().jsonPath().getString(field)).isEqualTo(expected);
     }
 
-    @Entonces("la respuesta contiene el campo {string}")
+    @Entonces("viene el campo {string}")
     public void jsonFieldPresent(String field) {
         assertThat(context.lastResponse().jsonPath().getString(field)).isNotBlank();
     }

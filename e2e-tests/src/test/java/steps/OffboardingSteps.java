@@ -16,7 +16,7 @@ public class OffboardingSteps {
         this.context = context;
     }
 
-    @Cuando("registro la desvinculación del empleado")
+    @Cuando("doy de baja al empleado")
     public void registroDesvinculacion() {
         String empId = context.get("empleadoId", String.class);
 
@@ -30,7 +30,7 @@ public class OffboardingSteps {
         context.setLastResponse(res);
     }
 
-    @Entonces("la recuperación de contraseña falla para el empleado retirado")
+    @Entonces("tampoco puede recuperar su contraseña")
     public void recuperacionContrasenaFalla() {
         String email = context.get("empleadoEmail", String.class);
         
@@ -47,7 +47,7 @@ public class OffboardingSteps {
             "Esperaba status 200 (silencioso por seguridad) en recuperación para retirados, pero dio " + res.statusCode());
     }
 
-    @Cuando("consulto la lista de empleados con estado {string}")
+    @Cuando("listo los empleados en estado {string}")
     public void consultoListaEmpleados(String estado) {
         Response res = RestAssured.given()
             .baseUri(context.baseUrl())
@@ -58,7 +58,7 @@ public class OffboardingSteps {
         context.setLastResponse(res);
     }
 
-    @Entonces("el empleado retirado aparece en la respuesta")
+    @Entonces("el empleado dado de baja sale en la lista")
     public void empleadoRetiradoAparece() {
         String empId = context.get("empleadoId", String.class);
         String body = context.lastResponse().asString();

@@ -1,33 +1,32 @@
 # language: es
 @vacaciones
-Característica: Gestión de vacaciones y suspensión de cuentas
-  Como sistema de recursos humanos
-  Quiero gestionar los períodos de vacaciones de los empleados
-  Para suspender temporalmente sus cuentas durante su descanso y evitar solapamientos
+Característica: Vacaciones y suspensión de cuentas
+  Cuando alguien se va de vacaciones su cuenta se suspende,
+  y cuando vuelve se reactiva. Además no se pueden cruzar dos períodos
 
   Antecedentes:
-    Dado que estoy autenticado como "ADMIN"
-    Y que existe un empleado activo con credenciales establecidas
+    Dado que entro como "ADMIN"
+    Y que ya hay un empleado activo con su contraseña puesta
 
-  Escenario: Programación exitosa de vacaciones
-    Cuando programo un período de vacaciones desde dentro de 7 días hasta dentro de 14 días
-    Entonces la respuesta debe tener código 201
+  Escenario: Se pueden programar unas vacaciones normales
+    Cuando pido vacaciones desde dentro de 7 días hasta dentro de 14 días
+    Entonces me devuelve un 201
 
-  Escenario: Ciclo de suspensión y reactivación de la cuenta
-    Cuando programo un período de vacaciones desde dentro de 7 días hasta dentro de 14 días
-    Entonces la respuesta debe tener código 201
-    Cuando fuerzo el inicio del período de vacaciones programado
-    Entonces la respuesta debe tener código 200
-    Y eventualmente el empleado no puede iniciar sesión
-    Cuando fuerzo el fin del período de vacaciones en curso
-    Entonces la respuesta debe tener código 200
-    Y eventualmente el empleado puede iniciar sesión nuevamente
+  Escenario: La cuenta se suspende en las vacaciones y se reactiva al volver
+    Cuando pido vacaciones desde dentro de 7 días hasta dentro de 14 días
+    Entonces me devuelve un 201
+    Cuando arranco las vacaciones a la fuerza
+    Entonces me devuelve un 200
+    Y al rato el empleado ya no puede hacer login
+    Cuando termino las vacaciones a la fuerza
+    Entonces me devuelve un 200
+    Y al rato el empleado vuelve a poder hacer login
 
-  Escenario: Rechazo por fechas incoherentes
-    Cuando programo un período de vacaciones desde dentro de 7 días hasta dentro de 2 días
-    Entonces la respuesta debe tener código 400
+  Escenario: No deja pedir vacaciones que terminan antes de empezar
+    Cuando pido vacaciones desde dentro de 7 días hasta dentro de 2 días
+    Entonces me devuelve un 400
 
-  Escenario: Rechazo por solapamiento con un período existente
-    Cuando programo un período de vacaciones desde dentro de 7 días hasta dentro de 14 días
-    Y programo un período de vacaciones desde dentro de 10 días hasta dentro de 20 días
-    Entonces la respuesta debe tener código 400
+  Escenario: No deja pedir vacaciones que se cruzan con otras
+    Cuando pido vacaciones desde dentro de 7 días hasta dentro de 14 días
+    Y pido vacaciones desde dentro de 10 días hasta dentro de 20 días
+    Entonces me devuelve un 400

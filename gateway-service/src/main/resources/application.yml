@@ -158,14 +158,14 @@ resilience4j:
   timelimiter:                       # FALTABA: el default de Spring Cloud CircuitBreaker es 1 s
     instances:
       authServiceCircuitBreaker:
-        timeoutDuration: 6s
+        timeoutDuration: 15s
       empleadosServiceCircuitBreaker:
-        timeoutDuration: 6s
+        timeoutDuration: 15s
       departamentoServiceCircuitBreaker:
-        timeoutDuration: 6s
+        timeoutDuration: 15s
       perfilesServiceCircuitBreaker:
-        timeoutDuration: 6s
+        timeoutDuration: 15s
       notificacionesServiceCircuitBreaker:
-        timeoutDuration: 6s
+        timeoutDuration: 15s
       vacacionesServiceCircuitBreaker:
-        timeoutDuration: 6s
+        timeoutDuration: 15s

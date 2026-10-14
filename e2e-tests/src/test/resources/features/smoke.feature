@@ -1,19 +1,18 @@
 # language: es
 @smoke
-Característica: Escenario de humo del sistema desplegado
-  Para saber que el sistema completo está en pie antes de ejecutar el resto de pruebas
-  como equipo de QA
-  quiero comprobar que el API Gateway responde y expone su documentación
+Característica: Que el sistema esté vivo
+  Antes de correr todo lo demás, revisamos que el gateway responda
+  y que su documentación se pueda abrir
 
   Antecedentes:
-    Dado que el sistema está desplegado y accesible a través del gateway
+    Dado que el sistema está arriba y responde por el gateway
 
-  Escenario: El endpoint de salud del gateway está activo
-    Cuando consulto el endpoint "/health"
-    Entonces la respuesta HTTP es 200
-    Y el campo "status" de la respuesta es "healthy"
+  Escenario: El gateway dice que está sano
+    Cuando llamo a "/health"
+    Entonces el status es 200
+    Y el campo "status" vale "healthy"
 
-  Escenario: La especificación OpenAPI del gateway está disponible sin autenticación
-    Cuando consulto el endpoint "/v3/api-docs"
-    Entonces la respuesta HTTP es 200
-    Y la respuesta contiene el campo "openapi"
+  Escenario: La documentación OpenAPI se abre sin token
+    Cuando llamo a "/v3/api-docs"
+    Entonces el status es 200
+    Y viene el campo "openapi"

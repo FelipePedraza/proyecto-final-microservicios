@@ -1,20 +1,19 @@
 # language: es
-Característica: Offboarding y desvinculación de empleados
-  Como sistema de recursos humanos
-  Quiero desvincular a un empleado
-  Para asegurar que sus accesos sean revocados permanentemente y mantener auditoría
+Característica: Salida de un empleado
+  Cuando alguien se retira pierde el acceso para siempre
+  y queda registrado para auditoría
 
   Antecedentes:
-    Dado que estoy autenticado como "ADMIN"
-    Y que existe un empleado activo con credenciales establecidas
+    Dado que entro como "ADMIN"
+    Y que ya hay un empleado activo con su contraseña puesta
 
-  Escenario: Desvinculación completa de un empleado
-    Cuando registro la desvinculación del empleado
-    Entonces la respuesta debe tener código 204
-    Y eventualmente el empleado no puede iniciar sesión
-    Y la recuperación de contraseña falla para el empleado retirado
+  Escenario: Al dar de baja a un empleado pierde el acceso
+    Cuando doy de baja al empleado
+    Entonces me devuelve un 204
+    Y al rato el empleado ya no puede hacer login
+    Y tampoco puede recuperar su contraseña
 
-  Escenario: Consulta de auditoría de empleados retirados
-    Cuando registro la desvinculación del empleado
-    Y consulto la lista de empleados con estado "RETIRADO"
-    Entonces el empleado retirado aparece en la respuesta
+  Escenario: El empleado dado de baja queda en la auditoría
+    Cuando doy de baja al empleado
+    Y listo los empleados en estado "RETIRADO"
+    Entonces el empleado dado de baja sale en la lista

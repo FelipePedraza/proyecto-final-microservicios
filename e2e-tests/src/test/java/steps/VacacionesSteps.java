@@ -22,7 +22,7 @@ public class VacacionesSteps {
         this.context = context;
     }
 
-    @Cuando("programo un período de vacaciones desde dentro de {int} días hasta dentro de {int} días")
+    @Cuando("pido vacaciones desde dentro de {int} días hasta dentro de {int} días")
     public void programoVacaciones(int diasInicio, int diasFin) {
         LocalDate hoy = LocalDate.now(ZoneOffset.UTC);
         String body = "{ \"empleadoId\": \"" + context.get("empleadoId", String.class)
@@ -42,17 +42,17 @@ public class VacacionesSteps {
 
     // El scheduler real corre por cron y avanza por fecha; para no esperar días se usan los
     // endpoints manuales de vacaciones-service (requieren VACACIONES_MANUAL_ENABLED=true).
-    @Cuando("fuerzo el inicio del período de vacaciones programado")
+    @Cuando("arranco las vacaciones a la fuerza")
     public void fuerzoInicio() {
         context.setLastResponse(transicionManual("forzar-inicio"));
     }
 
-    @Cuando("fuerzo el fin del período de vacaciones en curso")
+    @Cuando("termino las vacaciones a la fuerza")
     public void fuerzoFin() {
         context.setLastResponse(transicionManual("forzar-fin"));
     }
 
-    @Entonces("eventualmente el empleado no puede iniciar sesión")
+    @Entonces("al rato el empleado ya no puede hacer login")
     public void eventualmenteNoPuedeIniciarSesion() {
         Polling.waitUntil("la cuenta del empleado debe quedar suspendida", () -> {
             int status = intentarLogin().statusCode();
@@ -60,7 +60,7 @@ public class VacacionesSteps {
         });
     }
 
-    @Entonces("eventualmente el empleado puede iniciar sesión nuevamente")
+    @Entonces("al rato el empleado vuelve a poder hacer login")
     public void eventualmentePuedeIniciarSesion() {
         Polling.waitUntil("la cuenta del empleado debe quedar activa nuevamente",
                 () -> intentarLogin().statusCode() == 200);

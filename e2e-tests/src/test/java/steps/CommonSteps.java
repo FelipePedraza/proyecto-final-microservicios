@@ -30,7 +30,7 @@ public class CommonSteps {
     private record CuentaEfimera(String id, String email, String password) {
     }
 
-    @Dado("que existe un empleado activo con credenciales establecidas")
+    @Dado("que ya hay un empleado activo con su contraseña puesta")
     public void crearEmpleadoActivo() {
         String adminToken = context.token()
                 .orElseThrow(() -> new IllegalStateException("El fixture requiere autenticación ADMIN previa"));
@@ -41,7 +41,7 @@ public class CommonSteps {
         context.put("empleadoPassword", cuenta.password());
     }
 
-    @Dado("que estoy autenticado como {string}")
+    @Dado("que entro como {string}")
     public void autenticar(String rol) {
         String rolNormalizado = rol.trim().toUpperCase(Locale.ROOT);
         String email;
@@ -74,7 +74,7 @@ public class CommonSteps {
         context.setToken(login(email, password, rolNormalizado));
     }
 
-    @Entonces("la respuesta debe tener código {int}")
+    @Entonces("me devuelve un {int}")
     public void verificarCodigo(int codigoEsperado) {
         context.lastResponse().then().statusCode(codigoEsperado);
     }
