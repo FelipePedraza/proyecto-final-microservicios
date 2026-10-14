@@ -411,7 +411,7 @@ Cada suite se ejecuta con un único comando y falla con código de salida distin
 |---|---|---|---|
 | `vacaciones-service` (unit + integración) | `mvn -f vacaciones-service/pom.xml verify` | `vacaciones-service/target/surefire-reports/*.xml` (JUnit XML) | `vacaciones-service/target/site/jacoco/index.html` y `jacoco.xml` (mínimo 70 % de líneas; actual 87,8 %) |
 | `empleado-service` | `dotnet test empleado-service/empleadoService.Tests/EmpleadoService.Tests.csproj --collect:"XPlat Code Coverage" --logger trx --settings empleado-service/empleadoService.Tests/EmpleadoService.Tests.runsettings` | `empleado-service/empleadoService.Tests/TestResults/*.trx` | `empleado-service/empleadoService.Tests/TestResults/<GUID>/coverage.cobertura.xml` |
-| `auth-service` | `cd auth-service && ./mvnw test` | `auth-service/target/surefire-reports/*.xml` | No configurada |
+| `auth-service` | `cd auth-service && ./mvnw clean verify` | `auth-service/target/surefire-reports/*.xml` | `auth-service/target/site/jacoco/index.html` y `jacoco.xml` (71,0 % de líneas; solo reporte, sin umbral) |
 | **`e2e-tests` (BDD)** | `cd e2e-tests && mvn clean test` | `e2e-tests/reports/junit.xml` (JUnit XML)<br>`e2e-tests/reports/cucumber.json` (Cucumber JSON) | `e2e-tests/reports/cucumber.html` (informe HTML navegable) |
 
 Los reportes BDD se versionan en `e2e-tests/reports/` y se sobrescriben en cada ejecución; Jenkins (Reto 7) los consume desde esa ruta.
