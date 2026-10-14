@@ -7,8 +7,13 @@ import io.restassured.RestAssured;
 import io.restassured.http.ContentType;
 import io.restassured.response.Response;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import support.Polling;
 
+/**
+ * Pasos de vacaciones. Las fechas se calculan en UTC porque vacaciones-service valida contra
+ * {@code Clock.systemUTC()}: con la hora local, de noche "hoy" sería una fecha pasada para el servicio.
+ */
 public class VacacionesSteps {
 
     private final TestContext context;
@@ -17,119 +22,68 @@ public class VacacionesSteps {
         this.context = context;
     }
 
-    @Cuando("programo un período de vacaciones que inicia de inmediato")
-    public void programoVacacionesInmediatas() {
-        String empId = context.get("empleadoId", String.class);
-        
-        // Simulamos vacaciones desde HOY hasta mañana, para que el Scheduler
-        // detecte que inician hoy y envíe el evento de suspensión.
-        String hoy = LocalDate.now().toString();
-        String manana = LocalDate.now().plusDays(1).toString();
-        
-        String body = "{ \"empleadoId\": \"" + empId + "\", \"fechaInicio\": \"" + hoy + "\", \"fechaFin\": \"" + manana + "\" }";
+    @Cuando("programo un período de vacaciones desde dentro de {int} días hasta dentro de {int} días")
+    public void programoVacaciones(int diasInicio, int diasFin) {
+        LocalDate hoy = LocalDate.now(ZoneOffset.UTC);
+        String body = "{ \"empleadoId\": \"" + context.get("empleadoId", String.class)
+                + "\", \"fechaInicio\": \"" + hoy.plusDays(diasInicio)
+                + "\", \"fechaFin\": \"" + hoy.plusDays(diasFin) + "\" }";
 
-        Response res = RestAssured.given()
-            .baseUri(context.baseUrl())
-            .header("Authorization", "Bearer " + context.token().orElse(""))
-            .contentType(ContentType.JSON)
-            .body(body)
-            .post("/vacaciones");
+        Response res = autenticada()
+                .contentType(ContentType.JSON)
+                .body(body)
+                .post("/vacaciones");
 
         context.setLastResponse(res);
+        if (res.statusCode() == 201) {
+            context.put("vacacionId", res.jsonPath().getString("id"));
+        }
     }
 
-    @Cuando("el período de vacaciones finaliza")
-    public void elPeriodoFinaliza() {
-        // En un entorno de prueba puro BDD, podríamos avanzar el reloj del sistema o
-        // llamar a un endpoint backdoor. Como no lo tenemos, hacemos un update en la DB
-        // o llamamos a un API si existe para cancelar/terminar.
-        // Para efectos prácticos, podríamos asumir que el scheduler lo procesa si 
-        // configuramos fechaFin = hoy. 
-        // Si no, lo omitiremos en la implementación real de BDD dejando una traza en consola.
-        System.out.println("Simulando que el tiempo avanza y el Cron procesa el final de vacaciones...");
+    // El scheduler real corre por cron y avanza por fecha; para no esperar días se usan los
+    // endpoints manuales de vacaciones-service (requieren VACACIONES_MANUAL_ENABLED=true).
+    @Cuando("fuerzo el inicio del período de vacaciones programado")
+    public void fuerzoInicio() {
+        context.setLastResponse(transicionManual("forzar-inicio"));
+    }
+
+    @Cuando("fuerzo el fin del período de vacaciones en curso")
+    public void fuerzoFin() {
+        context.setLastResponse(transicionManual("forzar-fin"));
     }
 
     @Entonces("eventualmente el empleado no puede iniciar sesión")
     public void eventualmenteNoPuedeIniciarSesion() {
-        String email = context.get("empleadoEmail", String.class);
-        String pass = context.get("empleadoPassword", String.class);
-        
         Polling.waitUntil("la cuenta del empleado debe quedar suspendida", () -> {
-            Response response = intentarLogin(email, pass);
-            return response.statusCode() == 401 || response.statusCode() == 403;
+            int status = intentarLogin().statusCode();
+            return status == 401 || status == 403;
         });
     }
 
     @Entonces("eventualmente el empleado puede iniciar sesión nuevamente")
     public void eventualmentePuedeIniciarSesion() {
-        String email = context.get("empleadoEmail", String.class);
-        String pass = context.get("empleadoPassword", String.class);
-
         Polling.waitUntil("la cuenta del empleado debe quedar activa nuevamente",
-                () -> intentarLogin(email, pass).statusCode() == 200);
+                () -> intentarLogin().statusCode() == 200);
     }
 
-    @Cuando("programo un período de vacaciones con fecha de fin anterior a la de inicio")
-    public void programoFechasIncoherentes() {
-        String empId = context.get("empleadoId", String.class);
-        String hoy = LocalDate.now().toString();
-        String ayer = LocalDate.now().minusDays(1).toString();
-        
-        String body = "{ \"empleadoId\": \"" + empId + "\", \"fechaInicio\": \"" + hoy + "\", \"fechaFin\": \"" + ayer + "\" }";
-
-        Response res = RestAssured.given()
-            .baseUri(context.baseUrl())
-            .header("Authorization", "Bearer " + context.token().orElse(""))
-            .contentType(ContentType.JSON)
-            .body(body)
-            .post("/vacaciones");
-
-        context.setLastResponse(res);
+    private Response transicionManual(String accion) {
+        return autenticada().post("/vacaciones/" + context.get("vacacionId", String.class) + "/" + accion);
     }
 
-    @Cuando("programo un período de vacaciones para la próxima semana")
-    public void programoVacacionesProximaSemana() {
-        String empId = context.get("empleadoId", String.class);
-        String f1 = LocalDate.now().plusDays(7).toString();
-        String f2 = LocalDate.now().plusDays(14).toString();
-        
-        String body = "{ \"empleadoId\": \"" + empId + "\", \"fechaInicio\": \"" + f1 + "\", \"fechaFin\": \"" + f2 + "\" }";
-
-        Response res = RestAssured.given()
-            .baseUri(context.baseUrl())
-            .header("Authorization", "Bearer " + context.token().orElse(""))
-            .contentType(ContentType.JSON)
-            .body(body)
-            .post("/vacaciones");
-
-        context.setLastResponse(res);
+    private io.restassured.specification.RequestSpecification autenticada() {
+        return RestAssured.given()
+                .baseUri(context.baseUrl())
+                .header("Authorization", "Bearer " + context.token().orElse(""));
     }
 
-    @Cuando("programo otro período de vacaciones que se solapa con el anterior")
-    public void programoVacacionesSolapadas() {
-        String empId = context.get("empleadoId", String.class);
-        String f1 = LocalDate.now().plusDays(10).toString(); // Solapa!
-        String f2 = LocalDate.now().plusDays(20).toString();
-        
-        String body = "{ \"empleadoId\": \"" + empId + "\", \"fechaInicio\": \"" + f1 + "\", \"fechaFin\": \"" + f2 + "\" }";
-
-        Response res = RestAssured.given()
-            .baseUri(context.baseUrl())
-            .header("Authorization", "Bearer " + context.token().orElse(""))
-            .contentType(ContentType.JSON)
-            .body(body)
-            .post("/vacaciones");
-
-        context.setLastResponse(res);
-    }
-
-    private Response intentarLogin(String email, String pass) {
-        String payload = "{ \"email\": \"" + email + "\", \"password\": \"" + pass + "\" }";
+    private Response intentarLogin() {
+        String payload = "{ \"email\": \"" + context.get("empleadoEmail", String.class)
+                + "\", \"password\": \"" + context.get("empleadoPassword", String.class) + "\" }";
 
         return RestAssured.given()
-            .baseUri(context.baseUrl())
-            .contentType(ContentType.JSON)
-            .body(payload)
-            .post("/auth/login");
+                .baseUri(context.baseUrl())
+                .contentType(ContentType.JSON)
+                .body(payload)
+                .post("/auth/login");
     }
 }

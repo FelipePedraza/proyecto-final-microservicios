@@ -1,6 +1,7 @@
 package steps;
 
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
@@ -56,7 +57,9 @@ public class OnboardingSteps {
 
     @Entonces("eventualmente debe existir una notificación de bienvenida para el nuevo empleado")
     public void esperarNotificacionBienvenida() {
-        esperarNotificacion("BIENVENIDA");
+        // notificaciones-service ya no emite BIENVENIDA con empleado.creado: el correo de bienvenida
+        // (con el acceso a la cuenta) sale con usuario.creado y se registra como tipo SEGURIDAD.
+        esperarNotificacion("SEGURIDAD");
     }
 
     @Entonces("eventualmente obtengo el token de activación del nuevo empleado")
@@ -141,7 +144,7 @@ public class OnboardingSteps {
                         email,
                         employeeId,
                         context.get("onboardingDepartamentoId", String.class),
-                        LocalDate.now());
+                        LocalDate.now(ZoneOffset.UTC));
 
         return RestAssured.given()
                 .baseUri(context.baseUrl())

@@ -27,11 +27,21 @@ e2e-tests/
 2. Desde `e2e-tests/`:
 
 ```bash
-mvn test                                   # todos los escenarios
+mvn clean test                             # todos los escenarios
 mvn test -Dcucumber.filter.tags="@smoke"   # solo el smoke test
 ```
 
-Reportes en `target/cucumber-reports/` (`cucumber.html`, `cucumber.json`, `cucumber.xml`) y `target/surefire-reports/`.
+`mvn` termina con código de salida distinto de 0 si algún escenario falla (apto para CI).
+
+Reportes en la carpeta estándar `reports/` (se sobrescriben en cada ejecución):
+
+| Formato | Ruta |
+|---|---|
+| JUnit XML | `reports/junit.xml` |
+| Cucumber JSON | `reports/cucumber.json` |
+| Cucumber HTML | `reports/cucumber.html` |
+
+Además, Surefire deja su resumen en `target/surefire-reports/`.
 
 ## Variables
 
@@ -39,7 +49,7 @@ Reportes en `target/cucumber-reports/` (`cucumber.html`, `cucumber.json`, `cucum
 |---|---|---|
 | `E2E_BASE_URL` | `http://localhost:8088` | URL del gateway |
 | `E2E_ADMIN_EMAIL` / `E2E_ADMIN_PASSWORD` | `admin@empresa.com` / `admin123` | Login ADMIN en escenarios que lo necesiten |
-| `E2E_USER_EMAIL` / `E2E_USER_PASSWORD` | vacío | Cuenta USER activa para validar permisos RBAC |
+| `E2E_USER_EMAIL` / `E2E_USER_PASSWORD` | vacío | Opcional. Si están vacías, la suite crea una cuenta USER efímera por el flujo de onboarding |
 | `E2E_STARTUP_TIMEOUT_SECONDS` | `60` | Espera máxima a que el gateway responda |
 | `E2E_REQUEST_TIMEOUT_MS` | `30000` | Timeout por petición |
 | `E2E_POLLING_MAX_ATTEMPTS` | `15` | Número máximo de consultas de una condición asincrónica |
@@ -75,6 +85,13 @@ efímera creada por el escenario y evita consultar directamente las bases de dat
   IDs estables y aceptan `409` si ya existen, evitando acumular un departamento por escenario.
 - La limpieza se ejecuta en orden inverso al setup y sus fallos quedan registrados en el reporte sin
   ocultar el resultado funcional del escenario.
+
+## Prerrequisitos del sistema bajo prueba
+
+- Stack levantado con `docker compose up -d --build` y contenedores `healthy`.
+- `VACACIONES_MANUAL_ENABLED=true` en el `.env` raíz: el ciclo de vacaciones usa `POST /vacaciones/{id}/forzar-inicio` y
+  `forzar-fin` en lugar de esperar al cron del scheduler (sin la bandera esos endpoints no existen y el escenario falla).
+- Las fechas de los escenarios se calculan en UTC, igual que el reloj de `vacaciones-service`.
 
 ## Cómo añadir escenarios (David, Samuel)
 

@@ -29,6 +29,25 @@ public class SmokeSteps {
                 attempts,
                 java.time.Duration.ofSeconds(2),
                 java.time.Duration.ofSeconds(E2EConfig.startupTimeoutSeconds()));
+
+        // /health responde antes de que las rutas hacia auth y departamentos estén listas (arranque en
+        // frío del gateway): un 503 /fallback indica que la ruta aún no funciona; 401/400 indica que sí.
+        for (String ruta : new String[] {"/departamentos", "/vacaciones"}) {
+            Polling.until(
+                    "la ruta " + ruta + " del gateway debe estar enrutada (no 503)",
+                    () -> given().get(context.baseUrl() + ruta).statusCode(),
+                    status -> status != 503,
+                    attempts,
+                    java.time.Duration.ofSeconds(2),
+                    java.time.Duration.ofSeconds(E2EConfig.startupTimeoutSeconds()));
+        }
+        Polling.until(
+                "la ruta /auth/login del gateway debe estar enrutada (no 503)",
+                () -> given().contentType("application/json").body("{}").post(context.baseUrl() + "/auth/login").statusCode(),
+                status -> status != 503,
+                attempts,
+                java.time.Duration.ofSeconds(2),
+                java.time.Duration.ofSeconds(E2EConfig.startupTimeoutSeconds()));
     }
 
     @Cuando("consulto el endpoint {string}")

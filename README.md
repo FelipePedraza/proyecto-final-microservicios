@@ -391,23 +391,46 @@ en el repositorio.
 
 ## Pruebas Automatizadas y Reportes (Reto 6)
 
-El sistema cuenta con una estrategia de pruebas estructurada según la pirámide de pruebas. El framework elegido para las pruebas funcionales E2E es **Cucumber-JVM (Java)** usando **Gherkin**, ya que nos permite escribir escenarios vivos (documentación ejecutable) directamente en español, acoplando negocio y tecnología de forma limpia. 
+### Pirámide de pruebas
 
-A continuación, se detalla la ruta estricta donde se generan los reportes requeridos por la rúbrica (los cuales serán consumidos automáticamente por Jenkins en el Reto 7):
-
-| Suite | Comando | Reporte de resultados (XML/JSON) | Reporte de cobertura (HTML) |
+| Nivel | Qué valida | Dependencias | Dónde |
 |---|---|---|---|
-| empleados-service (unit + int) | mvn verify | 	arget/surefire-reports/*.xml | 	arget/site/jacoco/jacoco.xml |
-| vacaciones-service (unit) | mvn verify | 	arget/surefire-reports/*.xml | 	arget/site/jacoco/jacoco.xml |
-| auth-service (unit + int) | mvn verify | 	arget/surefire-reports/*.xml | 	arget/site/jacoco/jacoco.xml |
-| **e2e-tests (BDD)** | mvn test | e2e-tests/reports/junit.xml<br>e2e-tests/reports/cucumber.json | e2e-tests/reports/cucumber.html |
+| Unitarias (base) | Reglas de negocio de una sola clase, con test doubles (mocks/fakes) | Ninguna: no necesitan Docker ni BD | `vacaciones-service` (JUnit 5 + Mockito), `empleado-service` (xUnit), `auth-service`, `gateway-service`, `departamento-service` (pytest), `notificaciones-service` (Jest), `perfiles-service` (go test) |
+| Integración (medio) | Consultas SQL y restricciones contra una BD real | Docker (Testcontainers, `postgres:17-alpine`) | `vacaciones-service`: `VacationRepositoryIntegrationTest` |
+| E2E / BDD (cima) | Flujos de negocio completos a través del gateway, RabbitMQ y las BD reales | Stack completo de `docker compose` | `e2e-tests/` |
 
-### Ejecución de Pruebas BDD
-Para correr las pruebas de extremo a extremo, asegúrese de tener la base de datos y los microservicios corriendo en Docker.
-1. Levantar el entorno: docker compose up --build -d
-2. Ir a la carpeta: cd e2e-tests
-3. Ejecutar suite BDD: mvn clean test
+**BDD** (Behavior-Driven Development): los escenarios se escriben en Gherkin en español (`Dado / Cuando / Entonces`),
+así negocio y QA leen el mismo documento ejecutable. Se usa **Cucumber-JVM** con Rest Assured. Los resultados asincrónicos
+(RabbitMQ) se verifican con *polling* con reintentos (`support/Polling.java`: 15 intentos, cada 2 s, tope de 30 s), sin pausas fijas.
 
-**Escenarios Implementados:**
-* **Gestión de Vacaciones (acaciones.feature):** Se valida el rechazo por solapamiento de fechas, rechazo por fechas incoherentes, y el **ciclo completo de suspensión de cuenta**, verificando mediante *polling asíncrono* que cuando las vacaciones inician el empleado pierde acceso, y cuando finalizan recupera acceso automáticamente.
-* **Offboarding (offboarding.feature):** Se verifica el flujo de desvinculación total de un empleado (eliminación). Comprueba que el usuario ya no puede iniciar sesión, que la recuperación de contraseña falla intencionalmente para empleados retirados, y que su registro aparece intacto en el reporte de auditoría de RRHH (GET /empleados?estado=RETIRADO).
+### Reportes por suite
+
+Cada suite se ejecuta con un único comando y falla con código de salida distinto de 0 si alguna prueba falla.
+
+| Suite | Comando (desde la raíz del repo) | Resultados de pruebas | Cobertura |
+|---|---|---|---|
+| `vacaciones-service` (unit + integración) | `mvn -f vacaciones-service/pom.xml verify` | `vacaciones-service/target/surefire-reports/*.xml` (JUnit XML) | `vacaciones-service/target/site/jacoco/index.html` y `jacoco.xml` (mínimo 70 % de líneas; actual 87,8 %) |
+| `empleado-service` | `dotnet test empleado-service/empleadoService.Tests/EmpleadoService.Tests.csproj --collect:"XPlat Code Coverage" --logger trx --settings empleado-service/empleadoService.Tests/EmpleadoService.Tests.runsettings` | `empleado-service/empleadoService.Tests/TestResults/*.trx` | `empleado-service/empleadoService.Tests/TestResults/<GUID>/coverage.cobertura.xml` |
+| `auth-service` | `cd auth-service && ./mvnw test` | `auth-service/target/surefire-reports/*.xml` | No configurada |
+| **`e2e-tests` (BDD)** | `cd e2e-tests && mvn clean test` | `e2e-tests/reports/junit.xml` (JUnit XML)<br>`e2e-tests/reports/cucumber.json` (Cucumber JSON) | `e2e-tests/reports/cucumber.html` (informe HTML navegable) |
+
+Los reportes BDD se versionan en `e2e-tests/reports/` y se sobrescriben en cada ejecución; Jenkins (Reto 7) los consume desde esa ruta.
+
+### Ejecución de las pruebas BDD (paso a paso)
+
+**Prerrequisitos:** Docker Desktop encendido, JDK 21, Maven 3.9+ y el archivo `.env` de la raíz creado a partir de `.env.example`.
+Para el ciclo de vacaciones la suite usa los endpoints manuales del scheduler, así que `.env` debe tener `VACACIONES_MANUAL_ENABLED=true`
+(el valor por defecto es `false`).
+
+1. Levantar el sistema desde la raíz: `docker compose up -d --build` y esperar a que los contenedores estén `healthy` (`docker compose ps`).
+2. Exportar las variables de la suite (ver `e2e-tests/.env.example`): como mínimo `E2E_ADMIN_EMAIL`, `E2E_ADMIN_PASSWORD` (los `ADMIN_*` del `.env`)
+   y `E2E_JWT_SECRET` (el `JWT_SECRET_KEY` del `.env`). Las credenciales USER son opcionales: si no se definen, la suite crea una cuenta USER efímera.
+3. Ejecutar: `cd e2e-tests && mvn clean test`. Solo el smoke: `mvn test -Dcucumber.filter.tags="@smoke"`.
+4. Abrir `e2e-tests/reports/cucumber.html` en el navegador.
+
+**Escenarios implementados (19):**
+* **Smoke (`smoke.feature`):** `/health` del gateway y OpenAPI público.
+* **Seguridad (`seguridad.feature`):** token ausente y malformado (401), USER solo lectura (403 al escribir) y ADMIN con acceso completo.
+* **Onboarding (`onboarding.feature`):** registro, creación asincrónica de la cuenta, notificación de bienvenida, establecimiento de contraseña con login, y errores por departamento inexistente o campos faltantes.
+* **Vacaciones (`vacaciones.feature`):** programación exitosa, rechazo por fechas incoherentes, rechazo por solapamiento y ciclo completo de suspensión y reactivación de la cuenta (inicio y fin forzados con los endpoints manuales).
+* **Offboarding (`offboarding.feature`):** retiro del empleado, login bloqueado, recuperación de contraseña fallida y consulta de auditoría (`GET /empleados?estado=RETIRADO`).

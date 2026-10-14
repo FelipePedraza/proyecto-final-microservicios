@@ -1,7 +1,9 @@
 package steps;
 
-import java.util.UUID;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.Locale;
+import java.util.UUID;
 import org.junit.jupiter.api.Assertions;
 import config.E2EConfig;
 import context.TestContext;
@@ -24,11 +26,85 @@ public class CommonSteps {
         this.context = context;
     }
 
+    /** Cuenta efímera creada por el flujo de onboarding real (auth-service le asigna el rol USER). */
+    private record CuentaEfimera(String id, String email, String password) {
+    }
+
     @Dado("que existe un empleado activo con credenciales establecidas")
     public void crearEmpleadoActivo() {
         String adminToken = context.token()
                 .orElseThrow(() -> new IllegalStateException("El fixture requiere autenticación ADMIN previa"));
 
+        CuentaEfimera cuenta = crearEmpleadoConCuenta(adminToken, "EMP");
+        context.put("empleadoId", cuenta.id());
+        context.put("empleadoEmail", cuenta.email());
+        context.put("empleadoPassword", cuenta.password());
+    }
+
+    @Dado("que estoy autenticado como {string}")
+    public void autenticar(String rol) {
+        String rolNormalizado = rol.trim().toUpperCase(Locale.ROOT);
+        String email;
+        String password;
+
+        switch (rolNormalizado) {
+            case "ADMIN" -> {
+                email = E2EConfig.adminEmail();
+                password = E2EConfig.adminPassword();
+            }
+            case "USER" -> {
+                email = E2EConfig.userEmail();
+                password = E2EConfig.userPassword();
+                if (email.isBlank() || password.isBlank()) {
+                    // Sin credenciales USER configuradas, la suite crea una cuenta efímera con rol USER.
+                    CuentaEfimera cuenta = crearEmpleadoConCuenta(loginAdmin(), "USR");
+                    email = cuenta.email();
+                    password = cuenta.password();
+                }
+            }
+            default -> throw new IllegalArgumentException("Rol de prueba no soportado: " + rol);
+        }
+
+        if (email.isBlank() || password.isBlank()) {
+            throw new IllegalStateException("Faltan las credenciales E2E del rol " + rolNormalizado
+                    + ". Configure E2E_" + rolNormalizado + "_EMAIL y E2E_"
+                    + rolNormalizado + "_PASSWORD");
+        }
+
+        context.setToken(login(email, password, rolNormalizado));
+    }
+
+    @Entonces("la respuesta debe tener código {int}")
+    public void verificarCodigo(int codigoEsperado) {
+        context.lastResponse().then().statusCode(codigoEsperado);
+    }
+
+    private String loginAdmin() {
+        return login(E2EConfig.adminEmail(), E2EConfig.adminPassword(), "ADMIN");
+    }
+
+    private String login(String email, String password, String rol) {
+        String payload = "{ \"email\": \"" + email + "\", \"password\": \"" + password + "\" }";
+        Response response = RestAssured.given()
+                .baseUri(context.baseUrl())
+                .contentType(ContentType.JSON)
+                .body(payload)
+                .post("/auth/login");
+
+        Assertions.assertEquals(200, response.statusCode(),
+                "El login del rol " + rol + " falló. Respuesta: " + response.asString());
+        String token = response.jsonPath().getString("token");
+        Assertions.assertNotNull(token, "El login no devolvió un token para el rol " + rol);
+        Assertions.assertFalse(token.isBlank(), "El login devolvió un token vacío para el rol " + rol);
+        return token;
+    }
+
+    /**
+     * Registra un empleado nuevo, espera a que auth-service cree su cuenta de forma asincrónica,
+     * le establece contraseña y comprueba que puede iniciar sesión. Cada llamada usa una identidad
+     * propia (UUID) y deja registrada su limpieza.
+     */
+    private CuentaEfimera crearEmpleadoConCuenta(String adminToken, String prefijo) {
         // El departamento es un catálogo compartido estable. 409 significa que otra ejecución ya lo creó.
         Response departmentResponse = RestAssured.given()
             .baseUri(context.baseUrl())
@@ -42,23 +118,23 @@ public class CommonSteps {
 
         // Cada escenario recibe identidad propia; nunca reutiliza empleados de otro escenario.
         String uid = UUID.randomUUID().toString().substring(0, 8);
-        String email = "test-" + uid + "@empresa.com";
-        String empId = "EMP-" + uid;
+        String email = prefijo.toLowerCase(Locale.ROOT) + "-" + uid + "@empresa.com";
+        String empId = prefijo + "-" + uid;
 
-        String payload = "{ \"id\": \"" + empId + "\", \"nombre\": \"Prueba\", \"apellido\": \"Test\", \"email\": \"" + email + "\", \"numeroEmpleado\": \"" + empId + "\", \"cargo\": \"QA\", \"area\": \"Sistemas\", \"departamentoId\": \"" + FIXTURE_DEPARTMENT_ID + "\", \"fechaIngreso\": \"" + java.time.LocalDate.now().toString() + "\" }";
+        String payload = "{ \"id\": \"" + empId + "\", \"nombre\": \"Prueba\", \"apellido\": \"Test\", \"email\": \""
+                + email + "\", \"numeroEmpleado\": \"" + empId + "\", \"cargo\": \"QA\", \"area\": \"Sistemas\", "
+                + "\"departamentoId\": \"" + FIXTURE_DEPARTMENT_ID + "\", \"fechaIngreso\": \""
+                + LocalDate.now(ZoneOffset.UTC) + "\" }";
         Response res = RestAssured.given()
             .baseUri(context.baseUrl())
             .header("Authorization", "Bearer " + adminToken)
             .contentType(ContentType.JSON)
             .body(payload)
             .post("/empleados");
-            
+
         Assertions.assertEquals(201, res.statusCode(),
                 "No se pudo crear el empleado de prueba. Respuesta: " + res.asString());
 
-        context.put("empleadoId", empId);
-        context.put("empleadoEmail", email);
-        context.put("empleadoPassword", FIXTURE_PASSWORD);
         context.registerCreated("empleados", empId);
         context.onCleanup(() -> RestAssured.given()
                 .baseUri(context.baseUrl())
@@ -87,49 +163,7 @@ public class CommonSteps {
                     .post("/auth/login")
                     .statusCode() == 200;
         });
-    }
 
-    @Dado("que estoy autenticado como {string}")
-    public void autenticar(String rol) {
-        String rolNormalizado = rol.trim().toUpperCase(Locale.ROOT);
-        String email;
-        String password;
-
-        switch (rolNormalizado) {
-            case "ADMIN" -> {
-                email = E2EConfig.adminEmail();
-                password = E2EConfig.adminPassword();
-            }
-            case "USER" -> {
-                email = E2EConfig.userEmail();
-                password = E2EConfig.userPassword();
-            }
-            default -> throw new IllegalArgumentException("Rol de prueba no soportado: " + rol);
-        }
-
-        if (email.isBlank() || password.isBlank()) {
-            throw new IllegalStateException("Faltan las credenciales E2E del rol " + rolNormalizado
-                    + ". Configure E2E_" + rolNormalizado + "_EMAIL y E2E_"
-                    + rolNormalizado + "_PASSWORD");
-        }
-
-        String payload = "{ \"email\": \"" + email + "\", \"password\": \"" + password + "\" }";
-        Response response = RestAssured.given()
-            .baseUri(context.baseUrl())
-            .contentType(ContentType.JSON)
-            .body(payload)
-            .post("/auth/login");
-        
-        Assertions.assertEquals(200, response.statusCode(),
-                "El login del rol " + rolNormalizado + " falló. Respuesta: " + response.asString());
-        String token = response.jsonPath().getString("token");
-        Assertions.assertNotNull(token, "El login no devolvió un token para el rol " + rolNormalizado);
-        Assertions.assertFalse(token.isBlank(), "El login devolvió un token vacío para el rol " + rolNormalizado);
-        context.setToken(token);
-    }
-
-    @Entonces("la respuesta debe tener código {int}")
-    public void verificarCodigo(int codigoEsperado) {
-        context.lastResponse().then().statusCode(codigoEsperado);
+        return new CuentaEfimera(empId, email, FIXTURE_PASSWORD);
     }
 }

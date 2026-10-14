@@ -109,7 +109,7 @@ public class SecuritySteps {
                   "departamentoId": "%s",
                   "fechaIngreso": "%s"
                 }
-                """.formatted(empleadoId, email, empleadoId, SECURITY_DEPARTMENT_ID, LocalDate.now());
+                """.formatted(empleadoId, email, empleadoId, SECURITY_DEPARTMENT_ID, LocalDate.now(java.time.ZoneOffset.UTC));
 
         return RestAssured.given()
                 .baseUri(context.baseUrl())
