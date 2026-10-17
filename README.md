@@ -434,3 +434,12 @@ Para el ciclo de vacaciones la suite usa los endpoints manuales del scheduler, a
 * **Onboarding (`onboarding.feature`):** registro, creación asincrónica de la cuenta, notificación de bienvenida, establecimiento de contraseña con login, y errores por departamento inexistente o campos faltantes.
 * **Vacaciones (`vacaciones.feature`):** programación exitosa, rechazo por fechas incoherentes, rechazo por solapamiento y ciclo completo de suspensión y reactivación de la cuenta (inicio y fin forzados con los endpoints manuales).
 * **Offboarding (`offboarding.feature`):** retiro del empleado, login bloqueado, recuperación de contraseña fallida y consulta de auditoría (`GET /empleados?estado=RETIRADO`).
+
+## Jenkins (Reto 7)
+
+El servicio `jenkins` (Dockerfile en `jenkins/`) forma parte del `docker-compose.yml`:
+
+* **Interfaz web:** `http://localhost:9090` (puerto interno 8080); agentes en el puerto `50000`. El asistente de instalación está desactivado y los plugins (`docker-workflow`, `workflow-aggregator`, `pipeline-stage-view`, `git`, `configuration-as-code`, `job-dsl`, `sonar`, `junit`, `coverage`, `cucumber-reports`, `htmlpublisher`) se instalan al construir la imagen.
+* **Docker desde Jenkins:** se monta `/var/run/docker.sock` del host. En Docker Desktop el contenedor entra al grupo `0` (`group_add`); en Linux debe usarse el gid real del socket (`stat -c '%g' /var/run/docker.sock`).
+* **Levantar:** `docker compose up -d --build jenkins`.
+* **Verificación (smoke):** pipeline `test-docker-pipeline` con `docker --version` y `docker ps`; terminó en `SUCCESS`. Los jobs se guardan en el volumen `jenkins_data`, no en el repositorio.

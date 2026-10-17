@@ -375,6 +375,28 @@ services:
       retries: 5
       start_period: 20s
     restart: unless-stopped
+
+  jenkins:
+    build:
+      context: ./jenkins
+      dockerfile: Dockerfile
+    container_name: jenkins
+    # En Docker Desktop el socket es root:root (660); el grupo "docker" del contenedor no coincide.
+    # En Linux, usar el gid real del socket: stat -c '%g' /var/run/docker.sock
+    group_add:
+      - "0"
+    ports:
+      - "9090:8080"   # Interfaz web: http://localhost:9090
+      - "50000:50000" # Puerto para agentes de Jenkins
+    environment:
+      JAVA_OPTS: -Djenkins.install.runSetupWizard=false
+    volumes:
+      - jenkins_data:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock # Acceso al Docker daemon del host
+    networks:
+      - microservicios-network
+    restart: unless-stopped
+
 networks:
   microservicios-network:
     driver: bridge
@@ -386,3 +408,4 @@ volumes:
   perfiles-data:
   vacaciones-data:
   auth_db_data:
+  jenkins_data:
