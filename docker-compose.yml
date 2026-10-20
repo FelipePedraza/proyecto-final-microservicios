@@ -391,6 +391,7 @@ services:
     environment:
       JAVA_OPTS: -Djenkins.install.runSetupWizard=false
       CASC_JENKINS_CONFIG: /var/jenkins_home/casc_configs
+      JENKINS_ADMIN_USERNAME: ${JENKINS_ADMIN_USERNAME:?define JENKINS_ADMIN_USERNAME en .env}
       JENKINS_ADMIN_PASSWORD: ${JENKINS_ADMIN_PASSWORD:?define JENKINS_ADMIN_PASSWORD en .env}
     volumes:
       - jenkins_data:/var/jenkins_home
