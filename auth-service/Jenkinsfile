@@ -1,0 +1,74 @@
+pipeline {
+    agent {
+        docker {
+            image 'maven:3.9-eclipse-temurin-21'
+            // El agente puede ejecutarse con el UID de Jenkins. /tmp es escribible
+            // sin privilegios y el volumen persiste la caché entre ejecuciones.
+            args '-v maven_repo_cache:/tmp -e HOME=/tmp'
+        }
+    }
+    options {
+        timestamps()
+        timeout(time: 20, unit: 'MINUTES')
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+        disableConcurrentBuilds()
+    }
+    environment {
+        MVN_OPTS = '-B -Dmaven.repo.local=/tmp/.m2/repository'
+    }
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+                echo 'Código fuente obtenido'
+            }
+        }
+        stage('Build') {
+            steps {
+                dir('auth-service') {
+                    sh 'mvn $MVN_OPTS clean compile -DskipTests'
+                }
+            }
+        }
+        stage('Test') {
+            steps {
+                dir('auth-service') {
+                    // verify ejecuta las pruebas y genera JaCoCo. Se deja que
+                    // Surefire termine para que junit publique los fallos y marque
+                    // el build UNSTABLE, en vez de abortar antes del bloque post.
+                    sh 'mvn $MVN_OPTS verify -Dmaven.test.failure.ignore=true'
+                }
+            }
+            post {
+                always {
+                    // El valor por defecto de allowEmptyResults es false: un build
+                    // sin XML de Surefire debe fallar, no aparentar éxito.
+                    junit 'auth-service/target/surefire-reports/*.xml'
+                    recordCoverage(
+                        tools: [[parser: 'JACOCO', pattern: 'auth-service/target/site/jacoco/jacoco.xml']],
+                        sourceDirectories: [[path: 'auth-service/src/main/java']],
+                        sourceCodeRetention: 'EVERY_BUILD'
+                    )
+                    archiveArtifacts artifacts: 'auth-service/target/site/jacoco/**', allowEmptyArchive: true
+                }
+            }
+        }
+        // Punto 3: SonarQube y Quality Gate se incorporarán después.
+        // Punto 4: Package y E2E se incorporarán después; no se empaquetará si
+        // el build queda UNSTABLE por pruebas fallidas.
+    }
+    post {
+        always {
+            echo 'Pipeline finalizado'
+        }
+        success {
+            echo 'Build y pruebas exitosos'
+        }
+        unstable {
+            echo 'Compiló, pero hay pruebas fallando'
+        }
+        failure {
+            echo 'El pipeline ha fallado (no compila o error de infraestructura)'
+        }
+    }
+}

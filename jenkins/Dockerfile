@@ -10,6 +10,7 @@ RUN jenkins-plugin-cli --plugins \
     job-dsl \
     sonar \
     junit \
+    timestamper \
     coverage \
     cucumber-reports \
     htmlpublisher

@@ -381,18 +381,21 @@ services:
       context: ./jenkins
       dockerfile: Dockerfile
     container_name: jenkins
-    # En Docker Desktop el socket es root:root (660); el grupo "docker" del contenedor no coincide.
-    # En Linux, usar el gid real del socket: stat -c '%g' /var/run/docker.sock
+    # En Docker Desktop el socket suele usar el grupo 0; en Linux, define DOCKER_GID
+    # con el gid real del socket (stat -c '%g' /var/run/docker.sock).
     group_add:
-      - "0"
+      - "${DOCKER_GID:-0}"
     ports:
       - "9090:8080"   # Interfaz web: http://localhost:9090
       - "50000:50000" # Puerto para agentes de Jenkins
     environment:
       JAVA_OPTS: -Djenkins.install.runSetupWizard=false
+      CASC_JENKINS_CONFIG: /var/jenkins_home/casc_configs
+      JENKINS_ADMIN_PASSWORD: ${JENKINS_ADMIN_PASSWORD:?define JENKINS_ADMIN_PASSWORD en .env}
     volumes:
       - jenkins_data:/var/jenkins_home
       - /var/run/docker.sock:/var/run/docker.sock # Acceso al Docker daemon del host
+      - ./jenkins/casc.yaml:/var/jenkins_home/casc_configs/jenkins.yaml:ro
     networks:
       - microservicios-network
     restart: unless-stopped

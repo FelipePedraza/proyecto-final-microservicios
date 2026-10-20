@@ -440,6 +440,15 @@ Para el ciclo de vacaciones la suite usa los endpoints manuales del scheduler, a
 El servicio `jenkins` (Dockerfile en `jenkins/`) forma parte del `docker-compose.yml`:
 
 * **Interfaz web:** `http://localhost:9090` (puerto interno 8080); agentes en el puerto `50000`. El asistente de instalación está desactivado y los plugins (`docker-workflow`, `workflow-aggregator`, `pipeline-stage-view`, `git`, `configuration-as-code`, `job-dsl`, `sonar`, `junit`, `coverage`, `cucumber-reports`, `htmlpublisher`) se instalan al construir la imagen.
-* **Docker desde Jenkins:** se monta `/var/run/docker.sock` del host. En Docker Desktop el contenedor entra al grupo `0` (`group_add`); en Linux debe usarse el gid real del socket (`stat -c '%g' /var/run/docker.sock`).
+* **Docker desde Jenkins:** se monta `/var/run/docker.sock` del host. `group_add` usa `DOCKER_GID` (por defecto `0` en Docker Desktop); en Linux define en `.env` el gid real del socket, obtenido con `stat -c '%g' /var/run/docker.sock`.
 * **Levantar:** `docker compose up -d --build jenkins`.
 * **Verificación (smoke):** pipeline `test-docker-pipeline` con `docker --version` y `docker ps`; terminó en `SUCCESS`. Los jobs se guardan en el volumen `jenkins_data`, no en el repositorio.
+
+### Punto 2: decisiones técnicas
+
+* **Aprovisionamiento y acceso:** JCasC define la configuración global y Job DSL crea los jobs desde el repositorio. Así, la configuración es reproducible y versionada, sin pasos manuales en la UI. Se exige `JENKINS_ADMIN_PASSWORD` desde `.env`, se deshabilita el registro público y se requiere iniciar sesión.
+* **Build frente a pruebas fallidas:** un error de compilación o infraestructura da `FAILURE`; si compila pero Surefire detecta pruebas fallidas, el pipeline publica JUnit y queda `UNSTABLE`. Un servicio `UNSTABLE` no debe llegar a `Package`; esta etapa no forma parte de este punto.
+* **Agente y caché Maven:** Build y Test usan un contenedor Maven efímero `maven:3.9-eclipse-temurin-21`, en vez de instalar Maven en Jenkins. El agente puede usar un UID no root: el volumen `maven_repo_cache` se monta en `/tmp`, que es escribible sin privilegios, `HOME=/tmp` y Maven usa `/tmp/.m2/repository` mediante `-Dmaven.repo.local`.
+* **Servicio seleccionado:** `auth-service` tiene pruebas que usan H2 en memoria y no necesita Docker/Testcontainers para ejecutarlas. `vacaciones-service` se deja para después porque sus pruebas usan Testcontainers y el proyecto tiene una verificación `jacoco:check` adicional.
+* **Reinicio limpio de Jenkins:** `docker compose down` conserva los datos. Para borrar solo el estado de Jenkins, primero confirma el nombre con `docker volume ls` (con el nombre de proyecto actual normalmente será `microservicios_jenkins_data`) y luego ejecuta `docker volume rm microservicios_jenkins_data`. No uses `down -v`, que también elimina los datos de las bases de datos.
+* **Evidencias pendientes:** [Captura pendiente: vista de etapas]; [Captura pendiente: Test Result]; [Captura pendiente: Coverage].
