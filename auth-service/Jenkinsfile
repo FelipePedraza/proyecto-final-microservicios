@@ -108,7 +108,7 @@ pipeline {
                 E2E_BASE_URL = 'http://gateway-service:8088'
                 E2E_ADMIN_EMAIL = 'admin@empresa.com'
                 E2E_ADMIN_PASSWORD = 'admin123'
-                E2E_JWT_SECRET = 'SuperSecretaClaveDe256BitsMinimoParaQueFuncioneJJWTEnSpring2026!'
+                E2E_JWT_SECRET = 'cambiar_esta_clave_jwt_de_al_menos_32_bytes'
                 APP_SERVICES = 'gateway-service empleado-service departamento-service perfiles-service notificaciones-service vacaciones-service auth-service message-broker empleado-db departamento-db perfiles-db notificaciones-db vacaciones-db auth-db'
             }
             steps {
