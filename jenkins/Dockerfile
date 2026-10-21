@@ -9,6 +9,8 @@ RUN jenkins-plugin-cli --plugins \
     configuration-as-code \
     job-dsl \
     plain-credentials \
+    credentials-binding \
+    pipeline-utility-steps \
     sonar \
     junit \
     mstest \

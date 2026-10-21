@@ -458,7 +458,7 @@ Esta sección documenta detalladamente la arquitectura, configuración, ejecuci�
 * **Servicio en Docker Compose:** El servicio `jenkins` está integrado en el `docker-compose.yml` raíz, exponiendo el puerto web `9090:8080` y el puerto de agentes `50000:50000`.
 * **Construcción con Plugins Preinstalados:** Se utiliza un [`jenkins/Dockerfile`](file:///c:/ING%20SISTEMAS/novenoSemestre/microservicios/reto01C/proyecto-final-microservicios/jenkins/Dockerfile) basado en `jenkins/jenkins:lts-jdk21` que instala automáticamente la CLI oficial de Docker (`docker.io`), Docker Compose v2 (`docker-compose-v2`), y la lista requerida de plugins:
   * `docker-workflow`, `workflow-aggregator`, `pipeline-stage-view`, `git`
-  * `configuration-as-code` (JCasC), `job-dsl`
+  * `configuration-as-code` (JCasC), `job-dsl`, `credentials-binding`, `pipeline-utility-steps`
   * `plain-credentials`, `sonar` (SonarQube Scanner)
   * `junit`, `coverage` (soporte JaCoCo y Cobertura), `cucumber-reports`, `htmlpublisher`, `mstest`
 * **Acceso al Docker Socket:** Monta `/var/run/docker.sock` del host y gestiona permisos con `group_add: ["${DOCKER_GID:-0}"]`, permitiendo a Jenkins orquestar contenedores hermanos mediante Docker-out-of-Docker (DooD).
@@ -516,8 +516,9 @@ Esta sección documenta detalladamente la arquitectura, configuración, ejecuci�
 * Construye la imagen Docker del microservicio asignándole dos etiquetas: la versión del build (`auth-service:${BUILD_NUMBER}`) y la etiqueta de última versión (`auth-service:latest`).
 
 #### B. Pruebas E2E Multicontenedor (`stage('E2E Tests')`)
-* **Aislamiento de Infraestructura:** Define la variable `APP_SERVICES` con los 14 servicios y bases de datos de negocio (`gateway-service`, `empleado-service`, `departamento-service`, `perfiles-service`, `notificaciones-service`, `vacaciones-service`, `auth-service`, `message-broker`, etc.), protegiendo los contenedores de CI (`jenkins`, `sonarqube`, `sonar-db`) de ser detenidos.
-* **Despliegue DooD:** Prepara el archivo `.env` y levanta la aplicación con `docker compose up -d --build $APP_SERVICES`.
+* **Aislamiento de Infraestructura:** Lee `APP_SERVICES` desde la configuración para limitar las operaciones a los 14 servicios y bases de datos de negocio (`gateway-service`, `empleado-service`, `departamento-service`, `perfiles-service`, `notificaciones-service`, `vacaciones-service`, `auth-service`, `message-broker`, etc.), protegiendo los contenedores de CI (`jenkins`, `sonarqube`, `sonar-db`) de ser detenidos.
+* **Secretos de CI:** Ambos pipelines requieren una credencial Jenkins de tipo **Secret file** con el ID `microservicios-env`. Créala en **Manage Jenkins → Credentials** usando como contenido un `.env` completo (puedes partir de `.env.example` y agregar tus secretos); no guardes ese archivo en Git. En la credencial, configura `E2E_BASE_URL=http://gateway-service:8088` y `APP_SERVICES`; `E2E_ADMIN_EMAIL`, `E2E_ADMIN_PASSWORD` y `E2E_JWT_SECRET` son opcionales y, si se dejan vacías, toman `ADMIN_EMAIL`, `ADMIN_PASSWORD` y `JWT_SECRET_KEY`. Reconstruye Jenkins para instalar los plugins requeridos por el pipeline.
+* **Despliegue DooD:** Usa la credencial directamente con `docker compose --env-file` y levanta la aplicación con `docker compose up -d --build $APP_SERVICES`; el archivo no se copia al workspace.
 * **Bases de Datos Autocontenidas:** Cada servicio Postgres (`vacaciones-db`, `departamento-db`, etc.) construye su imagen con Dockerfile propio que incluye su script de inicialización (`001-schema.sql`), garantizando total compatibilidad en entornos Docker-out-of-Docker sin depender de rutas del host.
 * **Verificación de Salud:** Realiza un bucle de sondeo sobre `docker compose ps` verificando que todos los microservicios alcancen el estado `healthy`.
 * **Ejecución BDD Cucumber:** Se ejecuta la suite de pruebas completa en `e2e-tests` contra `http://gateway-service:8088`.

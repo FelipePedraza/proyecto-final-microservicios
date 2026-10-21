@@ -106,33 +106,40 @@ pipeline {
         stage('E2E Tests') {
             agent any
             environment {
-                E2E_BASE_URL = 'http://gateway-service:8088'
-                E2E_ADMIN_EMAIL = 'admin@empresa.com'
-                E2E_ADMIN_PASSWORD = 'admin123'
-                E2E_JWT_SECRET = 'cambiar_esta_clave_jwt_de_al_menos_32_bytes'
-                APP_SERVICES = 'gateway-service empleado-service departamento-service perfiles-service notificaciones-service vacaciones-service auth-service message-broker empleado-db departamento-db perfiles-db notificaciones-db vacaciones-db auth-db'
+                DOTENV_FILE = credentials('microservicios-env')
             }
             steps {
-                echo "Preparando variables de entorno (.env) para pruebas E2E..."
-                sh '''
-                    cp .env.example .env
-                    sed -i 's/VACACIONES_MANUAL_ENABLED=false/VACACIONES_MANUAL_ENABLED=true/g' .env
-                '''
+                script {
+                    def config = readProperties(file: env.DOTENV_FILE)
+                    def e2eConfig = [
+                        E2E_BASE_URL: config.E2E_BASE_URL,
+                        E2E_ADMIN_EMAIL: config.E2E_ADMIN_EMAIL,
+                        E2E_ADMIN_PASSWORD: config.E2E_ADMIN_PASSWORD,
+                        E2E_JWT_SECRET: config.JWT_SECRET_KEY,
+                        APP_SERVICES: config.APP_SERVICES
+                    ]
+                    def missing = e2eConfig.findAll { key, value -> !value?.trim() }.keySet()
+                    if (missing) {
+                        error "Faltan variables requeridas en el Secret file credential microservicios-env: ${missing.join(', ')}"
+                    }
+                    e2eConfig.each { key, value -> env[key] = value }
+                    env.VACACIONES_MANUAL_ENABLED = 'true'
+                }
 
                 echo "Limpiando estado previo de microservicios y volumenes..."
                 sh '''
-                    docker compose stop $APP_SERVICES || true
-                    docker compose rm -f -v $APP_SERVICES || true
+                    docker compose --env-file "$DOTENV_FILE" stop $APP_SERVICES || true
+                    docker compose --env-file "$DOTENV_FILE" rm -f -v $APP_SERVICES || true
                     docker volume rm -f microservicios_empleado-data microservicios_departamento-data microservicios_notificaciones-data microservicios_perfiles-data microservicios_vacaciones-data microservicios_auth_db_data microservicios_rabbitmq-data || true
                 '''
 
                 echo "Desplegando microservicios de la aplicación para pruebas E2E..."
-                sh 'docker compose up -d --build $APP_SERVICES'
+                sh 'docker compose --env-file "$DOTENV_FILE" up -d --build $APP_SERVICES'
 
                 echo "Esperando que los servicios alcancen estado saludable..."
                 sh '''
                     for i in $(seq 1 30); do
-                        if docker compose ps $APP_SERVICES | grep -q "starting"; then
+                        if docker compose --env-file "$DOTENV_FILE" ps $APP_SERVICES | grep -q "starting"; then
                             echo "Aún iniciando servicios (intento $i/30)..."
                             sleep 5
                         else
@@ -172,14 +179,14 @@ pipeline {
                     ])
 
                     // 4. Diagnóstico: archivar logs del ecosistema Docker
-                    sh 'docker compose logs $APP_SERVICES --no-color > docker-logs.txt || true'
+                    sh 'docker compose --env-file "$DOTENV_FILE" logs $APP_SERVICES --no-color > docker-logs.txt || true'
                     archiveArtifacts artifacts: 'docker-logs.txt', allowEmptyArchive: true
 
                     // 5. Limpieza: apagar y remover contenedores y volúmenes de datos
                     echo "Limpiando infraestructura de pruebas E2E..."
                     sh '''
-                        docker compose stop $APP_SERVICES || true
-                        docker compose rm -f -v $APP_SERVICES || true
+                        docker compose --env-file "$DOTENV_FILE" stop $APP_SERVICES || true
+                        docker compose --env-file "$DOTENV_FILE" rm -f -v $APP_SERVICES || true
                         docker volume rm -f microservicios_empleado-data microservicios_departamento-data microservicios_notificaciones-data microservicios_perfiles-data microservicios_vacaciones-data microservicios_auth_db_data microservicios_rabbitmq-data || true
                     '''
                 }
