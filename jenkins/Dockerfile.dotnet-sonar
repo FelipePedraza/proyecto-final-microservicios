@@ -1,4 +1,6 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0
 RUN apt-get update -qq && apt-get install -y -qq openjdk-17-jre-headless && rm -rf /var/lib/apt/lists/*
-RUN dotnet tool install --global dotnet-sonarscanner --version 9.2.1
-ENV PATH="${PATH}:/root/.dotnet/tools"
+RUN dotnet tool install --tool-path /usr/local/bin dotnet-sonarscanner --version 9.2.1
+RUN chmod -R 777 /usr/local/bin
+ENV PATH="${PATH}:/usr/local/bin"
+ENV DOTNET_CLI_HOME="/tmp"

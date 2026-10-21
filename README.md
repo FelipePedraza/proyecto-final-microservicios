@@ -493,19 +493,20 @@ Esta sección documenta detalladamente la arquitectura, configuración, ejecuci�
 ---
 
 ### Punto 3: Inspección Continua con SonarQube y Quality Gate Estricto
-* **Infraestructura SonarQube:** Desplegado mediante `docker-compose.yml` con dos contenedores:
-  * `sonar-db`: PostgreSQL 16 exclusivo para SonarQube con volumen persistente `sonar_db_data`.
-  * `sonarqube`: SonarQube LTS Community Edition en el puerto `9000:9000`.
-* **Red y Conectividad:** Ambos servicios conviven en la red interna `microservicios-network`. El agente Maven se comunica directamente mediante `http://sonarqube:9000`.
-* **Quality Gate Personalizado (`QualityGate70`):**
-  * Condición obligatoria: **Cobertura de código menor a 70% ($< 70\%$) resulta en ERROR**.
-  * Configurado como el Quality Gate por defecto para todos los proyectos analizados.
-* **Webhook Bidireccional:**
-  * En SonarQube se encuentra registrado el webhook con URL `http://jenkins:8080/sonarqube-webhook/`.
-  * Tras completar el análisis, SonarQube notifica a Jenkins de forma asíncrona.
+* **Infraestructura SonarQube:** Desplegado mediante docker-compose.yml con dos contenedores:
+  * sonar-db: PostgreSQL 16 exclusivo para SonarQube con volumen persistente sonar_db_data.
+  * sonarqube: SonarQube LTS Community Edition (v9.9.8) en el puerto 9000:9000.
+* **Red y Conectividad:** Ambos servicios conviven en la red interna microservicios-network. Los agentes Docker de Jenkins se comunican directamente mediante http://sonarqube:9000.
+* **Cómo se configuró el Quality Gate (QualityGate70):**
+  1. **Creación del Gate:** Se creó el perfil de calidad QualityGate70 mediante la API REST de SonarQube (POST /api/qualitygates/create?name=QualityGate70).
+  2. **Condición de Cobertura Estricta:** Se añadió la regla obligatoria donde la cobertura general menor al 70 % genera fallo inmediato (POST /api/qualitygates/create_condition?gateId=...&metric=coverage&error=70&op=LT).
+  3. **Quality Gate por Defecto:** Se estableció QualityGate70 como el Quality Gate predeterminado global (POST /api/qualitygates/set_as_default), asegurando que tanto uth-service como empleado-service sean evaluados con la misma exigencia sin configuración manual por proyecto.
+* **Webhook Bidireccional SonarQube ➔ Jenkins:**
+  * En SonarQube se encuentra registrado el webhook con URL http://jenkins:8080/sonarqube-webhook/.
+  * Cuando el Compute Engine (CE) de SonarQube termina de calcular las métricas, notifica asíncronamente a Jenkins con el veredicto (PASSED o FAILED).
 * **Etapas en el Pipeline:**
-  * `stage('SonarQube Analysis')`: Ejecuta `mvn sonar:sonar` inyectando el token secreto `SONAR_TOKEN` (creado en SonarQube y aprovisionado en Jenkins vía JCasC) e importa el reporte JaCoCo generado.
-  * `stage('Quality Gate')`: Invoca `timeout(time: 5, unit: 'MINUTES') { waitForQualityGate abortPipeline: true }`. Si el Quality Gate es rechazado, aborta inmediatamente el pipeline marcando **FAILURE**.
+  * stage('SonarQube Analysis'): Envuelto en withSonarQubeEnv('sonarqube'), inyecta las variables SONAR_HOST_URL y SONAR_AUTH_TOKEN. Ejecuta el escáner correspondiente e importa el reporte de cobertura (JaCoCo en Java, OpenCover en .NET).
+  * stage('Quality Gate'): Invoca 	imeout(time: 5, unit: 'MINUTES') { waitForQualityGate abortPipeline: true }. Jenkins escucha el webhook; si el Quality Gate no pasa la cobertura (≥ 70 %) o encuentra vulnerabilidades críticas, aborta el pipeline de inmediato marcando **FAILURE**.
 
 ---
 
@@ -527,15 +528,32 @@ Esta sección documenta detalladamente la arquitectura, configuración, ejecuci�
   * **Diagnóstico de Contenedores:** Exporta y archiva los logs completos de todos los microservicios (`docker compose logs > docker-logs.txt`) mediante `archiveArtifacts`.
 * **Limpieza Garantizada:** En el bloque `post { always { ... } }`, apaga los contenedores y elimina los volúmenes de datos (`microservicios_*`) para asegurar idempotencia total.
 
-#### C. Segundo Pipeline en Lenguaje Diferente (`empleado-service` en C# / .NET 10)
-* **Ubicación:** [`empleado-service/Jenkinsfile`](file:///c:/ING%20SISTEMAS/novenoSemestre/microservicios/reto01C/proyecto-final-microservicios/empleado-service/Jenkinsfile) y registrado en Jenkins como el job `empleado-service`.
-* **Agente Docker:** Utiliza el contenedor oficial `mcr.microsoft.com/dotnet/sdk:10.0-preview`.
-* **Compilación:** `dotnet build --configuration Release`.
-* **Pruebas y Cobertura:** Ejecuta `dotnet test` generando resultados en formato MSTest (`test_results.trx`) y cobertura en formato Cobertura XML (`coverage.cobertura.xml`).
-* **Publicación:** 
-  * Plugin `mstest` procesando `**/*.trx`.
-  * Plugin `recordCoverage` con parser `cobertura('**/coverage.cobertura.xml')`.
-* **Empaquetado y E2E:** Construye `empleado-service:${BUILD_NUMBER}` y ejecuta la misma suite de validación E2E sobre el ecosistema.
+#### C. Segundo Pipeline Multilenguaje (empleado-service en C# / .NET 10)
+Ambos pipelines (uth-service y empleado-service) cuentan con **las mismas 7 etapas exactas**, incluyendo el análisis estricto de SonarQube y el Quality Gate:
+
+1. Checkout
+2. Build
+3. Test (con reporte de pruebas y cobertura)
+4. SonarQube Analysis
+5. Quality Gate
+6. Package
+7. E2E Tests
+
+##### ¿Por qué se creó la imagen dotnet-sonar:10.0 (jenkins/Dockerfile.dotnet-sonar)?
+Para que el equipo y el profesor comprendan fácilmente el motivo técnico:
+1. **El escáner de .NET requiere Java:** dotnet-sonarscanner se conecta a MSBuild y corre analizadores de Roslyn en C#, pero el proceso que consolida el análisis, indexa los archivos fuente y sube los reportes al servidor SonarQube es un binario Java (CLI). La imagen oficial de Microsoft (mcr.microsoft.com/dotnet/sdk:10.0) **no incluye Java**, lo que causaba un fallo inmediato al intentar escanear.
+2. **Compatibilidad con SonarQube LTS (v9.9.8):** Las versiones recientes del escáner (dotnet-sonarscanner v12+) rompieron compatibilidad con SonarQube 9.x/10.x LTS requiriendo SonarQube 2025+. Por ello, se especificó la versión 9.2.1, 100 % compatible con la versión comunitaria LTS del proyecto.
+3. **Instalación y permisos en agentes efímeros de Jenkins:** Los agentes de Jenkins se ejecutan con el usuario 1000:1000 (no-root). Al instalar la herramienta con --tool-path /usr/local/bin y permisos 777, cualquier usuario dentro del contenedor puede invocar dotnet-sonarscanner sin conflictos de permisos.
+4. **Solución limpia e inmutable:** En lugar de instalar paquetes manualmente en el contenedor de Jenkins o en la máquina host, se empaquetó jenkins/Dockerfile.dotnet-sonar que combina .NET 10 SDK + OpenJDK 17 JRE Headless + dotnet-sonarscanner 9.2.1.
+
+* **Compilación:** dotnet build EmpleadoService.sln -c Release.
+* **Pruebas y Cobertura:** Ejecuta dotnet test generando resultados en formato MSTest (	est-results.trx) y cobertura dual con Cobertura y OpenCover (coverage.cobertura.xml y coverage.opencover.xml).
+* **Análisis SonarQube y Quality Gate:** SonarQube consume coverage.opencover.xml excluyendo las clases autogeneradas de migraciones (**/migrations/**), alcanzando un **74.6 % de cobertura real** y aprobando el Quality Gate (≥ 70 %).
+* **Publicación de Reportes:**
+  * Plugin mstest procesando **/test-results.trx.
+  * Plugin 
+ecordCoverage leyendo **/coverage.cobertura.xml.
+* **Empaquetado y E2E:** Construye empleado-service: y ejecuta la suite BDD Cucumber completa contra el stack de microservicios.
 
 ---
 
