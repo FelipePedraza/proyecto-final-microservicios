@@ -1,4 +1,4 @@
-FROM jenkins/jenkins:lts-jdk17
+FROM jenkins/jenkins:lts-jdk21
 
 # 1. Pre-instalar plugins necesarios
 RUN jenkins-plugin-cli --plugins \
@@ -11,15 +11,16 @@ RUN jenkins-plugin-cli --plugins \
     plain-credentials \
     sonar \
     junit \
+    mstest \
     timestamper \
     coverage \
     cucumber-reports \
     htmlpublisher
 
-# 2. Instalar el cliente de Docker
+# 2. Instalar el cliente de Docker y compose
 USER root
 RUN apt-get update && \
-    apt-get install -y docker.io && \
+    (apt-get install -y docker.io docker-compose-v2 || apt-get install -y docker.io docker-compose) && \
     rm -rf /var/lib/apt/lists/*
 
 # 3. Configurar permisos del usuario jenkins para el grupo docker

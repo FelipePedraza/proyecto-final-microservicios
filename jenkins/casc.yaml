@@ -49,6 +49,22 @@ jobs:
         }
       }
 
+      pipelineJob('empleado-service') {
+        definition {
+          cpsScm {
+            scm {
+              git {
+                remote {
+                  url('https://github.com/FelipePedraza/proyecto-final-microservicios.git')
+                }
+                branch('*/main')
+              }
+            }
+            scriptPath('empleado-service/Jenkinsfile')
+          }
+        }
+      }
+
       pipelineJob('test-docker-pipeline') {
         definition {
           cps {

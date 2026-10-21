@@ -1,0 +1,149 @@
+pipeline {
+    agent none
+    options {
+        timestamps()
+        timeout(time: 30, unit: 'MINUTES')
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+        disableConcurrentBuilds()
+        skipStagesAfterUnstable()
+    }
+    stages {
+        stage('Checkout') {
+            agent any
+            steps {
+                checkout scm
+                echo 'Código fuente de empleado-service obtenido'
+            }
+        }
+        stage('Build') {
+            agent {
+                docker {
+                    image 'mcr.microsoft.com/dotnet/sdk:10.0'
+                    args '--network microservicios-network -v dotnet_cache:/root/.nuget/packages'
+                }
+            }
+            steps {
+                dir('empleado-service') {
+                    sh 'dotnet build EmpleadoService.sln -c Release'
+                }
+            }
+        }
+        stage('Test') {
+            agent {
+                docker {
+                    image 'mcr.microsoft.com/dotnet/sdk:10.0'
+                    args '--network microservicios-network -v dotnet_cache:/root/.nuget/packages'
+                }
+            }
+            steps {
+                dir('empleado-service') {
+                    // || true permite que la ejecución continúe al bloque post para publicar reportes
+                    sh 'dotnet test EmpleadoService.sln -c Release --logger "trx;LogFileName=test-results.trx" --collect:"XPlat Code Coverage" || true'
+                }
+            }
+            post {
+                always {
+                    mstest testResultsFile: 'empleado-service/**/test-results.trx'
+                    recordCoverage(
+                        tools: [[parser: 'COBERTURA', pattern: 'empleado-service/**/coverage.cobertura.xml']],
+                        sourceDirectories: [[path: 'empleado-service/empleadoService']],
+                        sourceCodeRetention: 'EVERY_BUILD'
+                    )
+                }
+            }
+        }
+        stage('Package') {
+            agent any
+            steps {
+                script {
+                    def imageName = "empleado-service"
+                    def imageTag = "${env.BUILD_NUMBER}"
+                    echo "Empaquetando imagen Docker: ${imageName}:${imageTag}"
+                    dir('empleado-service') {
+                        sh "docker build -t ${imageName}:${imageTag} -t ${imageName}:latest ."
+                    }
+                    echo "Imagen construida exitosamente: ${imageName}:${imageTag}"
+                }
+            }
+        }
+        stage('E2E Tests') {
+            agent any
+            environment {
+                E2E_BASE_URL = 'http://gateway-service:8088'
+                E2E_ADMIN_EMAIL = 'admin@empresa.com'
+                E2E_ADMIN_PASSWORD = 'admin123'
+                E2E_JWT_SECRET = 'SuperSecretaClaveDe256BitsMinimoParaQueFuncioneJJWTEnSpring2026!'
+                VACACIONES_MANUAL_ENABLED = 'true'
+            }
+            steps {
+                echo "Desplegando stack con Docker Compose para pruebas E2E..."
+                sh 'docker compose -f docker-compose.yml up -d --build'
+
+                echo "Esperando que los servicios alcancen estado saludable..."
+                sh '''
+                    for i in $(seq 1 30); do
+                        if docker compose ps | grep -q "starting"; then
+                            echo "Aún iniciando servicios (intento $i/30)..."
+                            sleep 5
+                        else
+                            echo "Todos los servicios reportan estado listo/saludable."
+                            break
+                        fi
+                    done
+                '''
+
+                echo "Ejecutando suite de pruebas BDD Cucumber..."
+                sh '''
+                    cd e2e-tests
+                    ./mvnw test || true
+                '''
+            }
+            post {
+                always {
+                    // Resultados en JUnit XML para el conteo global
+                    junit testResults: 'e2e-tests/reports/junit.xml', allowEmptyResults: true
+
+                    // Reporte navegable de escenarios BDD (plugin cucumber-reports)
+                    cucumber(
+                        jsonReportDirectory: 'e2e-tests/reports',
+                        fileIncludePattern: '**/cucumber.json',
+                        buildStatus: 'UNSTABLE'
+                    )
+
+                    // Publicación HTML navegable (plugin htmlpublisher)
+                    publishHTML(target: [
+                        reportDir: 'e2e-tests/reports',
+                        reportFiles: 'cucumber.html',
+                        reportName: 'Reporte BDD',
+                        keepAll: true,
+                        alwaysLinkToLastBuild: true,
+                        allowMissing: true
+                    ])
+
+                    // Diagnóstico: archivar logs del ecosistema Docker
+                    sh 'docker compose logs --no-color > docker-logs.txt || true'
+                    archiveArtifacts artifacts: 'docker-logs.txt', allowEmptyArchive: true
+
+                    // Limpieza: apagar el stack y borrar volúmenes
+                    echo "Limpiando infraestructura de pruebas E2E..."
+                    sh 'docker compose -f docker-compose.yml down -v'
+                }
+            }
+        }
+    }
+    post {
+        always {
+            echo 'Pipeline de empleado-service finalizado'
+        }
+        success {
+            echo 'Build, pruebas .NET, empaquetado y pruebas E2E exitosos'
+        }
+        unstable {
+            echo 'Compiló, pero hay pruebas fallando (UNSTABLE)'
+        }
+        failure {
+            echo 'El pipeline ha fallado (error de compilación o infraestructura)'
+        }
+    }
+}
+

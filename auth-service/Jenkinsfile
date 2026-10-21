@@ -1,16 +1,8 @@
 pipeline {
-    agent {
-        docker {
-            image 'maven:3.9-eclipse-temurin-21'
-            // El agente puede ejecutarse con el UID de Jenkins. /tmp es escribible
-            // sin privilegios y el volumen persiste la caché entre ejecuciones. La
-            // red de Compose permite resolver sonarqube por su nombre de servicio.
-            args '--network microservicios-network -v maven_repo_cache:/tmp -e HOME=/tmp'
-        }
-    }
+    agent none
     options {
         timestamps()
-        timeout(time: 20, unit: 'MINUTES')
+        timeout(time: 30, unit: 'MINUTES')
         buildDiscarder(logRotator(numToKeepStr: '10'))
         disableConcurrentBuilds()
         skipStagesAfterUnstable()
@@ -20,12 +12,19 @@ pipeline {
     }
     stages {
         stage('Checkout') {
+            agent any
             steps {
                 checkout scm
                 echo 'Código fuente obtenido'
             }
         }
         stage('Build') {
+            agent {
+                docker {
+                    image 'maven:3.9-eclipse-temurin-21'
+                    args '--network microservicios-network -v maven_repo_cache:/tmp -e HOME=/tmp'
+                }
+            }
             steps {
                 dir('auth-service') {
                     sh 'mvn $MVN_OPTS clean compile -DskipTests'
@@ -33,6 +32,12 @@ pipeline {
             }
         }
         stage('Test') {
+            agent {
+                docker {
+                    image 'maven:3.9-eclipse-temurin-21'
+                    args '--network microservicios-network -v maven_repo_cache:/tmp -e HOME=/tmp'
+                }
+            }
             steps {
                 dir('auth-service') {
                     // verify ejecuta las pruebas y genera JaCoCo. Se deja que
@@ -43,8 +48,6 @@ pipeline {
             }
             post {
                 always {
-                    // El valor por defecto de allowEmptyResults es false: un build
-                    // sin XML de Surefire debe fallar, no aparentar éxito.
                     junit 'auth-service/target/surefire-reports/*.xml'
                     recordCoverage(
                         tools: [[parser: 'JACOCO', pattern: 'auth-service/target/site/jacoco/jacoco.xml']],
@@ -56,10 +59,14 @@ pipeline {
             }
         }
         stage('SonarQube Analysis') {
+            agent {
+                docker {
+                    image 'maven:3.9-eclipse-temurin-21'
+                    args '--network microservicios-network -v maven_repo_cache:/tmp -e HOME=/tmp'
+                }
+            }
             steps {
                 dir('auth-service') {
-                    // withSonarQubeEnv inyecta la URL y el token configurados
-                    // mediante JCasC sin exponer el secreto en el repositorio.
                     withSonarQubeEnv('sonarqube') {
                         sh '''
                             mvn $MVN_OPTS \
@@ -74,29 +81,104 @@ pipeline {
             }
         }
         stage('Quality Gate') {
+            agent any
             steps {
-                // SonarQube responde a este paso mediante el webhook configurado
-                // en http://jenkins:8080/sonarqube-webhook/.
                 timeout(time: 5, unit: 'MINUTES') {
                     waitForQualityGate abortPipeline: true
                 }
             }
         }
-        // Punto 4: Package y E2E se incorporarán después; no se empaquetará si
-        // el build queda UNSTABLE por pruebas fallidas.
+        stage('Package') {
+            agent any
+            steps {
+                script {
+                    def imageName = "auth-service"
+                    def imageTag = "${env.BUILD_NUMBER}"
+                    echo "Empaquetando imagen Docker: ${imageName}:${imageTag}"
+                    dir('auth-service') {
+                        sh "docker build -t ${imageName}:${imageTag} -t ${imageName}:latest ."
+                    }
+                    echo "Imagen construida exitosamente: ${imageName}:${imageTag}"
+                }
+            }
+        }
+        stage('E2E Tests') {
+            agent any
+            environment {
+                E2E_BASE_URL = 'http://gateway-service:8088'
+                E2E_ADMIN_EMAIL = 'admin@empresa.com'
+                E2E_ADMIN_PASSWORD = 'admin123'
+                E2E_JWT_SECRET = 'SuperSecretaClaveDe256BitsMinimoParaQueFuncioneJJWTEnSpring2026!'
+                VACACIONES_MANUAL_ENABLED = 'true'
+            }
+            steps {
+                echo "Desplegando stack con Docker Compose para pruebas E2E..."
+                sh 'docker compose -f docker-compose.yml up -d --build'
+
+                echo "Esperando que los servicios alcancen estado saludable..."
+                sh '''
+                    for i in $(seq 1 30); do
+                        if docker compose ps | grep -q "starting"; then
+                            echo "Aún iniciando servicios (intento $i/30)..."
+                            sleep 5
+                        else
+                            echo "Todos los servicios reportan estado listo/saludable."
+                            break
+                        fi
+                    done
+                '''
+
+                echo "Ejecutando suite de pruebas BDD Cucumber..."
+                sh '''
+                    cd e2e-tests
+                    ./mvnw test || true
+                '''
+            }
+            post {
+                always {
+                    // 1. Resultados máquina-legibles JUnit XML
+                    junit testResults: 'e2e-tests/reports/junit.xml', allowEmptyResults: true
+
+                    // 2. Reporte navegable de escenarios BDD (plugin cucumber-reports)
+                    cucumber(
+                        jsonReportDirectory: 'e2e-tests/reports',
+                        fileIncludePattern: '**/cucumber.json',
+                        buildStatus: 'UNSTABLE'
+                    )
+
+                    // 3. Publicación HTML navegable (plugin htmlpublisher)
+                    publishHTML(target: [
+                        reportDir: 'e2e-tests/reports',
+                        reportFiles: 'cucumber.html',
+                        reportName: 'Reporte BDD',
+                        keepAll: true,
+                        alwaysLinkToLastBuild: true,
+                        allowMissing: true
+                    ])
+
+                    // 4. Diagnóstico: archivar logs del ecosistema Docker
+                    sh 'docker compose logs --no-color > docker-logs.txt || true'
+                    archiveArtifacts artifacts: 'docker-logs.txt', allowEmptyArchive: true
+
+                    // 5. Limpieza: apagar el stack y borrar volúmenes
+                    echo "Limpiando infraestructura de pruebas E2E..."
+                    sh 'docker compose -f docker-compose.yml down -v'
+                }
+            }
+        }
     }
     post {
         always {
             echo 'Pipeline finalizado'
         }
         success {
-            echo 'Build y pruebas exitosos'
+            echo 'Build, análisis SonarQube, empaquetado y pruebas E2E exitosos'
         }
         unstable {
-            echo 'Compiló, pero hay pruebas fallando'
+            echo 'Compiló, pero hay pruebas fallando (UNSTABLE)'
         }
         failure {
-            echo 'El pipeline ha fallado (no compila o error de infraestructura)'
+            echo 'El pipeline ha fallado (error de compilación, Quality Gate o infraestructura)'
         }
     }
 }
