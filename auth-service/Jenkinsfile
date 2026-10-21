@@ -40,6 +40,9 @@ pipeline {
             }
             steps {
                 dir('auth-service') {
+                    // verify ejecuta las pruebas y genera JaCoCo. Se deja que
+                    // Surefire termine para que junit publique los fallos y marque
+                    // el build UNSTABLE, en vez de abortar antes del bloque post.
                     sh 'mvn $MVN_OPTS verify -Dmaven.test.failure.ignore=true'
                 }
             }
@@ -164,11 +167,12 @@ pipeline {
                     sh 'docker compose logs $APP_SERVICES --no-color > docker-logs.txt || true'
                     archiveArtifacts artifacts: 'docker-logs.txt', allowEmptyArchive: true
 
-                    // 5. Limpieza: apagar y remover contenedores de la aplicación sin tocar Jenkins ni SonarQube
+                    // 5. Limpieza: apagar contenedores y borrar volúmenes de datos para evitar desalineación de esquemas
                     echo "Limpiando microservicios de la aplicación..."
                     sh '''
                         docker compose stop $APP_SERVICES || true
                         docker compose rm -f -v $APP_SERVICES || true
+                        docker volume rm -f microservicios_empleado-data microservicios_departamento-data microservicios_notificaciones-data microservicios_perfiles-data microservicios_vacaciones-data microservicios_auth_db_data || true
                     '''
                 }
             }

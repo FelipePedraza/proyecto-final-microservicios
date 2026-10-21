@@ -131,11 +131,12 @@ pipeline {
                     sh 'docker compose logs $APP_SERVICES --no-color > docker-logs.txt || true'
                     archiveArtifacts artifacts: 'docker-logs.txt', allowEmptyArchive: true
 
-                    // 5. Limpieza: apagar y remover contenedores de la aplicación sin tocar Jenkins ni SonarQube
-                    echo "Limpiando microservicios de la aplicación..."
+                    // 5. Limpieza: apagar y remover contenedores y volúmenes de datos
+                    echo "Limpiando infraestructura de pruebas E2E..."
                     sh '''
                         docker compose stop $APP_SERVICES || true
                         docker compose rm -f -v $APP_SERVICES || true
+                        docker volume rm -f microservicios_empleado-data microservicios_departamento-data microservicios_notificaciones-data microservicios_perfiles-data microservicios_vacaciones-data microservicios_auth_db_data || true
                     '''
                 }
             }
