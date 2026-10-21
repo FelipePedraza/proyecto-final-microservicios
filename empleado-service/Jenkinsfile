@@ -18,7 +18,7 @@ pipeline {
         stage('Build') {
             agent {
                 docker {
-                    image 'mcr.microsoft.com/dotnet/sdk:10.0'
+                    image 'dotnet-sonar:10.0'
                     args '--network microservicios-network -v dotnet_cache:/root/.nuget/packages'
                 }
             }
@@ -31,14 +31,14 @@ pipeline {
         stage('Test') {
             agent {
                 docker {
-                    image 'mcr.microsoft.com/dotnet/sdk:10.0'
+                    image 'dotnet-sonar:10.0'
                     args '--network microservicios-network -v dotnet_cache:/root/.nuget/packages'
                 }
             }
             steps {
                 dir('empleado-service') {
                     // || true permite que la ejecución continúe al bloque post para publicar reportes
-                    sh 'dotnet test EmpleadoService.sln -c Release --logger "trx;LogFileName=test-results.trx" --collect:"XPlat Code Coverage" || true'
+                    sh 'dotnet test EmpleadoService.sln -c Release --logger "trx;LogFileName=test-results.trx" --collect "XPlat Code Coverage" -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover,cobertura || true'
                 }
             }
             post {
@@ -49,6 +49,43 @@ pipeline {
                         sourceDirectories: [[path: 'empleado-service/empleadoService']],
                         sourceCodeRetention: 'EVERY_BUILD'
                     )
+                }
+            }
+        }
+        stage('SonarQube Analysis') {
+            agent {
+                docker {
+                    image 'dotnet-sonar:10.0'
+                    args '--network microservicios-network -v dotnet_cache:/root/.nuget/packages'
+                }
+            }
+            steps {
+                dir('empleado-service') {
+                    withSonarQubeEnv('sonarqube') {
+                        sh '''
+                            dotnet-sonarscanner begin \
+                                /k:"empleado-service" \
+                                /n:"empleado-service" \
+                                /d:sonar.host.url="${SONAR_HOST_URL}" \
+                                /d:sonar.login="${SONAR_AUTH_TOKEN}" \
+                                /d:sonar.cs.opencover.reportsPaths="**/coverage.opencover.xml" \
+                                /d:sonar.exclusions="**/migrations/**" \
+                                /d:sonar.coverage.exclusions="**/migrations/**,**/*.Tests/**" \
+                                /d:sonar.scanner.scanAll=false
+
+                            dotnet build EmpleadoService.sln -c Release --no-incremental
+
+                            dotnet-sonarscanner end /d:sonar.login="${SONAR_AUTH_TOKEN}"
+                        '''
+                    }
+                }
+            }
+        }
+        stage('Quality Gate') {
+            agent any
+            steps {
+                timeout(time: 5, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
                 }
             }
         }
@@ -154,13 +191,13 @@ pipeline {
             echo 'Pipeline de empleado-service finalizado'
         }
         success {
-            echo 'Build, pruebas .NET, empaquetado y pruebas E2E exitosos'
+            echo 'Build, análisis SonarQube, empaquetado y pruebas E2E exitosos'
         }
         unstable {
             echo 'Compiló, pero hay pruebas fallando (UNSTABLE)'
         }
         failure {
-            echo 'El pipeline ha fallado (error de compilación o infraestructura)'
+            echo 'El pipeline ha fallado (error de compilación, Quality Gate o infraestructura)'
         }
     }
 }

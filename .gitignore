@@ -29,6 +29,7 @@ bin/
 obj/
 out/
 **/TestResults/
+**/.sonarqube/
 *.user
 *.userosscache
 *.sln.docstates
