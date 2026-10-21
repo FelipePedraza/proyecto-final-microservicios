@@ -21,6 +21,8 @@ credentials:
               description: "Token de análisis de SonarQube para los pipelines"
 
 unclassified:
+  location:
+    url: "http://localhost:9090/"
   sonarglobalconfiguration:
     buildWrapperEnabled: true
     installations:
