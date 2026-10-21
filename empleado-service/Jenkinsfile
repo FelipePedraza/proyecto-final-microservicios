@@ -73,16 +73,22 @@ pipeline {
                 E2E_ADMIN_EMAIL = 'admin@empresa.com'
                 E2E_ADMIN_PASSWORD = 'admin123'
                 E2E_JWT_SECRET = 'SuperSecretaClaveDe256BitsMinimoParaQueFuncioneJJWTEnSpring2026!'
-                VACACIONES_MANUAL_ENABLED = 'true'
+                APP_SERVICES = 'gateway-service empleado-service departamento-service perfiles-service notificaciones-service vacaciones-service auth-service message-broker empleado-db departamento-db perfiles-db notificaciones-db vacaciones-db auth-db'
             }
             steps {
-                echo "Desplegando stack con Docker Compose para pruebas E2E..."
-                sh 'docker compose -f docker-compose.yml up -d --build'
+                echo "Preparando variables de entorno (.env) para pruebas E2E..."
+                sh '''
+                    cp .env.example .env
+                    sed -i 's/VACACIONES_MANUAL_ENABLED=false/VACACIONES_MANUAL_ENABLED=true/g' .env
+                '''
+
+                echo "Desplegando microservicios de la aplicación para pruebas E2E..."
+                sh 'docker compose up -d --build $APP_SERVICES'
 
                 echo "Esperando que los servicios alcancen estado saludable..."
                 sh '''
                     for i in $(seq 1 30); do
-                        if docker compose ps | grep -q "starting"; then
+                        if docker compose ps $APP_SERVICES | grep -q "starting"; then
                             echo "Aún iniciando servicios (intento $i/30)..."
                             sleep 5
                         else
@@ -95,22 +101,23 @@ pipeline {
                 echo "Ejecutando suite de pruebas BDD Cucumber..."
                 sh '''
                     cd e2e-tests
+                    chmod +x ./mvnw
                     ./mvnw test || true
                 '''
             }
             post {
                 always {
-                    // Resultados en JUnit XML para el conteo global
+                    // 1. Resultados máquina-legibles JUnit XML
                     junit testResults: 'e2e-tests/reports/junit.xml', allowEmptyResults: true
 
-                    // Reporte navegable de escenarios BDD (plugin cucumber-reports)
+                    // 2. Reporte navegable de escenarios BDD (plugin cucumber-reports)
                     cucumber(
                         jsonReportDirectory: 'e2e-tests/reports',
                         fileIncludePattern: '**/cucumber.json',
                         buildStatus: 'UNSTABLE'
                     )
 
-                    // Publicación HTML navegable (plugin htmlpublisher)
+                    // 3. Publicación HTML navegable (plugin htmlpublisher)
                     publishHTML(target: [
                         reportDir: 'e2e-tests/reports',
                         reportFiles: 'cucumber.html',
@@ -120,13 +127,16 @@ pipeline {
                         allowMissing: true
                     ])
 
-                    // Diagnóstico: archivar logs del ecosistema Docker
-                    sh 'docker compose logs --no-color > docker-logs.txt || true'
+                    // 4. Diagnóstico: archivar logs del ecosistema Docker
+                    sh 'docker compose logs $APP_SERVICES --no-color > docker-logs.txt || true'
                     archiveArtifacts artifacts: 'docker-logs.txt', allowEmptyArchive: true
 
-                    // Limpieza: apagar el stack y borrar volúmenes
-                    echo "Limpiando infraestructura de pruebas E2E..."
-                    sh 'docker compose -f docker-compose.yml down -v'
+                    // 5. Limpieza: apagar y remover contenedores de la aplicación sin tocar Jenkins ni SonarQube
+                    echo "Limpiando microservicios de la aplicación..."
+                    sh '''
+                        docker compose stop $APP_SERVICES || true
+                        docker compose rm -f -v $APP_SERVICES || true
+                    '''
                 }
             }
         }
@@ -146,4 +156,3 @@ pipeline {
         }
     }
 }
-
