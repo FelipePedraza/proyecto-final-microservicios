@@ -2,14 +2,14 @@
 
 services:
   empleado-db:
-    image: postgres:17-alpine
+    build:
+      context: ./database/empleado
     environment:
       POSTGRES_DB: ${EMPLEADO_DB_NAME:?Define EMPLEADO_DB_NAME in .env}
       POSTGRES_USER: ${EMPLEADO_DB_USER:?Define EMPLEADO_DB_USER in .env}
       POSTGRES_PASSWORD: ${EMPLEADO_DB_PASSWORD:?Define EMPLEADO_DB_PASSWORD in .env}
     volumes:
       - empleado-data:/var/lib/postgresql/data
-      - ./database/empleado:/docker-entrypoint-initdb.d:ro
     networks:
       - microservicios-network
     healthcheck:
@@ -21,14 +21,14 @@ services:
     restart: unless-stopped
 
   departamento-db:
-    image: postgres:17-alpine
+    build:
+      context: ./database/departamento
     environment:
       POSTGRES_DB: ${DEPARTAMENTO_DB_NAME:?Define DEPARTAMENTO_DB_NAME in .env}
       POSTGRES_USER: ${DEPARTAMENTO_DB_USER:?Define DEPARTAMENTO_DB_USER in .env}
       POSTGRES_PASSWORD: ${DEPARTAMENTO_DB_PASSWORD:?Define DEPARTAMENTO_DB_PASSWORD in .env}
     volumes:
       - departamento-data:/var/lib/postgresql/data
-      - ./database/departamento:/docker-entrypoint-initdb.d:ro
     networks:
       - microservicios-network
     healthcheck:
@@ -167,14 +167,14 @@ services:
     restart: unless-stopped
 
   notificaciones-db:
-    image: postgres:17-alpine
+    build:
+      context: ./database/notificaciones
     environment:
       POSTGRES_DB: ${NOTIFICACIONES_DB_NAME:?Define NOTIFICACIONES_DB_NAME in .env}
       POSTGRES_USER: ${NOTIFICACIONES_DB_USER:?Define NOTIFICACIONES_DB_USER in .env}
       POSTGRES_PASSWORD: ${NOTIFICACIONES_DB_PASSWORD:?Define NOTIFICACIONES_DB_PASSWORD in .env}
     volumes:
       - notificaciones-data:/var/lib/postgresql/data
-      - ./database/notificaciones:/docker-entrypoint-initdb.d:ro
     networks:
       - microservicios-network
     healthcheck:
@@ -217,14 +217,14 @@ services:
     restart: unless-stopped
 
   perfiles-db:
-    image: postgres:17-alpine
+    build:
+      context: ./database/perfiles
     environment:
       POSTGRES_DB: ${PERFILES_DB_NAME:?Define PERFILES_DB_NAME in .env}
       POSTGRES_USER: ${PERFILES_DB_USER:?Define PERFILES_DB_USER in .env}
       POSTGRES_PASSWORD: ${PERFILES_DB_PASSWORD:?Define PERFILES_DB_PASSWORD in .env}
     volumes:
       - perfiles-data:/var/lib/postgresql/data
-      - ./database/perfiles:/docker-entrypoint-initdb.d:ro
     networks:
       - microservicios-network
     healthcheck:
@@ -269,14 +269,14 @@ services:
     restart: unless-stopped
 
   vacaciones-db:
-    image: postgres:17-alpine
+    build:
+      context: ./database/vacaciones
     environment:
       POSTGRES_DB: ${VACACIONES_DB_NAME:?Define VACACIONES_DB_NAME in .env}
       POSTGRES_USER: ${VACACIONES_DB_USER:?Define VACACIONES_DB_USER in .env}
       POSTGRES_PASSWORD: ${VACACIONES_DB_PASSWORD:?Define VACACIONES_DB_PASSWORD in .env}
     volumes:
       - vacaciones-data:/var/lib/postgresql/data
-      - ./database/vacaciones:/docker-entrypoint-initdb.d:ro
     networks:
       - microservicios-network
     healthcheck:
