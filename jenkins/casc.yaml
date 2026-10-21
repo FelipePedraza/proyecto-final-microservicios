@@ -10,6 +10,27 @@ jenkins:
     loggedInUsersCanDoAnything:
       allowAnonymousRead: false
 
+credentials:
+  system:
+    domainCredentials:
+      - credentials:
+          - string:
+              id: "sonarqube-token"
+              scope: GLOBAL
+              secret: "${SONAR_TOKEN}"
+              description: "Token de análisis de SonarQube para los pipelines"
+
+unclassified:
+  sonarglobalconfiguration:
+    buildWrapperEnabled: true
+    installations:
+      - name: "sonarqube"
+        serverUrl: "http://sonarqube:9000"
+        credentialsId: "sonarqube-token"
+        triggers:
+          skipScmCause: false
+          skipUpstreamCause: false
+
 jobs:
   - script: |
       pipelineJob('auth-service') {

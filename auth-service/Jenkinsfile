@@ -3,8 +3,9 @@ pipeline {
         docker {
             image 'maven:3.9-eclipse-temurin-21'
             // El agente puede ejecutarse con el UID de Jenkins. /tmp es escribible
-            // sin privilegios y el volumen persiste la caché entre ejecuciones.
-            args '-v maven_repo_cache:/tmp -e HOME=/tmp'
+            // sin privilegios y el volumen persiste la caché entre ejecuciones. La
+            // red de Compose permite resolver sonarqube por su nombre de servicio.
+            args '--network microservicios-network -v maven_repo_cache:/tmp -e HOME=/tmp'
         }
     }
     options {
@@ -12,6 +13,7 @@ pipeline {
         timeout(time: 20, unit: 'MINUTES')
         buildDiscarder(logRotator(numToKeepStr: '10'))
         disableConcurrentBuilds()
+        skipStagesAfterUnstable()
     }
     environment {
         MVN_OPTS = '-B -Dmaven.repo.local=/tmp/.m2/repository'
@@ -53,7 +55,33 @@ pipeline {
                 }
             }
         }
-        // Punto 3: SonarQube y Quality Gate se incorporarán después.
+        stage('SonarQube Analysis') {
+            steps {
+                dir('auth-service') {
+                    // withSonarQubeEnv inyecta la URL y el token configurados
+                    // mediante JCasC sin exponer el secreto en el repositorio.
+                    withSonarQubeEnv('sonarqube') {
+                        sh '''
+                            mvn $MVN_OPTS \
+                              org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
+                              -Dsonar.projectKey=auth-service \
+                              -Dsonar.projectName=auth-service \
+                              -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml \
+                              -Dsonar.token=$SONAR_AUTH_TOKEN
+                        '''
+                    }
+                }
+            }
+        }
+        stage('Quality Gate') {
+            steps {
+                // SonarQube responde a este paso mediante el webhook configurado
+                // en http://jenkins:8080/sonarqube-webhook/.
+                timeout(time: 5, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
         // Punto 4: Package y E2E se incorporarán después; no se empaquetará si
         // el build queda UNSTABLE por pruebas fallidas.
     }

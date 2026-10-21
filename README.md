@@ -439,7 +439,7 @@ Para el ciclo de vacaciones la suite usa los endpoints manuales del scheduler, a
 
 El servicio `jenkins` (Dockerfile en `jenkins/`) forma parte del `docker-compose.yml`:
 
-* **Interfaz web:** `http://localhost:9090` (puerto interno 8080); agentes en el puerto `50000`. El asistente de instalación está desactivado y los plugins (`docker-workflow`, `workflow-aggregator`, `pipeline-stage-view`, `git`, `configuration-as-code`, `job-dsl`, `sonar`, `junit`, `coverage`, `cucumber-reports`, `htmlpublisher`) se instalan al construir la imagen.
+* **Interfaz web:** `http://localhost:9090` (puerto interno 8080); agentes en el puerto `50000`. El asistente de instalación está desactivado y los plugins (`docker-workflow`, `workflow-aggregator`, `pipeline-stage-view`, `git`, `configuration-as-code`, `job-dsl`, `plain-credentials`, `sonar`, `junit`, `coverage`, `cucumber-reports`, `htmlpublisher`) se instalan al construir la imagen.
 * **Docker desde Jenkins:** se monta `/var/run/docker.sock` del host. `group_add` usa `DOCKER_GID` (por defecto `0` en Docker Desktop); en Linux define en `.env` el gid real del socket, obtenido con `stat -c '%g' /var/run/docker.sock`.
 * **Levantar:** `docker compose up -d --build jenkins`.
 * **Verificación (smoke):** pipeline `test-docker-pipeline` con `docker --version` y `docker ps`; terminó en `SUCCESS`. Los jobs se guardan en el volumen `jenkins_data`, no en el repositorio.
@@ -452,3 +452,33 @@ El servicio `jenkins` (Dockerfile en `jenkins/`) forma parte del `docker-compose
 * **Servicio seleccionado:** `auth-service` tiene pruebas que usan H2 en memoria y no necesita Docker/Testcontainers para ejecutarlas. `vacaciones-service` se deja para después porque sus pruebas usan Testcontainers y el proyecto tiene una verificación `jacoco:check` adicional.
 * **Reinicio limpio de Jenkins:** `docker compose down` conserva los datos. Para borrar solo el estado de Jenkins, primero confirma el nombre con `docker volume ls` (con el nombre de proyecto actual normalmente será `microservicios_jenkins_data`) y luego ejecuta `docker volume rm microservicios_jenkins_data`. No uses `down -v`, que también elimina los datos de las bases de datos.
 * **Evidencias pendientes:** [Captura pendiente: vista de etapas]; [Captura pendiente: Test Result]; [Captura pendiente: Coverage].
+
+### Punto 3: SonarQube y Quality Gate
+
+SonarQube Community y su PostgreSQL se ejecutan como `sonarqube` y `sonar-db` en Docker Compose. La interfaz queda disponible en `http://localhost:9000`. El agente Maven de Jenkins se conecta a la red Docker `microservicios-network`, por lo que envía el análisis a `http://sonarqube:9000` sin depender de direcciones del host.
+
+#### Configuración inicial
+
+1. Crear `.env` desde `.env.example` y cambiar las contraseñas de ejemplo.
+2. Levantar primero SonarQube: `docker compose up -d sonar-db sonarqube`.
+3. Esperar hasta que `docker compose logs -f sonarqube` indique que el servidor está operativo y entrar a `http://localhost:9000` con `admin` / `admin`. Cambiar la contraseña inicial.
+4. Crear el proyecto local con clave `auth-service`.
+5. Crear un Quality Gate llamado `Reto 7 - Cobertura 70`, agregar la condición de cobertura menor que 70 % y asignarlo a `auth-service`.
+6. Generar un token de análisis y guardarlo únicamente en `.env` como `SONAR_TOKEN`. No versionar el token.
+7. Crear en SonarQube el webhook `Jenkins` con URL `http://jenkins:8080/sonarqube-webhook/` (incluida la barra final).
+8. Levantar o recrear Jenkins para que JCasC registre el token como credencial secreta y configure el servidor: `docker compose up -d --build --force-recreate jenkins`.
+
+#### Pipeline
+
+Después de `Test`, el pipeline ejecuta `SonarQube Analysis` e importa `target/site/jacoco/jacoco.xml`. Luego `Quality Gate` espera la respuesta del webhook durante un máximo de cinco minutos. `waitForQualityGate abortPipeline: true` detiene el pipeline si la cobertura o cualquier otra condición del Quality Gate no se cumple.
+
+Comprobaciones después del primer build:
+
+* Jenkins muestra `Checkout → Build → Test → SonarQube Analysis → Quality Gate`.
+* Las pestañas `Test Result` y `Coverage` conservan los reportes del Punto 2.
+* El dashboard de SonarQube muestra bugs, vulnerabilidades, code smells, duplicación, cobertura y estado del Quality Gate.
+* `Administration → Configuration → Webhooks` en SonarQube muestra la última entrega a Jenkins como exitosa.
+
+Para demostrar el bloqueo sin dañar las pruebas, se puede elevar temporalmente el umbral del Quality Gate por encima de la cobertura actual, ejecutar el pipeline y capturar el fallo en `Quality Gate`; después se restaura el umbral requerido de 70 %.
+
+Evidencias pendientes del Punto 3: [Captura pendiente: dashboard de SonarQube]; [Captura pendiente: Quality Gate aprobado]; [Captura pendiente: pipeline detenido por Quality Gate]; [Captura pendiente: webhook entregado correctamente].

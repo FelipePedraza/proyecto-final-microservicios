@@ -8,6 +8,7 @@ RUN jenkins-plugin-cli --plugins \
     git \
     configuration-as-code \
     job-dsl \
+    plain-credentials \
     sonar \
     junit \
     timestamper \
