@@ -122,7 +122,7 @@ pipeline {
                 sh '''
                     docker compose stop $APP_SERVICES || true
                     docker compose rm -f -v $APP_SERVICES || true
-                    docker volume rm -f microservicios_empleado-data microservicios_departamento-data microservicios_notificaciones-data microservicios_perfiles-data microservicios_vacaciones-data microservicios_auth_db_data || true
+                    docker volume rm -f microservicios_empleado-data microservicios_departamento-data microservicios_notificaciones-data microservicios_perfiles-data microservicios_vacaciones-data microservicios_auth_db_data microservicios_rabbitmq-data || true
                 '''
 
                 echo "Desplegando microservicios de la aplicación para pruebas E2E..."
@@ -179,7 +179,7 @@ pipeline {
                     sh '''
                         docker compose stop $APP_SERVICES || true
                         docker compose rm -f -v $APP_SERVICES || true
-                        docker volume rm -f microservicios_empleado-data microservicios_departamento-data microservicios_notificaciones-data microservicios_perfiles-data microservicios_vacaciones-data microservicios_auth_db_data || true
+                        docker volume rm -f microservicios_empleado-data microservicios_departamento-data microservicios_notificaciones-data microservicios_perfiles-data microservicios_vacaciones-data microservicios_auth_db_data microservicios_rabbitmq-data || true
                     '''
                 }
             }

@@ -155,15 +155,17 @@ services:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?Define RABBITMQ_USER in .env}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Define RABBITMQ_PASSWORD in .env}
       RABBITMQ_ERLANG_COOKIE: ${RABBITMQ_ERLANG_COOKIE:-SECRETCOOKIEFORRABBITMQ2026}
+      RABBITMQ_VM_MEMORY_HIGH_WATERMARK: "0.8"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
     networks:
       - microservicios-network
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping", "--timeout", "5"]
+      test: ["CMD", "gosu", "rabbitmq", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 10s
       timeout: 10s
       retries: 12
-      # En arranque en frio (Docker recien iniciado o equipo cargado) RabbitMQ puede tardar ~50 s.
-      start_period: 60s
+      start_period: 30s
     restart: unless-stopped
 
   notificaciones-db:
@@ -448,6 +450,7 @@ networks:
     driver: bridge
 
 volumes:
+  rabbitmq-data:
   empleado-data:
   departamento-data:
   notificaciones-data:
