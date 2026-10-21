@@ -118,6 +118,13 @@ pipeline {
                     sed -i 's/VACACIONES_MANUAL_ENABLED=false/VACACIONES_MANUAL_ENABLED=true/g' .env
                 '''
 
+                echo "Limpiando estado previo de microservicios y volumenes..."
+                sh '''
+                    docker compose stop $APP_SERVICES || true
+                    docker compose rm -f -v $APP_SERVICES || true
+                    docker volume rm -f microservicios_empleado-data microservicios_departamento-data microservicios_notificaciones-data microservicios_perfiles-data microservicios_vacaciones-data microservicios_auth_db_data || true
+                '''
+
                 echo "Desplegando microservicios de la aplicación para pruebas E2E..."
                 sh 'docker compose up -d --build $APP_SERVICES'
 
