@@ -70,6 +70,7 @@ services:
   empleado-service:
     build:
       context: ./empleado-service
+    image: empleado-service:${EMPLEADO_SERVICE_IMAGE_TAG:-latest}
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:?Define ASPNETCORE_ENVIRONMENT in .env}
       ASPNETCORE_URLS: http://+:8080
@@ -347,6 +348,7 @@ services:
     build:
       context: ./auth-service
       dockerfile: Dockerfile
+    image: auth-service:${AUTH_SERVICE_IMAGE_TAG:-latest}
     container_name: auth-service
     expose:
       - "8089"

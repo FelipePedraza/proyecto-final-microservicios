@@ -2,9 +2,9 @@
 
 ## Estado
 
-La implementación del Punto 3 quedó completa a nivel de código y configuración reproducible. La ejecución en contenedores y las capturas de interfaz quedan pendientes porque el equipo usado para el desarrollo no dispone actualmente del almacenamiento necesario para descargar y ejecutar las imágenes de Jenkins, SonarQube y PostgreSQL.
+Los Jenkinsfiles incluyen las etapas de análisis y espera del Quality Gate, y Compose define Jenkins y SonarQube. Sin embargo, el gate de cobertura del 70 % y el webhook de SonarQube no están aprovisionados por JCasC ni por otro script versionado: deben configurarse en la instancia y comprobarse antes de ejecutar los pipelines.
 
-Esta limitación no debe presentarse como una ejecución exitosa: todavía falta validar el pipeline en un host con Docker y espacio suficiente.
+La validación del pipeline y las capturas de la interfaz siguen pendientes. No se debe presentar este punto como una ejecución exitosa hasta guardar evidencia de un análisis y un gate real.
 
 ## Componentes implementados
 
@@ -33,9 +33,9 @@ El agente Maven se conecta explícitamente a `microservicios-network`; de otro m
 ## Decisiones técnicas
 
 - **Token:** Jenkins Credential aprovisionada con JCasC desde una variable local, nunca hardcodeada en el Jenkinsfile.
-- **Quality Gate:** personalizado con cobertura mínima de 70 %, según la guía del reto.
+- **Quality Gate requerido:** crear/asignar en SonarQube una condición de cobertura mínima de 70 %. Esta regla no está automatizada por los archivos versionados.
 - **Cobertura:** se reutiliza el XML de JaCoCo generado en la etapa `Test`; SonarQube no vuelve a ejecutar pruebas.
-- **Webhook:** URL interna prevista `http://jenkins:8080/sonarqube-webhook/`.
+- **Webhook requerido:** registrar en SonarQube la URL interna `http://jenkins:8080/sonarqube-webhook/`. La URL está prevista, pero su registro se debe verificar en la instancia.
 - **Scanner:** Maven ejecuta el Sonar Maven Plugin dentro del mismo agente usado para compilar y probar.
 
 ## Validaciones estáticas realizadas

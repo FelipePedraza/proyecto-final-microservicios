@@ -45,6 +45,7 @@ pipeline {
                     // el build UNSTABLE, en vez de abortar antes del bloque post.
                     sh 'mvn $MVN_OPTS verify -Dmaven.test.failure.ignore=true'
                 }
+                stash name: 'auth-jacoco-report', includes: 'auth-service/target/site/jacoco/jacoco.xml'
             }
             post {
                 always {
@@ -66,6 +67,7 @@ pipeline {
                 }
             }
             steps {
+                unstash 'auth-jacoco-report'
                 dir('auth-service') {
                     withSonarQubeEnv('sonarqube') {
                         sh '''
@@ -122,6 +124,7 @@ pipeline {
                         error "Faltan variables requeridas en el Secret file credential microservicios-env: ${missing.join(', ')}"
                     }
                     e2eConfig.each { key, value -> env[key] = value }
+                    env.AUTH_SERVICE_IMAGE_TAG = env.BUILD_NUMBER
                     env.VACACIONES_MANUAL_ENABLED = 'true'
                 }
 
@@ -132,27 +135,22 @@ pipeline {
                     docker volume rm -f microservicios_empleado-data microservicios_departamento-data microservicios_notificaciones-data microservicios_perfiles-data microservicios_vacaciones-data microservicios_auth_db_data microservicios_rabbitmq-data || true
                 '''
 
-                echo "Desplegando microservicios de la aplicación para pruebas E2E..."
-                sh 'docker compose --env-file "$DOTENV_FILE" up -d --build $APP_SERVICES'
-
-                echo "Esperando que los servicios alcancen estado saludable..."
-                sh '''
-                    for i in $(seq 1 30); do
-                        if docker compose --env-file "$DOTENV_FILE" ps $APP_SERVICES | grep -q "starting"; then
-                            echo "Aún iniciando servicios (intento $i/30)..."
-                            sleep 5
-                        else
-                            echo "Todos los servicios reportan estado listo/saludable."
-                            break
-                        fi
-                    done
-                '''
+                echo "Desplegando microservicios y esperando su estado saludable..."
+                sh 'docker compose --env-file "$DOTENV_FILE" up -d --build --wait --wait-timeout 180 $APP_SERVICES'
 
                 echo "Ejecutando suite de pruebas BDD Cucumber..."
                 sh '''
                     cd e2e-tests
                     chmod +x ./mvnw
-                    ./mvnw test || true
+                    rm -f reports/junit.xml reports/cucumber.json reports/cucumber.html
+                    if ./mvnw test; then
+                        echo "La suite BDD terminó correctamente."
+                    else
+                        echo "La suite BDD reportó fallos; se publicarán los resultados antes de marcar el build."
+                    fi
+                    test -s reports/junit.xml || { echo "ERROR: no se generó reports/junit.xml"; exit 1; }
+                    test -s reports/cucumber.json || { echo "ERROR: no se generó reports/cucumber.json"; exit 1; }
+                    test -s reports/cucumber.html || { echo "ERROR: no se generó reports/cucumber.html"; exit 1; }
                 '''
             }
             post {
@@ -186,7 +184,13 @@ pipeline {
                     sh '''
                         docker compose --env-file "$DOTENV_FILE" stop $APP_SERVICES || true
                         docker compose --env-file "$DOTENV_FILE" rm -f -v $APP_SERVICES || true
-                        docker volume rm -f microservicios_empleado-data microservicios_departamento-data microservicios_notificaciones-data microservicios_perfiles-data microservicios_vacaciones-data microservicios_auth_db_data microservicios_rabbitmq-data || true
+
+                        existing_volumes=$(docker volume ls --quiet)
+                        for volume in microservicios_empleado-data microservicios_departamento-data microservicios_notificaciones-data microservicios_perfiles-data microservicios_vacaciones-data microservicios_auth_db_data microservicios_rabbitmq-data; do
+                            if printf '%s\n' "$existing_volumes" | grep -Fxq "$volume"; then
+                                docker volume rm "$volume"
+                            fi
+                        done
                     '''
                 }
             }
