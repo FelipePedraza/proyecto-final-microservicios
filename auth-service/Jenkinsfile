@@ -109,24 +109,27 @@ pipeline {
             steps {
                 script {
                     def config = readProperties(file: env.DOTENV_FILE)
-                    def e2eConfig = [
-                        E2E_BASE_URL: config.JENKINS_E2E_BASE_URL ?: config.E2E_BASE_URL,
-                        E2E_ADMIN_EMAIL: config.E2E_ADMIN_EMAIL,
-                        E2E_ADMIN_PASSWORD: config.E2E_ADMIN_PASSWORD,
-                        E2E_JWT_SECRET: config.JWT_SECRET_KEY,
-                        APP_SERVICES: config.APP_SERVICES
-                    ]
-                    def missing = e2eConfig.findAll { key, value -> !value?.trim() }.keySet()
-                    if (missing) {
-                        error "Faltan variables requeridas en el Secret file credential microservicios-env: ${missing.join(', ')}"
+                    def appServices = config.APP_SERVICES?.trim()
+                    def e2eBaseUrl = config.JENKINS_E2E_BASE_URL ?: config.E2E_BASE_URL
+                    def jwtSecret = config.JWT_SECRET_KEY
+                    if (!appServices || !e2eBaseUrl?.trim() || !jwtSecret?.trim()) {
+                        error 'El archivo de entorno debe definir APP_SERVICES, E2E_BASE_URL y JWT_SECRET_KEY'
                     }
-                    e2eConfig.each { key, value -> env[key] = value }
+                    env.APP_SERVICES = appServices
+                    env.E2E_BASE_URL = e2eBaseUrl
+                    env.E2E_ADMIN_EMAIL = config.E2E_ADMIN_EMAIL ?: config.ADMIN_EMAIL ?: ''
+                    env.E2E_ADMIN_PASSWORD = config.E2E_ADMIN_PASSWORD ?: config.ADMIN_PASSWORD ?: ''
+                    env.E2E_JWT_SECRET = jwtSecret
                     env.AUTH_SERVICE_IMAGE_TAG = env.BUILD_NUMBER
                     env.VACACIONES_MANUAL_ENABLED = 'true'
                 }
 
                 echo "Limpiando estado previo de microservicios y volumenes..."
                 sh '''
+                    if [ -z "${APP_SERVICES:-}" ]; then
+                        echo "ERROR: APP_SERVICES está vacío; se cancela la limpieza." >&2
+                        exit 1
+                    fi
                     docker compose --env-file "$DOTENV_FILE" stop $APP_SERVICES || true
                     docker compose --env-file "$DOTENV_FILE" rm -f -v $APP_SERVICES || true
                     docker volume rm -f microservicios_empleado-data microservicios_departamento-data microservicios_notificaciones-data microservicios_perfiles-data microservicios_vacaciones-data microservicios_auth_db_data microservicios_rabbitmq-data || true
@@ -172,23 +175,29 @@ pipeline {
                         allowMissing: true
                     ])
 
-                    // 4. Diagnóstico: archivar logs de los microservicios
-                    sh 'docker compose --env-file "$DOTENV_FILE" logs $APP_SERVICES --no-color > docker-logs.txt || true'
-                    archiveArtifacts artifacts: 'docker-logs.txt', allowEmptyArchive: true
+                    script {
+                        if (env.APP_SERVICES?.trim()) {
+                            // 4. Diagnóstico: archivar logs de los microservicios
+                            sh 'docker compose --env-file "$DOTENV_FILE" logs $APP_SERVICES --no-color > docker-logs.txt || true'
+                            archiveArtifacts artifacts: 'docker-logs.txt', allowEmptyArchive: true
 
-                    // 5. Limpieza: apagar contenedores y borrar volúmenes de datos para evitar desalineación de esquemas
-                    echo "Limpiando microservicios de la aplicación..."
-                    sh '''
-                        docker compose --env-file "$DOTENV_FILE" stop $APP_SERVICES || true
-                        docker compose --env-file "$DOTENV_FILE" rm -f -v $APP_SERVICES || true
+                            // 5. Limpiar solo los servicios de la aplicación
+                            echo "Limpiando microservicios de la aplicación..."
+                            sh '''
+                                    docker compose --env-file "$DOTENV_FILE" stop $APP_SERVICES || true
+                                    docker compose --env-file "$DOTENV_FILE" rm -f -v $APP_SERVICES || true
 
-                        existing_volumes=$(docker volume ls --quiet)
-                        for volume in microservicios_empleado-data microservicios_departamento-data microservicios_notificaciones-data microservicios_perfiles-data microservicios_vacaciones-data microservicios_auth_db_data microservicios_rabbitmq-data; do
-                            if printf '%s\n' "$existing_volumes" | grep -Fxq "$volume"; then
-                                docker volume rm "$volume"
-                            fi
-                        done
-                    '''
+                                    existing_volumes=$(docker volume ls --quiet)
+                                    for volume in microservicios_empleado-data microservicios_departamento-data microservicios_notificaciones-data microservicios_perfiles-data microservicios_vacaciones-data microservicios_auth_db_data microservicios_rabbitmq-data; do
+                                        if printf '%s\n' "$existing_volumes" | grep -Fxq "$volume"; then
+                                            docker volume rm "$volume"
+                                        fi
+                                    done
+                            '''
+                        } else {
+                            echo 'APP_SERVICES no está definido; se omiten logs y limpieza para no detener todo el proyecto Compose.'
+                        }
+                    }
                 }
             }
         }
