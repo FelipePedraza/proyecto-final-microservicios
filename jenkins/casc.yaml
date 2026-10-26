@@ -9,6 +9,11 @@ jenkins:
   authorizationStrategy:
     loggedInUsersCanDoAnything:
       allowAnonymousRead: false
+  globalNodeProperties:
+    - envVars:
+        env:
+          - key: "DOTENV_FILE"
+            value: "/run/secrets/microservicios.env"
 
 credentials:
   system:

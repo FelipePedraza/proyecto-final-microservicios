@@ -449,6 +449,7 @@ services:
       - jenkins_data:/var/jenkins_home
       - /var/run/docker.sock:/var/run/docker.sock # Acceso al Docker daemon del host
       - ./jenkins/casc.yaml:/var/jenkins_home/casc_configs/jenkins.yaml:ro
+      - ./.env:/run/secrets/microservicios.env:ro
     networks:
       - microservicios-network
     restart: unless-stopped

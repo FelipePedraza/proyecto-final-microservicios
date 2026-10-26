@@ -107,14 +107,11 @@ pipeline {
         }
         stage('E2E Tests') {
             agent any
-            environment {
-                DOTENV_FILE = credentials('microservicios-env')
-            }
             steps {
                 script {
                     def config = readProperties(file: env.DOTENV_FILE)
                     def e2eConfig = [
-                        E2E_BASE_URL: config.E2E_BASE_URL,
+                        E2E_BASE_URL: config.JENKINS_E2E_BASE_URL ?: config.E2E_BASE_URL,
                         E2E_ADMIN_EMAIL: config.E2E_ADMIN_EMAIL,
                         E2E_ADMIN_PASSWORD: config.E2E_ADMIN_PASSWORD,
                         E2E_JWT_SECRET: config.JWT_SECRET_KEY,
