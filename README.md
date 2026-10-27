@@ -622,3 +622,136 @@ El profesor puede solicitar evidenciar cómo reacciona Jenkins ante distintos es
   * El paso `cucumber-reports` cambia el estado del build a **UNSTABLE** (amarillo).
   * En el menú **Reporte BDD** / **Cucumber Reports**, el escenario aparece claramente resaltado en rojo con la diferencia entre el valor esperado (`500`) y el obtenido (`200`).
   * En `Post Actions`, se archiva `docker-logs.txt` para análisis forense y todos los contenedores se apagan limpiamente.
+
+# Reto 8: Observabilidad y Monitoreo del Ecosistema de Microservicios
+ 
+## 1. Diseño de la Arquitectura de Observabilidad
+ 
+### 1.1 Investigación previa
+ 
+#### Los tres pilares de la observabilidad
+ 
+| Pilar | Qué es | Pregunta que responde | Herramienta del stack |
+|---|---|---|---|
+| **Métricas** | Valores numéricos agregados en el tiempo (peticiones por segundo, latencia, uso de CPU y memoria, servicio arriba o abajo). | ¿Cómo se está comportando el sistema? | Prometheus (almacenamiento) y Grafana (visualización) |
+| **Logs** | Registros de eventos puntuales emitidos por cada servicio, idealmente en formato JSON. | ¿Qué hizo exactamente el servicio en un momento dado? | Promtail (recolección) y Loki (almacenamiento) |
+| **Trazas** | El recorrido completo de una petición a través de varios servicios, representado como un árbol de *spans* (uno por operación, con su duración y su estado). | ¿Por dónde pasó la petición y dónde se demoró o falló? | OpenTelemetry (instrumentación) y Zipkin (almacenamiento y UI) |
+ 
+Los tres se complementan: la métrica avisa de que algo está mal (por ejemplo, subió la latencia), la traza indica en qué servicio ocurre, y el log explica por qué. El campo `traceId` incluido en cada log permite saltar de un log a su traza.
+ 
+#### Modelo Pull vs. Push
+ 
+- **Pull (Prometheus):** Prometheus es quien inicia la comunicación. Cada `scrape_interval` (15 s en este proyecto) hace una petición HTTP `GET` al endpoint de métricas de cada servicio (`metrics_path`) y almacena lo que recibe. Los servicios solo exponen sus métricas en texto plano y no necesitan conocer a Prometheus. Los targets se resuelven por el nombre del servicio en la red Docker (por ejemplo, `empleado-service:8080`). Además, Prometheus genera por cada target la métrica `up`: vale `1` si el scrape funcionó y `0` si falló. Esa es la base del panel de estado y de la alerta de "Servicio Caído".
+- **Push (trazas hacia Zipkin):** aquí el servicio es quien inicia la comunicación. El SDK de OpenTelemetry de cada microservicio envía los spans completados al servidor de trazas mediante HTTP, a `http://zipkin:9411/api/v2/spans`. Por eso cada servicio necesita conocer la URL de Zipkin (configurada con el nombre de red Docker, no con `localhost`).
+- **Logs (Promtail hacia Loki):** también es un modelo push. Promtail lee los logs de los contenedores y los envía a Loki en `http://loki:3100/loki/api/v1/push`.
+#### OpenTelemetry y la CNCF
+ 
+- La **CNCF** (*Cloud Native Computing Foundation*) es la fundación, parte de la Linux Foundation, que aloja proyectos de código abierto para tecnologías nativas de la nube, como Kubernetes y Prometheus. **OpenTelemetry (OTel)** es uno de sus proyectos y nació de la unión de OpenTracing y OpenCensus.
+- OTel define un estándar abierto y **agnóstico** de proveedor y de lenguaje para generar telemetría. Ofrece una API y un SDK por lenguaje (Java, .NET, Python, Go, Node.js) y exportadores intercambiables.
+- Es relevante para este ecosistema porque tiene servicios en cinco lenguajes distintos (Java, .NET, Python, Go y Node.js). Con OTel todos producen trazas con el mismo modelo de datos, y el servidor de trazas puede cambiarse (Zipkin, Jaeger u otro) modificando solo el exportador, sin reescribir la instrumentación.
+#### W3C Trace Context
+ 
+Es el estándar del W3C que define cómo se transporta el contexto de una traza dentro de cabeceras HTTP. Como son simples cabeceras de texto, cualquier lenguaje o framework puede leerlas y escribirlas, y así el `traceId` sobrevive al paso entre servicios de lenguajes distintos.
+ 
+- Cabecera principal: `traceparent`, con el formato `versión-traceId-parentId-flags`.
+```text
+  traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
+```
+ 
+  | Campo | Ejemplo | Significado |
+  |---|---|---|
+  | `versión` | `00` | Versión del formato. |
+  | `traceId` | `4bf92f35...4736` (32 caracteres hex) | Identificador único de toda la traza; es el mismo en todos los servicios. |
+  | `parentId` | `00f067aa0ba902b7` (16 caracteres hex) | Identificador del span que hace la llamada; el servicio receptor lo usa como padre de su propio span. |
+  | `flags` | `01` | Indicadores; `01` significa que la traza está muestreada (se registra). |
+ 
+- Cabecera opcional: `tracestate`, para información adicional específica de cada proveedor.
+- Funcionamiento: el servicio que origina la petición crea el `traceId`. Al llamar a otro servicio, su SDK inyecta `traceparent` en la petición HTTP. El servicio receptor extrae la cabecera y crea su span como hijo del anterior. Así, todos los spans quedan en una sola traza.
+- Se configura en cada servicio con `OTEL_PROPAGATORS=tracecontext,baggage`.
+- Importante: la propagación por HTTP la realiza el SDK de forma automática, pero a través de RabbitMQ el contexto debe inyectarse y extraerse manualmente en las cabeceras del mensaje.
+### 1.2 Diagrama de arquitectura de observabilidad
+ 
+```mermaid
+flowchart TB
+    CLI["🌐 Cliente HTTP"]
+    ALERT["🔔 Canal de alertas externo"]
+ 
+    subgraph NET["🐳 Red Docker: microservicios-network (bridge)"]
+ 
+        subgraph MS["Microservicios de negocio (instrumentados)"]
+            GW["🚪 gateway-service<br/>Java · Spring Boot · :8088<br/>publicado al host<br/>métricas: /actuator/prometheus"]
+            subgraph BIZ["Servicios detrás del gateway (solo internos)"]
+                EMP["👥 empleado-service<br/>.NET · :8080<br/>métricas: /metrics"]
+                DEP["🏢 departamento-service<br/>Python · FastAPI · :8081<br/>métricas: /metrics"]
+                NOT["📧 notificaciones-service<br/>Node.js · :8082<br/>métricas: /metrics"]
+                PER["📋 perfiles-service<br/>Go · :8083<br/>métricas: /metrics"]
+                VAC["🏖 vacaciones-service<br/>Java · Spring Boot · :8085<br/>métricas: /actuator/prometheus"]
+                AUTH["🔐 auth-service<br/>Java · Spring Boot · :8089<br/>métricas: /actuator/prometheus"]
+            end
+        end
+ 
+        subgraph DATA["Infraestructura existente: datos y mensajería"]
+            EMPDB[("empleado-db<br/>PostgreSQL")]
+            DEPDB[("departamento-db<br/>PostgreSQL")]
+            NOTDB[("notificaciones-db<br/>PostgreSQL")]
+            PERDB[("perfiles-db<br/>PostgreSQL")]
+            VACDB[("vacaciones-db<br/>PostgreSQL")]
+            AUTHDB[("auth-db<br/>PostgreSQL")]
+            RMQ["📨 message-broker<br/>RabbitMQ · AMQP :5672<br/>UI :15672 (ambos publicados al host)"]
+        end
+ 
+        subgraph CICD["Infraestructura existente: CI/CD (Reto 7)"]
+            JENK["⚙️ jenkins<br/>UI 9090→8080 · agentes :50000<br/>(publicados al host)"]
+            SONAR["🧪 sonarqube<br/>:9000 (publicado al host)"]
+            SONARDB[("sonar-db<br/>PostgreSQL")]
+        end
+ 
+        subgraph OBS["Stack de observabilidad (nuevo)"]
+            PROM["📊 Prometheus<br/>:9090"]
+            GRAF["📈 Grafana<br/>:3000"]
+            ZIP["🔍 Zipkin<br/>:9411"]
+            LOKI["📂 Loki<br/>:3100"]
+            PTAIL["📋 Promtail"]
+        end
+    end
+ 
+    CLI -->|"HTTP :8088"| GW
+    GW -->|"HTTP + traceparent"| BIZ
+    EMP -->|"HTTP síncrono"| DEP
+    EMP --> EMPDB
+    DEP --> DEPDB
+    NOT --> NOTDB
+    PER --> PERDB
+    VAC --> VACDB
+    AUTH --> AUTHDB
+    EMP <-->|"AMQP"| RMQ
+    NOT <-->|"AMQP"| RMQ
+    PER <-->|"AMQP"| RMQ
+    VAC <-->|"AMQP"| RMQ
+    AUTH <-->|"AMQP"| RMQ
+    SONAR --> SONARDB
+ 
+    PROM -->|"PULL: scraping GET metrics_path cada 15 s"| MS
+    MS -->|"PUSH trazas OTel → http://zipkin:9411/api/v2/spans"| ZIP
+    PTAIL -.->|"descubre contenedores y lee logs (docker.sock)"| MS
+    PTAIL -->|"PUSH logs"| LOKI
+    GRAF -->|"consulta métricas (PromQL)"| PROM
+    GRAF -->|"consulta logs (LogQL)"| LOKI
+    GRAF -->|"alerta"| ALERT
+ 
+    linkStyle 15 stroke:#1f77b4,stroke-width:2px
+    linkStyle 16 stroke:#ff7f0e,stroke-width:2px
+    linkStyle 17 stroke:#7f7f7f,stroke-width:2px
+    linkStyle 18 stroke:#2ca02c,stroke-width:2px
+    linkStyle 19 stroke:#1f77b4,stroke-width:2px
+    linkStyle 20 stroke:#2ca02c,stroke-width:2px
+    linkStyle 21 stroke:#d62728,stroke-width:2px
+```
+ 
+**Cómo leer el diagrama** (los cuatro puntos solicitados por el reto):
+ 
+1. **Componentes del stack que se levantan:** Prometheus, Grafana, Zipkin, Loki y Promtail, como servicios nuevos en el `docker-compose.yml`.
+2. **Conexión de Prometheus con los microservicios:** Prometheus pertenece a la misma red Docker que los microservicios, `microservicios-network`. Hace *pull* de las métricas de los 7 servicios (el `gateway-service` primero) usando los nombres de servicio de Docker y el `metrics_path` propio de cada lenguaje: `/actuator/prometheus` para Spring Boot (gateway, auth y vacaciones) y `/metrics` para .NET, Python, Go y Node.js.
+3. **Flujo de las trazas:** cada microservicio hace *push* de sus spans con el SDK de OpenTelemetry directamente a Zipkin (`http://zipkin:9411/api/v2/spans`). El contexto viaja entre servicios en la cabecera `traceparent`.
+4. **Consumo de Grafana:** Grafana consulta a Prometheus con PromQL (y a Loki con LogQL), y envía las alertas al canal externo.
+**Nota sobre la infraestructura existente:** el diagrama refleja el `docker-compose.yml` actual. Cada servicio tiene su propia base de datos PostgreSQL. Usan RabbitMQ `empleado-service`, `notificaciones-service`, `perfiles-service`, `vacaciones-service` y `auth-service`; `gateway-service` y `departamento-service` no lo usan. El único microservicio publicado al host es `gateway-service`. `jenkins`, `sonarqube` y `sonar-db` comparten la red, pero no son microservicios de negocio y no se instrumentan. El servicio `dotnet-sonar-agent` no aparece porque pertenece al perfil `build-tools` y no está conectado a `microservicios-network`.
