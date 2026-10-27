@@ -228,7 +228,7 @@ class VacationRepositoryIntegrationTest {
     }
 
     private static List<String> ids(List<Vacation> vacations) {
-        return vacations.stream().map(Vacation::getId).toList();
+        return vacations.stream().map(vacation -> java.util.Objects.requireNonNull(vacation).getId()).toList();
     }
 
     private void save(String id, String employeeId, LocalDate start, LocalDate end, VacationStatus status) {
