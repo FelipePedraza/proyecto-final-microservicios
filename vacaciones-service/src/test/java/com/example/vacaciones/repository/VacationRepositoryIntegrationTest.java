@@ -50,6 +50,7 @@ class VacationRepositoryIntegrationTest {
     private static final Path SCHEMA = Path.of("..", "database", "vacaciones", "001-schema.sql");
 
     @Container
+    @SuppressWarnings("resource") // Testcontainers manages and closes this container after the test class.
     static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:17-alpine")
             .withCopyFileToContainer(
                     MountableFile.forHostPath(SCHEMA),

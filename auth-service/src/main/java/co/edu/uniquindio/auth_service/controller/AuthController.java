@@ -62,7 +62,7 @@ public class AuthController {
     public ResponseEntity<ResponseDTO<String>> recoverPassword(@Valid @RequestBody RecoverPasswordDTO recoverDTO) throws Exception {
         authService.recoverPassword(recoverDTO);
         // NOTA: Se retorna OK exista o no el correo por razones de seguridad
-        return ResponseEntity.ok(new ResponseDTO(false, "Si el correo existe, se han enviado las instrucciones de recuperación."));
+        return ResponseEntity.ok(new ResponseDTO<String>(false, "Si el correo existe, se han enviado las instrucciones de recuperación."));
     }
 
     @PostMapping("/reset-password")
@@ -89,7 +89,7 @@ public class AuthController {
     })
     public ResponseEntity<ResponseDTO<String>> resetPassword(@Valid @RequestBody ResetPasswordDTO resetDTO) throws Exception {
         authService.resetPassword(resetDTO);
-        return ResponseEntity.ok(new ResponseDTO(false, "Contraseña actualizada exitosamente."));
+        return ResponseEntity.ok(new ResponseDTO<String>(false, "Contraseña actualizada exitosamente."));
     }
 
     @PostMapping("/change-password")
@@ -122,6 +122,6 @@ public class AuthController {
             @Valid @RequestBody ChangePasswordDTO changeDTO) throws Exception {
         
         authService.changePassword(userId, changeDTO);
-        return ResponseEntity.ok(new ResponseDTO(false, "Contraseña cambiada exitosamente."));
+        return ResponseEntity.ok(new ResponseDTO<String>(false, "Contraseña cambiada exitosamente."));
     }
 }
