@@ -14,13 +14,13 @@ import org.springframework.security.web.SecurityFilterChain;
 public class SecurityConfig {
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) {
         http
             // Desactivamos CSRF porque no usamos cookies de sesión (es stateless)
             .csrf(csrf -> csrf.disable())
             // No creamos estado/sesión HTTP
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            // Todo lo de /auth es público. El Gateway protegerá lo demás.
+            // todo lo de /auth es público. El Gateway protegerá lo demás.
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/auth/**").permitAll()
                 .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
