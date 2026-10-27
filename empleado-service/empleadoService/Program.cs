@@ -19,7 +19,10 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddDbContext<EmpleadoDbContext>(options =>
     options.UseNpgsql(
-        builder.Configuration.GetConnectionString("EmpleadoService"),
+        builder.Configuration.GetConnectionString("EmpleadoService")
+            ?? throw new InvalidOperationException(
+                "Falta la cadena de conexión ConnectionStrings:EmpleadoService. " +
+                "Configúrala con la variable de entorno ConnectionStrings__EmpleadoService."),
         npgsql => npgsql.EnableRetryOnFailure(
             maxRetryCount: 3,
             maxRetryDelay: TimeSpan.FromSeconds(2),
