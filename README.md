@@ -2,7 +2,7 @@
 
 Sistema de onboarding de empleados construido como un conjunto de microservicios
 independientes, cada uno con su propia base de datos, que se comunican de forma
-síncrona (HTTP, a través de un API Gateway) y asíncrona (eventos sobre RabbitMQ).
+síncrona (HTTP, a través de un API Gateway) y asíncrona (eventos sobre RabbitMQ)..
 
 
 ## Índice
