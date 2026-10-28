@@ -8,7 +8,7 @@ pipeline {
         skipStagesAfterUnstable()
     }
     triggers {
-        pollSCM('H/5 * * * *')
+        pollSCM('* * * * *')
     }
     environment {
         MVN_OPTS = '-B -Dmaven.repo.local=/tmp/.m2/repository'
