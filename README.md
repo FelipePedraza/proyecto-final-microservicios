@@ -465,7 +465,7 @@ Esta sección documenta detalladamente la arquitectura, configuración, ejecuci�
 * **Configuración como Código (JCasC):** [`jenkins/casc.yaml`](./jenkins/casc.yaml) configura el usuario administrador, el servidor SonarQube, su credencial de análisis y los jobs:
   * El usuario y la contraseña se leen de `JENKINS_ADMIN_USERNAME` y `JENKINS_ADMIN_PASSWORD` en `.env`.
   * Credenciales secretas registradas automáticamente (como `sonarqube-token`).
-  * Conexión con el servidor SonarQube (`http://sonarqube:9000`).
+  * URL base de Jenkins, repositorio Git y conexión con SonarQube configurables mediante `JENKINS_ROOT_URL`, `GITHUB_REPOSITORY_URL` y `JENKINS_SONARQUBE_URL` en `.env` (la URL de SonarQube debe ser accesible desde la red de Docker).
   * Creación automática de los jobs multietapa (`auth-service` y `empleado-service`) mediante Job DSL apuntando al repositorio de Git.
 * **Contraseña inicial de Jenkins:** No se genera ni se necesita `initialAdminPassword`: el setup wizard está desactivado y JCasC crea el usuario configurado en `.env`. Consulta esos valores locales; no uses las credenciales de ejemplo como secretos de producción.
 * **Jenkins CLI:** El archivo `jenkins-cli.jar` no está versionado. Si se necesita CLI, descárgalo desde la instancia Jenkins y usa un API token de Jenkins:

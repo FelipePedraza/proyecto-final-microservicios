@@ -27,12 +27,12 @@ credentials:
 
 unclassified:
   location:
-    url: "http://localhost:9090/"
+    url: "${JENKINS_ROOT_URL}"
   sonarglobalconfiguration:
     buildWrapperEnabled: true
     installations:
       - name: "sonarqube"
-        serverUrl: "http://sonarqube:9000"
+        serverUrl: "${JENKINS_SONARQUBE_URL}"
         credentialsId: "sonarqube-token"
         triggers:
           skipScmCause: false
@@ -46,7 +46,7 @@ jobs:
             scm {
               git {
                 remote {
-                  url('https://github.com/FelipePedraza/proyecto-final-microservicios.git')
+                  url('${GITHUB_REPOSITORY_URL}')
                 }
                 branch('*/main')
               }
@@ -62,7 +62,7 @@ jobs:
             scm {
               git {
                 remote {
-                  url('https://github.com/FelipePedraza/proyecto-final-microservicios.git')
+                  url('${GITHUB_REPOSITORY_URL}')
                 }
                 branch('*/main')
               }
