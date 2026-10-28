@@ -7,6 +7,9 @@ pipeline {
         disableConcurrentBuilds()
         skipStagesAfterUnstable()
     }
+    triggers {
+        pollSCM('H/5 * * * *')
+    }
     stages {
         stage('Checkout') {
             agent any
@@ -18,7 +21,7 @@ pipeline {
         stage('Build') {
             agent {
                 docker {
-                    image 'dotnet-sonar:10.0-sonarscanner-9.2.1'
+                    image 'dotnet-sonar:10.0-sonarscanner-10.8'
                     args '--network microservicios-network -v dotnet_cache:/root/.nuget/packages'
                 }
             }
@@ -31,7 +34,7 @@ pipeline {
         stage('Test') {
             agent {
                 docker {
-                    image 'dotnet-sonar:10.0-sonarscanner-9.2.1'
+                    image 'dotnet-sonar:10.0-sonarscanner-10.8'
                     args '--network microservicios-network -v dotnet_cache:/root/.nuget/packages'
                 }
             }
@@ -56,7 +59,7 @@ pipeline {
         stage('SonarQube Analysis') {
             agent {
                 docker {
-                    image 'dotnet-sonar:10.0-sonarscanner-9.2.1'
+                    image 'dotnet-sonar:10.0-sonarscanner-10.8'
                     args '--network microservicios-network -v dotnet_cache:/root/.nuget/packages'
                 }
             }

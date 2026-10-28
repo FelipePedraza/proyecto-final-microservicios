@@ -2,9 +2,9 @@
 
 ## Estado
 
-Los Jenkinsfiles incluyen las etapas de análisis y espera del Quality Gate, y Compose define Jenkins y SonarQube. Sin embargo, el gate de cobertura del 70 % y el webhook de SonarQube no están aprovisionados por JCasC ni por otro script versionado: deben configurarse en la instancia y comprobarse antes de ejecutar los pipelines.
+Los Jenkinsfiles incluyen las etapas de análisis y espera del Quality Gate, y Compose define Jenkins y SonarQube. El script versionado [`tools/provision_sonarqube.py`](../../../tools/provision_sonarqube.py) aprovisiona de forma idempotente el gate global de cobertura `QualityGate70` (`coverage LT 70`), lo asigna como predeterminado y registra el webhook de Jenkins. Es necesario ejecutar el script contra una instancia SonarQube activa con un token de administrador antes de ejecutar los pipelines.
 
-La validación del pipeline y las capturas de la interfaz siguen pendientes. No se debe presentar este punto como una ejecución exitosa hasta guardar evidencia de un análisis y un gate real.
+La ejecución del script, la validación del pipeline y las capturas de la interfaz siguen pendientes hasta completarlas en una instancia real. No se debe presentar este punto como una ejecución exitosa antes de guardar evidencia de un análisis y un gate efectivo.
 
 ## Componentes implementados
 
@@ -33,9 +33,9 @@ El agente Maven se conecta explícitamente a `microservicios-network`; de otro m
 ## Decisiones técnicas
 
 - **Token:** Jenkins Credential aprovisionada con JCasC desde una variable local, nunca hardcodeada en el Jenkinsfile.
-- **Quality Gate requerido:** crear/asignar en SonarQube una condición de cobertura mínima de 70 %. Esta regla no está automatizada por los archivos versionados.
+- **Quality Gate requerido:** ejecutar `python tools/provision_sonarqube.py` desde la raíz y proporcionar un token de administrador cuando se solicite. La herramienta crea/actualiza la condición global de cobertura inferior a 70 % y registra el webhook `http://jenkins:8080/sonarqube-webhook/`.
 - **Cobertura:** se reutiliza el XML de JaCoCo generado en la etapa `Test`; SonarQube no vuelve a ejecutar pruebas.
-- **Webhook requerido:** registrar en SonarQube la URL interna `http://jenkins:8080/sonarqube-webhook/`. La URL está prevista, pero su registro se debe verificar en la instancia.
+- **Webhook requerido:** el script registra el webhook global a `http://jenkins:8080/sonarqube-webhook/`; su ejecución y las entregas deben verificarse en la instancia.
 - **Scanner:** Maven ejecuta el Sonar Maven Plugin dentro del mismo agente usado para compilar y probar.
 
 ## Validaciones estáticas realizadas
@@ -53,16 +53,16 @@ Ambos comandos finalizaron correctamente. Esto verifica formato del diff, interp
 2. Levantar `sonar-db` y `sonarqube`.
 3. Cambiar la contraseña inicial de SonarQube.
 4. Crear el proyecto `auth-service`.
-5. Crear y asignar el Quality Gate de cobertura >= 70 %.
+5. Ejecutar el script de aprovisionamiento y confirmar en SonarQube que `QualityGate70` es el gate predeterminado y contiene `coverage LT 70`.
 6. Generar el token, guardarlo como `SONAR_TOKEN` en `.env` y recrear Jenkins.
-7. Crear el webhook hacia Jenkins.
-8. Ejecutar el job `auth-service` y comprobar las cinco etapas.
+7. Confirmar que el webhook global hacia Jenkins está registrado y que las entregas son exitosas.
+8. Ejecutar el job `auth-service` y comprobar sus siete etapas.
 9. Capturar el dashboard, la cobertura, el Quality Gate aprobado y un Quality Gate fallido.
 
 ## Resultado esperado
 
 ```text
-Checkout -> Build -> Test -> SonarQube Analysis -> Quality Gate
-                                                    | PASS: pipeline continúa
-                                                    | FAIL: pipeline se detiene
+Checkout -> Build -> Test -> SonarQube Analysis -> Quality Gate -> Package -> E2E Tests
+                                                    | PASS: continúa hasta finalizar
+                                                    | FAIL: se detiene en Quality Gate
 ```

@@ -420,7 +420,7 @@ services:
     restart: unless-stopped
 
   dotnet-sonar-agent:
-    image: dotnet-sonar:10.0-sonarscanner-9.2.1
+    image: dotnet-sonar:10.0-sonarscanner-10.8
     build:
       context: ./jenkins
       dockerfile: Dockerfile.dotnet-sonar
