@@ -11,6 +11,8 @@ con transiciones automáticas y eventos de ciclo de vida.
 * `GET /vacaciones/{id}` y `GET /vacaciones?empleadoId=...` consultan períodos.
 * `DELETE /vacaciones/{id}` cancela únicamente períodos `PROGRAMADA`.
 * `GET /health` y `/health/ready` exponen salud.
+* `GET /actuator/prometheus` expone las métricas de Micrometer en formato
+  Prometheus.
 * OpenAPI: `/v3/api-docs`; Swagger UI: `/swagger-ui.html` (interfaz en
   `/swagger-ui/index.html`). Ambas rutas se sirven desde la raíz del servicio.
   La especificación incluye el esquema bearer JWT que aplica el API Gateway a

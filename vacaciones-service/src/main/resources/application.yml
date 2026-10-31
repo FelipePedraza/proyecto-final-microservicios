@@ -18,8 +18,10 @@ springdoc:
   api-docs.path: /v3/api-docs
   swagger-ui.path: /swagger-ui.html
 management:
-  endpoints.web.exposure.include: health,info
+  endpoints.web.exposure.include: health,info,prometheus
   endpoint.health.probes.enabled: true
+  endpoint.prometheus.enabled: true
+  metrics.tags.application: ${spring.application.name}
 vacaciones:
   scheduler:
     cron: ${VACACIONES_CRON:0 * * * * *}

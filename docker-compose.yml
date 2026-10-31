@@ -104,8 +104,8 @@ services:
       test: ["CMD", "curl", "--fail", "--silent", "http://localhost:${EMPLEADO_SERVICE_PORT}/health/ready"]
       interval: 10s
       timeout: 5s
-      retries: 5
-      start_period: 15s
+      retries: 10
+      start_period: 90s
     restart: unless-stopped
 
   gateway-service:
@@ -397,6 +397,7 @@ services:
     ports:
       - "${HOST_BIND_IP:-127.0.0.1}:${PROMETHEUS_HOST_PORT:?Define PROMETHEUS_HOST_PORT in .env}:9090"
     volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
     networks:
       - microservicios-network
