@@ -1,14 +1,14 @@
 server:
-  port: 8089 # Cambiado a 8089 porque 8082 esta ocupado
+  port: ${SERVER_PORT}
 
 spring:
   application:
     name: auth-service
 
   datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:auth_db}
-    username: ${DB_USER:postgres}
-    password: ${DB_PASSWORD:postgres}
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -20,17 +20,17 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
   rabbitmq:
-    host: ${RABBITMQ_HOST:localhost}
-    port: ${RABBITMQ_PORT:5672}
-    username: ${RABBITMQ_USER:guest}
-    password: ${RABBITMQ_PASSWORD:guest}
+    host: ${RABBITMQ_HOST}
+    port: ${RABBITMQ_PORT}
+    username: ${RABBITMQ_USER}
+    password: ${RABBITMQ_PASSWORD}
 
 jwt:
   secret: ${JWT_SECRET}
 
 admin:
   default:
-    email: ${ADMIN_EMAIL:admin@empresa.com}
+    email: ${ADMIN_EMAIL}
     password: ${ADMIN_PASSWORD}
 
 management:

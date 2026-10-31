@@ -1,5 +1,5 @@
 server:
-  port: ${GATEWAY_SERVER_PORT:8088}
+  port: ${GATEWAY_SERVICE_PORT}
 
 spring:
   application:
@@ -9,47 +9,47 @@ spring:
       server:
         webflux:
           httpclient:
-            connect-timeout: ${GATEWAY_CONNECT_TIMEOUT_MS:2000}
-            response-timeout: ${GATEWAY_RESPONSE_TIMEOUT:5s}
+            connect-timeout: ${GATEWAY_CONNECT_TIMEOUT_MS}
+            response-timeout: ${GATEWAY_RESPONSE_TIMEOUT}
           routes:
             - id: auth-openapi
-              uri: ${AUTH_SERVICE_URL:http://auth-service:8089}
+              uri: ${AUTH_SERVICE_URL}
               predicates:
                 - Path=/openapi/auth
               filters:
                 - RewritePath=/openapi/auth, /v3/api-docs
             - id: empleado-openapi
-              uri: ${EMPLEADOS_SERVICE_URL:http://empleado-service:8080}
+              uri: ${EMPLEADOS_SERVICE_URL}
               predicates:
                 - Path=/openapi/registro
               filters:
                 - RewritePath=/openapi/registro, /swagger/v1/swagger.json
             - id: departamentos-openapi
-              uri: ${DEPARTAMENTO_SERVICE_URL:http://departamento-service:8081}
+              uri: ${DEPARTAMENTO_SERVICE_URL}
               predicates:
                 - Path=/openapi/departamentos
               filters:
                 - RewritePath=/openapi/departamentos, /openapi.json
             - id: perfiles-openapi
-              uri: ${PERFILES_SERVICE_URL:http://perfiles-service:8083}
+              uri: ${PERFILES_SERVICE_URL}
               predicates:
                 - Path=/openapi/perfiles
               filters:
                 - RewritePath=/openapi/perfiles, /openapi.json
             - id: notificaciones-openapi
-              uri: ${NOTIFICACIONES_SERVICE_URL:http://notificaciones-service:8082}
+              uri: ${NOTIFICACIONES_SERVICE_URL}
               predicates:
                 - Path=/openapi/notificaciones
               filters:
                 - RewritePath=/openapi/notificaciones, /openapi.json
             - id: vacaciones-openapi
-              uri: ${VACACIONES_SERVICE_URL:http://vacaciones-service:8085}
+              uri: ${VACACIONES_SERVICE_URL}
               predicates:
                 - Path=/openapi/vacaciones
               filters:
                 - RewritePath=/openapi/vacaciones, /v3/api-docs
             - id: auth-service
-              uri: ${AUTH_SERVICE_URL:http://auth-service:8089}
+              uri: ${AUTH_SERVICE_URL:}
               predicates:
                 - Path=/auth/**
               filters:
@@ -58,7 +58,7 @@ spring:
                     name: authServiceCircuitBreaker
                     fallbackUri: forward:/fallback/auth-service
             - id: empleados-service
-              uri: ${EMPLEADOS_SERVICE_URL:http://empleado-service:8080}
+              uri: ${EMPLEADOS_SERVICE_URL}
               predicates:
                 - Path=/empleados/**
               filters:
@@ -67,7 +67,7 @@ spring:
                     name: empleadosServiceCircuitBreaker
                     fallbackUri: forward:/fallback/empleados-service
             - id: departamento-service
-              uri: ${DEPARTAMENTO_SERVICE_URL:http://departamento-service:8081}
+              uri: ${DEPARTAMENTO_SERVICE_URL}
               predicates:
                 - Path=/departamentos/**
               filters:
@@ -76,7 +76,7 @@ spring:
                     name: departamentoServiceCircuitBreaker
                     fallbackUri: forward:/fallback/departamento-service
             - id: perfiles-service
-              uri: ${PERFILES_SERVICE_URL:http://perfiles-service:8083}
+              uri: ${PERFILES_SERVICE_URL}
               predicates:
                 - Path=/perfiles/**
               filters:
@@ -85,7 +85,7 @@ spring:
                     name: perfilesServiceCircuitBreaker
                     fallbackUri: forward:/fallback/perfiles-service
             - id: notificaciones-service
-              uri: ${NOTIFICACIONES_SERVICE_URL:http://notificaciones-service:8082}
+              uri: ${NOTIFICACIONES_SERVICE_URL}
               predicates:
                 - Path=/notificaciones/**
               filters:
@@ -94,7 +94,7 @@ spring:
                     name: notificacionesServiceCircuitBreaker
                     fallbackUri: forward:/fallback/notificaciones-service
             - id: vacaciones-service
-              uri: ${VACACIONES_SERVICE_URL:http://vacaciones-service:8085}
+              uri: ${VACACIONES_SERVICE_URL}
               predicates:
                 - Path=/vacaciones/**
               filters:

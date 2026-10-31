@@ -11,7 +11,7 @@ e2e-tests/
 ├── .env.example                      variables de entorno (copiar y exportar)
 └── src/test
     ├── java
-    │   ├── config/E2EConfig.java     lectura de configuración: env > -De2e.xxx > defecto
+    │   ├── config/E2EConfig.java     lectura de configuración: env > -De2e.xxx > defaults no sensibles
     │   ├── context/TestContext.java  estado compartido por escenario (JWT, última respuesta, ids creados)
     │   ├── hooks/Hooks.java          @Before / @After: cliente HTTP, limpieza
     │   ├── steps/                    step definitions (una clase por tema: SmokeSteps, ...)
@@ -48,7 +48,7 @@ Además, Surefire deja su resumen en `target/surefire-reports/`.
 | Variable | Por defecto | Uso |
 |---|---|---|
 | `E2E_BASE_URL` | `http://localhost:8088` | URL del gateway |
-| `E2E_ADMIN_EMAIL` / `E2E_ADMIN_PASSWORD` | `admin@empresa.com` / `admin123` | Login ADMIN en escenarios que lo necesiten |
+| `E2E_ADMIN_EMAIL` / `E2E_ADMIN_PASSWORD` | Email de ejemplo / requerido | Login ADMIN en escenarios que lo necesiten; la contraseña no tiene valor por defecto |
 | `E2E_USER_EMAIL` / `E2E_USER_PASSWORD` | vacío | Opcional. Si están vacías, la suite crea una cuenta USER efímera por el flujo de onboarding |
 | `E2E_STARTUP_TIMEOUT_SECONDS` | `120` | Espera máxima (arranque en frío) a que el gateway y sus rutas respondan |
 | `E2E_REQUEST_TIMEOUT_MS` | `30000` | Timeout por petición |

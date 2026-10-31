@@ -25,6 +25,7 @@ J='Content-Type: application/json'
 TODAY=$(date -u +%F); TOM=$(date -u -d tomorrow +%F); AFTER=$(date -u -d "+2 days" +%F)
 NOTI=reto-2-microservicios-notificaciones-service-1
 RMQ_PW=$(grep '^RABBITMQ_PASSWORD=' .env | cut -d= -f2-)
+read -rsp 'ADMIN_PASSWORD: ' ADMIN_PASSWORD; printf '\n'
 
 login(){ curl -s -X POST $G/auth/login -H "$J" -d "{\"email\":\"$1\",\"password\":\"$2\"}" | sed 's/.*"token":"\([^"]*\)".*/\1/'; }
 b64(){ echo "$1" | tr '_-' '/+' | awk '{while(length($0)%4)$0=$0"=";print}' | base64 -d 2>/dev/null; echo; }
@@ -32,7 +33,7 @@ tok(){ docker logs $NOTI 2>&1 | grep "Para: $1" | grep -o 'token: [A-Za-z0-9._-]
 rmq(){ curl -s -u "admin:$RMQ_PW" "http://localhost:15672/api/exchanges/%2F/$1" | grep -o '"publish_in":[0-9]*' | head -1 | cut -d: -f2; }
 warm(){ for i in 1 2 3 4 5 6 7 8 9 10; do c=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer $1" "$G$2"); [ "$c" != "503" ] && break; sleep 4; done; echo "$2 -> $c"; }
 
-W=$(login admin@empresa.com admin123)
+W=$(login admin@empresa.com "$ADMIN_PASSWORD")
 warm $W "/empleados?estado=RETIRADO"; warm $W "/departamentos"; warm $W "/vacaciones"
 ```
 
@@ -42,7 +43,7 @@ cuántos mensajes han entrado a un exchange.
 ## 1. JWT: estructura, 401 y token alterado
 
 ```bash
-ADMIN=$(login admin@empresa.com admin123)
+ADMIN=$(login admin@empresa.com "$ADMIN_PASSWORD")
 echo "header : $(b64 $(echo $ADMIN | cut -d. -f1))"
 echo "payload: $(b64 $(echo $ADMIN | cut -d. -f2))"
 ```
@@ -59,7 +60,7 @@ payload: {"role":"ADMIN","jti":"<uuid>","sub":"ADMIN-001","iat":...,"exp":...}
 
 ```bash
 # Cada login genera un jti distinto
-ADMIN2=$(login admin@empresa.com admin123)
+ADMIN2=$(login admin@empresa.com "$ADMIN_PASSWORD")
 echo "jti distinto: $( [ "$(echo $ADMIN | cut -d. -f2)" != "$(echo $ADMIN2 | cut -d. -f2)" ] && echo SI || echo NO )"
 
 # Sin token -> 401
@@ -154,7 +155,7 @@ La activación publica `cuenta.activada` (motivo `ACTIVACION_INICIAL`); notifica
 ```bash
 A="Authorization: Bearer $U310"
 P='{"telefono":"3001234567","direccion":"Calle 1","ciudad":"Bogota","biografia":"ok"}'
-ADMIN=$(login admin@empresa.com admin123)
+ADMIN=$(login admin@empresa.com "$ADMIN_PASSWORD")
 
 curl -s -o /dev/null -w "USER lee            (200): %{http_code}\n" -H "$A" "$G/empleados?estado=RETIRADO"
 curl -s -o /dev/null -w "USER crea depto     (403): %{http_code}\n" -X POST $G/departamentos -H "$A" -H "$J" -d '{"id":"X","name":"X"}'

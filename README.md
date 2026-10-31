@@ -296,16 +296,16 @@ y no intente acceder desde el navegador al hostname interno `auth-service`.
 
 - Docker y Docker Compose.
 - Un archivo `.env` en la raíz del repositorio con las variables que exige
-  `docker-compose.yml` (ver `.env.example` como referencia; todas las
-  variables allí marcadas están declaradas como obligatorias mediante la
-  sintaxis `${VARIABLE:?...}`, por lo que Compose no arrancará sin ellas).
+  `docker-compose.yml` (ver `.env.example` como referencia; completa los
+  secretos vacíos con valores aleatorios únicos antes de iniciar. Compose no
+  arrancará si faltan variables obligatorias).
 
 ### Encender el sistema
 
 Ejecutar desde la raíz del repositorio:
 
 ```bash
-cp .env.example .env   # y ajustar valores si es necesario
+cp .env.example .env   # completa los secretos vacíos con valores aleatorios únicos
 docker compose up --build -d
 docker compose ps
 ```
@@ -443,25 +443,29 @@ Esta sección documenta detalladamente la arquitectura, configuración, ejecuci�
 
 ## 1. Accesos Rápidos y Credenciales del Entorno CI/CD
 
-| Servicio | URL Local | Credenciales por Defecto | Propósito |
+| Servicio | URL Local | Credenciales | Propósito |
 |---|---|---|---|
-| **Jenkins** | [http://localhost:9090](http://localhost:9090) | Los valores actuales de `JENKINS_ADMIN_USERNAME` y `JENKINS_ADMIN_PASSWORD` en `.env` | Servidor de automatización y orquestación de pipelines CI/CD |
-| **SonarQube** | [http://localhost:9000](http://localhost:9000) | Primera instalación: `admin` / `admin`; SonarQube solicita cambiar la contraseña | Plataforma de inspección continua y Quality Gate |
-| **API Gateway** | [http://localhost:8088](http://localhost:8088) | N/A (Admin: `admin@empresa.com` / `admin123`) | Punto de entrada único para pruebas E2E |
-| **RabbitMQ UI** | [http://localhost:15672](http://localhost:15672) | Usuario: `admin`<br>Clave: `cambiar_esta_contrasenia` | Broker de mensajería asíncrona |
+| **Jenkins** | [http://localhost:9090](http://localhost:9090) | `JENKINS_ADMIN_USERNAME` y `JENKINS_ADMIN_PASSWORD` de `.env` | Servidor de automatización y orquestación de pipelines CI/CD |
+| **SonarQube** | [http://localhost:9000](http://localhost:9000) | Primera instalación: `admin` / `admin`; cambia la contraseña inmediatamente | Plataforma de inspección continua y Quality Gate |
+| **API Gateway** | [http://localhost:8088](http://localhost:8088) | `ADMIN_EMAIL` y `ADMIN_PASSWORD` de `.env` | Punto de entrada único para pruebas E2E |
+| **RabbitMQ UI** | [http://localhost:15672](http://localhost:15672) | `RABBITMQ_USER` y `RABBITMQ_PASSWORD` de `.env` | Broker de mensajería asíncrona |
+
+Los puertos publicados por Compose se enlazan por defecto a `127.0.0.1` mediante
+`HOST_BIND_IP`; no lo cambies a `0.0.0.0` en una red compartida o pública sin
+añadir controles de acceso.
 
 ---
 
 ## 2. Cumplimiento de Especificaciones (Punto por Punto)
 
 ### Punto 1: Infraestructura Jenkins como Código (JCasC) y CLI
-* **Servicio en Docker Compose:** El servicio `jenkins` está integrado en el `docker-compose.yml` raíz, exponiendo el puerto web `9090:8080` y el puerto de agentes `50000:50000`.
+* **Servicio en Docker Compose:** Jenkins es opt-in mediante el perfil `ci`; no se inicia con la pila normal. Al activarlo, sus puertos web y de agentes se enlazan por defecto a `127.0.0.1` (`JENKINS_HOST_PORT` y `JENKINS_AGENT_PORT`).
 * **Construcción con Plugins Preinstalados:** Se utiliza [`jenkins/Dockerfile`](./jenkins/Dockerfile), basado en `jenkins/jenkins:lts-jdk21`, que instala el cliente Docker/Compose y los plugins requeridos:
   * `docker-workflow`, `workflow-aggregator`, `pipeline-stage-view`, `git`
   * `configuration-as-code` (JCasC), `job-dsl`, `credentials-binding`, `pipeline-utility-steps`
   * `plain-credentials`, `sonar` (SonarQube Scanner)
   * `junit`, `coverage` (soporte JaCoCo y Cobertura), `cucumber-reports`, `htmlpublisher`, `mstest`
-* **Acceso al Docker Socket:** Monta `/var/run/docker.sock` del host y configura el grupo con `DOCKER_GID`. Esto permite a Jenkins controlar el daemon Docker del host; úsalo solo en un entorno de desarrollo controlado.
+* **Acceso al Docker Socket:** Monta `/var/run/docker.sock` del host y configura el grupo con `DOCKER_GID`. El socket concede control prácticamente equivalente a administrador del host; usa Jenkins solo con pipelines confiables y no expongas sus puertos fuera de loopback.
 * **Configuración como Código (JCasC):** [`jenkins/casc.yaml`](./jenkins/casc.yaml) configura el usuario administrador, el servidor SonarQube, su credencial de análisis y los jobs:
   * El usuario y la contraseña se leen de `JENKINS_ADMIN_USERNAME` y `JENKINS_ADMIN_PASSWORD` en `.env`.
   * Credenciales secretas registradas automáticamente (como `sonarqube-token`).
@@ -576,10 +580,10 @@ La integración continua (CI) automatiza la compilación, las pruebas y los cont
 
 ### Levantar Jenkins y crear los pipelines
 
-1. Copia `.env.example` como `.env` (`Copy-Item .env.example .env` en PowerShell) y completa los secretos locales. Cambia las contraseñas de ejemplo y configura `SONAR_TOKEN` con un token de análisis de SonarQube; no subas `.env` a Git.
+1. Copia `.env.example` como `.env` (`Copy-Item .env.example .env` en PowerShell), genera secretos aleatorios únicos para los campos vacíos y configura `SONAR_TOKEN` con un token de análisis de SonarQube; no subas `.env` a Git. Si se rotan credenciales de servicios con volúmenes existentes, actualiza también las credenciales persistidas.
 2. Levanta la base de SonarQube y SonarQube: `docker compose up -d sonar-db sonarqube`. En una instalación nueva, inicia sesión en [SonarQube](http://localhost:9000) con `admin` / `admin`, cambia la contraseña, y genera un token de administrador para aprovisionar el gate.
 3. Ejecuta `python tools/provision_sonarqube.py` desde la raíz. El programa solicita el token sin mostrarlo y crea/actualiza el gate `QualityGate70` (`coverage LT 70`), lo asigna como predeterminado y registra el webhook de Jenkins. Si tu servidor no está en `http://localhost:9000`, define `SONAR_URL` antes de ejecutar el script.
-4. Con el token de análisis en `SONAR_TOKEN` y las credenciales de Jenkins en `.env`, construye primero la imagen local del agente .NET (servicio Compose bajo el perfil `build-tools`) con `docker compose --profile build-tools build dotnet-sonar-agent`. Después levanta el entorno con `docker compose up --build -d` y consulta el estado con `docker compose ps`.
+4. Con el token de análisis en `SONAR_TOKEN` y las credenciales de Jenkins en `.env`, construye primero la imagen local del agente .NET (servicio Compose bajo el perfil `build-tools`) con `docker compose --profile build-tools build dotnet-sonar-agent`. Después inicia la pila CI explícitamente con `docker compose --profile ci up --build -d` y consulta el estado con `docker compose ps`.
 5. Abre [Jenkins](http://localhost:9090) e inicia sesión con `JENKINS_ADMIN_USERNAME` y `JENKINS_ADMIN_PASSWORD` de tu `.env`. No hay contraseña `initialAdminPassword`: el asistente de instalación está desactivado y JCasC crea el administrador.
 6. JCasC crea automáticamente los jobs `auth-service` y `empleado-service`, configurados para leer sus respectivos Jenkinsfiles desde la rama `main` del repositorio. No hay que importarlos manualmente. Para correr uno, entra al job y elige **Build Now**.
 
@@ -694,9 +698,9 @@ Los tres se complementan: la métrica avisa de que algo está mal (por ejemplo, 
  
 #### Modelo Pull vs. Push
  
-- **Pull (Prometheus):** Prometheus es quien inicia la comunicación. Cada `scrape_interval` (15 s en este proyecto) hace una petición HTTP `GET` al endpoint de métricas de cada servicio (`metrics_path`) y almacena lo que recibe. Los servicios solo exponen sus métricas en texto plano y no necesitan conocer a Prometheus. Los targets se resuelven por el nombre del servicio en la red Docker (por ejemplo, `empleado-service:8080`). Además, Prometheus genera por cada target la métrica `up`: vale `1` si el scrape funcionó y `0` si falló. Esa es la base del panel de estado y de la alerta de "Servicio Caído".
-- **Push (trazas hacia Zipkin):** aquí el servicio es quien inicia la comunicación. El SDK de OpenTelemetry de cada microservicio envía los spans completados al servidor de trazas mediante HTTP, a `http://zipkin:9411/api/v2/spans`. Por eso cada servicio necesita conocer la URL de Zipkin (configurada con el nombre de red Docker, no con `localhost`).
-- **Logs (Promtail hacia Loki):** también es un modelo push. Promtail lee los logs de los contenedores y los envía a Loki en `http://loki:3100/loki/api/v1/push`.
+- **Pull (Prometheus):** Prometheus inicia la comunicación. En cada `scrape_interval` configurado, hace una petición HTTP `GET` al endpoint de métricas de cada servicio (`metrics_path`) y almacena lo que recibe. Los servicios exponen sus métricas en texto plano y los targets se resuelven por el nombre del servicio en la red Docker (por ejemplo, `empleado-service:8080`). Prometheus genera por cada target la métrica `up`: vale `1` si el *scrape* funcionó y `0` si falló. Los trabajos de *scrape* se configuran en el punto 3 del reto.
+- **Push (trazas hacia Zipkin):** el servicio inicia la comunicación. Una vez instrumentado, el SDK de OpenTelemetry envía los spans completados al servidor de trazas mediante HTTP, a `http://zipkin:9411/api/v2/spans`. La infraestructura y su nombre de red quedan disponibles en este punto; la instrumentación de los servicios corresponde al punto 4.
+- **Logs (Promtail hacia Loki):** también es un modelo *push*. Promtail descubre los contenedores Docker y envía sus logs al destino definido por `LOKI_PUSH_URL` (por defecto, `http://loki:3100/loki/api/v1/push`).
 #### OpenTelemetry y la CNCF
  
 - La **CNCF** (*Cloud Native Computing Foundation*) es la fundación, parte de la Linux Foundation, que aloja proyectos de código abierto para tecnologías nativas de la nube, como Kubernetes y Prometheus. **OpenTelemetry (OTel)** es uno de sus proyectos y nació de la unión de OpenTracing y OpenCensus.
@@ -784,7 +788,7 @@ flowchart TB
     AUTH <-->|"AMQP"| RMQ
     SONAR --> SONARDB
  
-    PROM -->|"PULL: scraping GET metrics_path cada 15 s"| MS
+    PROM -->|"PULL: scraping GET metrics_path"| MS
     MS -->|"PUSH trazas OTel → http://zipkin:9411/api/v2/spans"| ZIP
     PTAIL -.->|"descubre contenedores y lee logs (docker.sock)"| MS
     PTAIL -->|"PUSH logs"| LOKI
@@ -804,7 +808,43 @@ flowchart TB
 **Cómo leer el diagrama** (los cuatro puntos solicitados por el reto):
  
 1. **Componentes del stack que se levantan:** Prometheus, Grafana, Zipkin, Loki y Promtail, como servicios nuevos en el `docker-compose.yml`.
-2. **Conexión de Prometheus con los microservicios:** Prometheus pertenece a la misma red Docker que los microservicios, `microservicios-network`. Hace *pull* de las métricas de los 7 servicios (el `gateway-service` primero) usando los nombres de servicio de Docker y el `metrics_path` propio de cada lenguaje: `/actuator/prometheus` para Spring Boot (gateway, auth y vacaciones) y `/metrics` para .NET, Python, Go y Node.js.
-3. **Flujo de las trazas:** cada microservicio hace *push* de sus spans con el SDK de OpenTelemetry directamente a Zipkin (`http://zipkin:9411/api/v2/spans`). El contexto viaja entre servicios en la cabecera `traceparent`.
-4. **Consumo de Grafana:** Grafana consulta a Prometheus con PromQL (y a Loki con LogQL), y envía las alertas al canal externo.
+2. **Conexión de Prometheus con los microservicios:** Prometheus comparte `microservicios-network` con los siete servicios y puede resolverlos por sus nombres de Compose. La configuración de sus trabajos de *scrape* y los endpoints de métricas corresponde al punto 3 del reto.
+3. **Flujo de las trazas:** Zipkin comparte la red Docker y está disponible como `zipkin:9411`; los servicios enviarán allí sus spans cuando se implemente la instrumentación del punto 4.
+4. **Consumo de Grafana:** Grafana tiene aprovisionada la fuente de datos Prometheus. La fuente de datos Loki, los dashboards y las alertas se incorporan en los puntos posteriores del reto.
 **Nota sobre la infraestructura existente:** el diagrama refleja el `docker-compose.yml` actual. Cada servicio tiene su propia base de datos PostgreSQL. Usan RabbitMQ `empleado-service`, `notificaciones-service`, `perfiles-service`, `vacaciones-service` y `auth-service`; `gateway-service` y `departamento-service` no lo usan. El único microservicio publicado al host es `gateway-service`. `jenkins`, `sonarqube` y `sonar-db` comparten la red, pero no son microservicios de negocio y no se instrumentan. El servicio `dotnet-sonar-agent` no aparece porque pertenece al perfil `build-tools` y no está conectado a `microservicios-network`.
+
+## 2. Infraestructura de Observabilidad (Docker Compose)
+
+El `docker-compose.yml` agrega Prometheus, Grafana, Loki, Promtail y Zipkin a
+la red existente `microservicios-network`. Prometheus escucha en el puerto
+interno `9090`; su puerto del host es `9091` por defecto porque Jenkins ya
+publica `9090`. Los puertos de host se configuran con `PROMETHEUS_HOST_PORT`,
+`GRAFANA_HOST_PORT`, `LOKI_HOST_PORT` y `ZIPKIN_HOST_PORT`; por defecto, Grafana,
+Loki y Zipkin se publican en `3000`, `3100` y `9411`, respectivamente.
+
+Se eligió Zipkin en lugar de Jaeger porque recibe directamente los spans del
+exportador Zipkin de OpenTelemetry y concentra el almacenamiento en un único
+servicio sencillo de operar en este entorno local.
+
+Grafana aprovisiona automáticamente Prometheus como su fuente de datos mediante
+[`observability/grafana/provisioning/datasources/datasources.yml`](./observability/grafana/provisioning/datasources/datasources.yml),
+y conserva sus datos en el volumen `grafana-data`. Los datos de series
+temporales de Prometheus y los logs de Loki también se conservan en volúmenes
+nombrados. Promtail usa el socket de Docker para descubrir contenedores y lee
+sus archivos de log; el socket da acceso privilegiado a la API de Docker, por
+lo que este montaje está destinado al entorno local de desarrollo y solo debe
+usarse en un host de confianza.
+
+La URL a la que Promtail envía los logs se define en `LOKI_PUSH_URL` en `.env`;
+su valor predeterminado es `http://loki:3100/loki/api/v1/push`, usando el nombre
+de servicio Docker para que Promtail resuelva Loki dentro de la red compartida.
+
+La URL de Prometheus que Grafana usa como fuente de datos se define en
+`PROMETHEUS_DATASOURCE_URL` en `.env`; por defecto es
+`http://prometheus:9090`, accesible desde Grafana mediante la red Docker.
+
+Las credenciales iniciales de Grafana se configuran mediante
+`GRAFANA_ADMIN_USER` y `GRAFANA_ADMIN_PASSWORD` en `.env`; cambia el valor de
+ejemplo antes de exponer el servicio. En esta etapa aún no se configura el
+archivo de trabajos de *scrape* de Prometheus ni se instrumentan los
+microservicios; esas tareas pertenecen a los puntos posteriores del reto.

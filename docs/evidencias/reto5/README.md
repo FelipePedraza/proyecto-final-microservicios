@@ -24,7 +24,7 @@ Para obtener un Access JWT, se debe realizar una petición POST al endpoint púb
 ``json
 {
   "email": "admin@empresa.com",
-  "password": "admin123"
+  "password": "<ADMIN_PASSWORD configurada en .env>"
 }
 ``
 
@@ -165,7 +165,7 @@ reto; ShedLock queda para el Reto 31.
 
 Importa [`reto5-integracion.postman_collection.json`](./reto5-integracion.postman_collection.json)
 en Postman. La colección usa el Gateway `http://localhost:8088`, inicia sesión
-con `admin@empresa.com` / `admin123` y guarda automáticamente los JWT de admin
+con las credenciales ADMIN configuradas en `.env` y guarda automáticamente los JWT de admin
 y de los empleados. Requiere Docker Compose arriba y el departamento `IT`
 (la colección lo crea antes de dar de alta empleados).
 
@@ -213,4 +213,4 @@ colección; las comprobaciones de estado HTTP están automatizadas en sus tests.
 *   **Reset/activation token reutilizable.** Es un JWT (`type=RESET_PASSWORD`, 15 min en recuperación, 1 h en activación) y no se invalida tras usarse. No sirve como access token: el Gateway rechaza cualquier token con claim `type`, y auth-service exige ese claim en `/auth/reset-password`.
 *   **Algoritmo de firma.** HMAC-SHA256 fijado explícitamente en auth-service (`Jwts.SIG.HS256`); el header del JWT incluye `"alg":"HS256"` y `"typ":"JWT"`, y el contenido lleva `jti` (UUID único por token) además de `sub`, `role`, `iat` y `exp`, sin importar la longitud del secret. Auth y Gateway deben compartir el mismo `JWT_SECRET_KEY` (mínimo 32 bytes; ambos fallan al arrancar si no está definido o es más corto). No existe un valor por defecto en el código.
 *   **Scheduler con N instancias.** Ver sección 7 (ShedLock en el Reto 31).
-*   **Admin semilla.** Se crea con `ADMIN_EMAIL` / `ADMIN_PASSWORD` (`.env.example` trae `admin@empresa.com` / `admin123` y docker-compose los pasa al contenedor). `ADMIN_PASSWORD` y `JWT_SECRET` ya no tienen valor por defecto en `application.yaml`; para correr fuera de Docker hay que definirlas. La contraseña nunca se escribe en los logs. Cámbiela fuera de entornos de prueba.
+*   **Admin semilla.** Se crea con `ADMIN_EMAIL` / `ADMIN_PASSWORD` de `.env`; `.env.example` no incluye una contraseña utilizable. `ADMIN_PASSWORD` y `JWT_SECRET` no tienen valor por defecto en `application.yaml`; para correr fuera de Docker hay que definirlas. La contraseña nunca se escribe en los logs.

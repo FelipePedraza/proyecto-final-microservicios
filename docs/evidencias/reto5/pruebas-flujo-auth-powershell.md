@@ -11,7 +11,8 @@ del Reto 5.
 > - Levanta los servicios con `docker compose up -d --build` y confirma que
 >   esten disponibles con `docker compose ps`.
 > - El administrador inicial usa `admin@empresa.com` y la contrasena definida
->   por `ADMIN_PASSWORD` en `.env` (por defecto, `admin123`).
+>   por `ADMIN_PASSWORD` en `.env`; configura `$env:ADMIN_PASSWORD` en esta
+>   terminal con ese valor antes de ejecutar el flujo.
 > - Las fechas de vacaciones se calculan a futuro porque el servicio rechaza
 >   fechas de inicio pasadas.
 > - Ejecuta el flujo una sola vez con los IDs de ejemplo. Si ya existen `IT` o
@@ -29,15 +30,14 @@ $JsonHeader = "Content-Type: application/json"
 # Sin token, una ruta protegida debe responder 401.
 curl.exe -i "$G/perfiles/E001"
 
-$LoginBody = '{"email":"admin@empresa.com","password":"admin123"}'
+$LoginBody = @{ email = "admin@empresa.com"; password = $env:ADMIN_PASSWORD } | ConvertTo-Json -Compress
 $Login = curl.exe -sS -X POST "$G/auth/login" -H $JsonHeader --data-raw $LoginBody | ConvertFrom-Json
 $Token = $Login.token
 if ([string]::IsNullOrWhiteSpace($Token)) { throw "No se obtuvo el JWT. Revisa ADMIN_PASSWORD y que auth-service este disponible." }
 $AuthHeader = "Authorization: Bearer $Token"
 ```
 
-Si cambiaste `ADMIN_PASSWORD` en `.env`, reemplaza `admin123` por esa
-contrasena. La respuesta del login contiene el token en `token`.
+La respuesta del login contiene el token en `token`.
 
 ## 2. Crear departamento y empleado
 

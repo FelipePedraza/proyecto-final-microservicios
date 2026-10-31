@@ -1,4 +1,4 @@
-﻿name: microservicios
+name: microservicios
 
 services:
   empleado-db:
@@ -43,8 +43,9 @@ services:
     build:
       context: ./departamento-service
     environment:
-      DB_DEPARTAMENTO_HOST: departamento-db
-      DB_DEPARTAMENTO_PORT: 5432
+      PORT: ${DEPARTAMENTO_SERVICE_PORT:?Define DEPARTAMENTO_SERVICE_PORT in .env}
+      DB_DEPARTAMENTO_HOST: ${DEPARTAMENTO_DB_HOST:?Define DEPARTAMENTO_DB_HOST in .env}
+      DB_DEPARTAMENTO_PORT: ${DEPARTAMENTO_DB_PORT:?Define DEPARTAMENTO_DB_PORT in .env}
       DB_DEPARTAMENTO_NAME: ${DEPARTAMENTO_DB_NAME:?Define DEPARTAMENTO_DB_NAME in .env}
       DB_DEPARTAMENTO_USER: ${DEPARTAMENTO_DB_USER:?Define DEPARTAMENTO_DB_USER in .env}
       DB_DEPARTAMENTO_PASSWORD: ${DEPARTAMENTO_DB_PASSWORD:?Define DEPARTAMENTO_DB_PASSWORD in .env}
@@ -60,7 +61,7 @@ services:
         - CMD
         - python
         - -c
-        - "import urllib.request; urllib.request.urlopen('http://localhost:8081/health/ready', timeout=2)"
+        - "import urllib.request; urllib.request.urlopen('http://localhost:${DEPARTAMENTO_SERVICE_PORT}/health/ready', timeout=2)"
       interval: 5s
       timeout: 5s
       retries: 15
@@ -73,9 +74,9 @@ services:
     image: empleado-service:${EMPLEADO_SERVICE_IMAGE_TAG:-latest}
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:?Define ASPNETCORE_ENVIRONMENT in .env}
-      ASPNETCORE_URLS: http://+:8080
-      ConnectionStrings__EmpleadoService: Host=empleado-db;Port=5432;Database=${EMPLEADO_DB_NAME:?Define EMPLEADO_DB_NAME in .env};Username=${EMPLEADO_DB_USER:?Define EMPLEADO_DB_USER in .env};Password=${EMPLEADO_DB_PASSWORD:?Define EMPLEADO_DB_PASSWORD in .env}
-      Departamentos__BaseUrl: http://departamento-service:8081/
+      ASPNETCORE_URLS: http://+:${EMPLEADO_SERVICE_PORT:?Define EMPLEADO_SERVICE_PORT in .env}
+      ConnectionStrings__EmpleadoService: Host=${EMPLEADO_DB_HOST:?Define EMPLEADO_DB_HOST in .env};Port=${EMPLEADO_DB_PORT:?Define EMPLEADO_DB_PORT in .env};Database=${EMPLEADO_DB_NAME:?Define EMPLEADO_DB_NAME in .env};Username=${EMPLEADO_DB_USER:?Define EMPLEADO_DB_USER in .env};Password=${EMPLEADO_DB_PASSWORD:?Define EMPLEADO_DB_PASSWORD in .env}
+      Departamentos__BaseUrl: ${DEPARTAMENTO_SERVICE_URL:?Define DEPARTAMENTO_SERVICE_URL in .env}
       # Circuits breaker hacia Departamentos (reto: 3-5 fallos consecutivos, circuito abierto 30-60 s)
       Departamentos__Resilience__FallosConsecutivos: ${CB_FALLOS_CONSECUTIVOS:?Define CB_FALLOS_CONSECUTIVOS in .env}
       Departamentos__Resilience__TimeoutLlamada: ${CB_TIMEOUT_LLAMADA:?Define CB_TIMEOUT_LLAMADA in .env}
@@ -89,7 +90,7 @@ services:
       RabbitMQ__Username: ${RABBITMQ_USER:?Define RABBITMQ_USER in .env}
       RabbitMQ__Password: ${RABBITMQ_PASSWORD:?Define RABBITMQ_PASSWORD in .env}
     expose:
-      - "8080"
+      - "${EMPLEADO_SERVICE_PORT}"
     networks:
       - microservicios-network
     depends_on:
@@ -100,7 +101,7 @@ services:
       message-broker:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8080/health/ready"]
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:${EMPLEADO_SERVICE_PORT}/health/ready"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -111,7 +112,7 @@ services:
     build:
       context: ./gateway-service
     environment:
-      GATEWAY_SERVER_PORT: ${GATEWAY_SERVER_PORT:?Define GATEWAY_SERVER_PORT in .env}
+      GATEWAY_SERVICE_PORT: ${GATEWAY_SERVICE_PORT:?Define GATEWAY_SERVICE_PORT in .env}
       GATEWAY_CONNECT_TIMEOUT_MS: ${GATEWAY_CONNECT_TIMEOUT_MS:?Define GATEWAY_CONNECT_TIMEOUT_MS in .env}
       GATEWAY_RESPONSE_TIMEOUT: ${GATEWAY_RESPONSE_TIMEOUT:?Define GATEWAY_RESPONSE_TIMEOUT in .env}
       EMPLEADOS_SERVICE_URL: ${EMPLEADOS_SERVICE_URL:?Define EMPLEADOS_SERVICE_URL in .env}
@@ -122,7 +123,9 @@ services:
       AUTH_SERVICE_URL: ${AUTH_SERVICE_URL:?Define AUTH_SERVICE_URL in .env}
       JWT_SECRET: ${JWT_SECRET_KEY:?Define JWT_SECRET_KEY in .env}
     ports:
-      - "${GATEWAY_SERVICE_PORT:?Define GATEWAY_SERVICE_PORT in .env}:8088"
+      - "${HOST_BIND_IP:-127.0.0.1}:${GATEWAY_SERVICE_PORT:?Define GATEWAY_SERVICE_PORT in .env}:${GATEWAY_SERVICE_PORT}"
+    expose:
+      - "${GATEWAY_SERVICE_PORT}"
     networks:
       - microservicios-network
     depends_on:
@@ -139,7 +142,7 @@ services:
       auth-service:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8088/health"]
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:${GATEWAY_SERVICE_PORT}/health"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -150,12 +153,12 @@ services:
     image: rabbitmq:3-management
     container_name: rabbitmq-broker
     ports:
-      - "${RABBITMQ_AMQP_PORT:?Define RABBITMQ_AMQP_PORT in .env}:5672"
-      - "${RABBITMQ_MANAGEMENT_PORT:?Define RABBITMQ_MANAGEMENT_PORT in .env}:15672"
+      - "${HOST_BIND_IP:-127.0.0.1}:${RABBITMQ_AMQP_PORT:?Define RABBITMQ_AMQP_PORT in .env}:5672"
+      - "${HOST_BIND_IP:-127.0.0.1}:${RABBITMQ_MANAGEMENT_PORT:?Define RABBITMQ_MANAGEMENT_PORT in .env}:15672"
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?Define RABBITMQ_USER in .env}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Define RABBITMQ_PASSWORD in .env}
-      RABBITMQ_ERLANG_COOKIE: ${RABBITMQ_ERLANG_COOKIE:-SECRETCOOKIEFORRABBITMQ2026}
+      RABBITMQ_ERLANG_COOKIE: ${RABBITMQ_ERLANG_COOKIE:?Define RABBITMQ_ERLANG_COOKIE in .env}
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
     networks:
@@ -191,9 +194,9 @@ services:
     build:
       context: ./notificaciones-service
     environment:
-      PORT: 8082
-      DB_HOST: notificaciones-db
-      DB_PORT: 5432
+      PORT: ${NOTIFICACIONES_SERVICE_PORT:?Define NOTIFICACIONES_SERVICE_PORT in .env}
+      DB_HOST: ${NOTIFICACIONES_DB_HOST:?Define NOTIFICACIONES_DB_HOST in .env}
+      DB_PORT: ${NOTIFICACIONES_DB_PORT:?Define NOTIFICACIONES_DB_PORT in .env}
       DB_NAME: ${NOTIFICACIONES_DB_NAME:?Define NOTIFICACIONES_DB_NAME in .env}
       DB_USER: ${NOTIFICACIONES_DB_USER:?Define NOTIFICACIONES_DB_USER in .env}
       DB_PASSWORD: ${NOTIFICACIONES_DB_PASSWORD:?Define NOTIFICACIONES_DB_PASSWORD in .env}
@@ -201,8 +204,15 @@ services:
       RABBITMQ_PORT: ${RABBITMQ_PORT:?Define RABBITMQ_PORT in .env}
       RABBITMQ_USER: ${RABBITMQ_USER:?Define RABBITMQ_USER in .env}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Define RABBITMQ_PASSWORD in .env}
+      RABBITMQ_EXCHANGE: ${RABBITMQ_EXCHANGE:?Define RABBITMQ_EXCHANGE in .env}
+      RABBITMQ_QUEUE: ${NOTIFICACIONES_RABBITMQ_QUEUE:?Define NOTIFICACIONES_RABBITMQ_QUEUE in .env}
+      RABBITMQ_DLQ: ${NOTIFICACIONES_RABBITMQ_DLQ:?Define NOTIFICACIONES_RABBITMQ_DLQ in .env}
+      RABBITMQ_AUTH_EXCHANGE: ${RABBITMQ_AUTH_EXCHANGE:?Define RABBITMQ_AUTH_EXCHANGE in .env}
+      RABBITMQ_AUTH_QUEUE: ${NOTIFICACIONES_RABBITMQ_AUTH_QUEUE:?Define NOTIFICACIONES_RABBITMQ_AUTH_QUEUE in .env}
+      RABBITMQ_AUTH_DLQ: ${NOTIFICACIONES_RABBITMQ_AUTH_DLQ:?Define NOTIFICACIONES_RABBITMQ_AUTH_DLQ in .env}
+      RABBITMQ_RECONEXION_MS: ${RABBITMQ_RECONEXION_MS:?Define RABBITMQ_RECONEXION_MS in .env}
     expose:
-      - "8082"
+      - "${NOTIFICACIONES_SERVICE_PORT}"
     networks:
       - microservicios-network
     depends_on:
@@ -211,7 +221,7 @@ services:
       message-broker:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8082/health/ready"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:${NOTIFICACIONES_SERVICE_PORT}/health/ready"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -241,9 +251,9 @@ services:
     build:
       context: ./perfiles-service
     environment:
-      PORT: 8083
-      DB_HOST: perfiles-db
-      DB_PORT: 5432
+      PORT: ${PERFILES_SERVICE_PORT:?Define PERFILES_SERVICE_PORT in .env}
+      DB_HOST: ${PERFILES_DB_HOST:?Define PERFILES_DB_HOST in .env}
+      DB_PORT: ${PERFILES_DB_PORT:?Define PERFILES_DB_PORT in .env}
       DB_NAME: ${PERFILES_DB_NAME:?Define PERFILES_DB_NAME in .env}
       DB_USER: ${PERFILES_DB_USER:?Define PERFILES_DB_USER in .env}
       DB_PASSWORD: ${PERFILES_DB_PASSWORD:?Define PERFILES_DB_PASSWORD in .env}
@@ -251,10 +261,10 @@ services:
       RABBITMQ_PORT: ${RABBITMQ_PORT:?Define RABBITMQ_PORT in .env}
       RABBITMQ_USER: ${RABBITMQ_USER:?Define RABBITMQ_USER in .env}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Define RABBITMQ_PASSWORD in .env}
-      RABBITMQ_EXCHANGE: empleados_exchange
-      RABBITMQ_QUEUE: perfiles.empleados
+      RABBITMQ_EXCHANGE: ${RABBITMQ_EXCHANGE:?Define RABBITMQ_EXCHANGE in .env}
+      RABBITMQ_QUEUE: ${PERFILES_RABBITMQ_QUEUE:?Define PERFILES_RABBITMQ_QUEUE in .env}
     expose:
-      - "8083"
+      - "${PERFILES_SERVICE_PORT}"
     networks:
       - microservicios-network
     depends_on:
@@ -263,7 +273,7 @@ services:
       message-broker:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8083/health/ready"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:${PERFILES_SERVICE_PORT}/health/ready"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -294,8 +304,8 @@ services:
       context: ./vacaciones-service
     environment:
       PORT: ${VACACIONES_SERVICE_PORT:?Define VACACIONES_SERVICE_PORT in .env}
-      DB_HOST: vacaciones-db
-      DB_PORT: 5432
+      DB_HOST: ${VACACIONES_DB_HOST:?Define VACACIONES_DB_HOST in .env}
+      DB_PORT: ${VACACIONES_DB_PORT:?Define VACACIONES_DB_PORT in .env}
       DB_NAME: ${VACACIONES_DB_NAME:?Define VACACIONES_DB_NAME in .env}
       DB_USER: ${VACACIONES_DB_USER:?Define VACACIONES_DB_USER in .env}
       DB_PASSWORD: ${VACACIONES_DB_PASSWORD:?Define VACACIONES_DB_PASSWORD in .env}
@@ -303,12 +313,12 @@ services:
       RABBITMQ_PORT: ${RABBITMQ_PORT:?Define RABBITMQ_PORT in .env}
       RABBITMQ_USER: ${RABBITMQ_USER:?Define RABBITMQ_USER in .env}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Define RABBITMQ_PASSWORD in .env}
-      RABBITMQ_EXCHANGE: ${RABBITMQ_EXCHANGE:-empleados_exchange}
-      RABBITMQ_QUEUE: ${RABBITMQ_QUEUE:-vacaciones.empleados}
+      RABBITMQ_EXCHANGE: ${RABBITMQ_EXCHANGE:?Define RABBITMQ_EXCHANGE in .env}
+      RABBITMQ_QUEUE: ${VACACIONES_RABBITMQ_QUEUE:?Define VACACIONES_RABBITMQ_QUEUE in .env}
       VACACIONES_CRON: ${VACACIONES_CRON:-0 * * * * *}
       VACACIONES_MANUAL_ENABLED: ${VACACIONES_MANUAL_ENABLED:-false}
     expose:
-      - "8085"
+      - "${VACACIONES_SERVICE_PORT}"
     networks:
       - microservicios-network
     depends_on:
@@ -317,7 +327,7 @@ services:
       message-broker:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8085/health/ready"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:${VACACIONES_SERVICE_PORT}/health/ready"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -351,15 +361,16 @@ services:
     image: auth-service:${AUTH_SERVICE_IMAGE_TAG:-latest}
     container_name: auth-service
     expose:
-      - "8089"
+      - "${AUTH_SERVICE_PORT:?Define AUTH_SERVICE_PORT in .env}"
     environment:
-      DB_HOST: auth-db
-      DB_PORT: 5432
+      SERVER_PORT: ${AUTH_SERVICE_PORT}
+      DB_HOST: ${AUTH_DB_HOST:?Define AUTH_DB_HOST in .env}
+      DB_PORT: ${AUTH_DB_PORT:?Define AUTH_DB_PORT in .env}
       DB_NAME: ${AUTH_DB_NAME:?Define AUTH_DB_NAME in .env}
       DB_USER: ${AUTH_DB_USER:?Define AUTH_DB_USER in .env}
       DB_PASSWORD: ${AUTH_DB_PASSWORD:?Define AUTH_DB_PASSWORD in .env}
-      RABBITMQ_HOST: rabbitmq-broker
-      RABBITMQ_PORT: 5672
+      RABBITMQ_HOST: ${RABBITMQ_HOST:?Define RABBITMQ_HOST in .env}
+      RABBITMQ_PORT: ${RABBITMQ_PORT:?Define RABBITMQ_PORT in .env}
       RABBITMQ_USER: ${RABBITMQ_USER:?Define RABBITMQ_USER in .env}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Define RABBITMQ_PASSWORD in .env}
       JWT_SECRET: ${JWT_SECRET_KEY:?Define JWT_SECRET_KEY in .env}
@@ -373,11 +384,84 @@ services:
     networks:
       - microservicios-network
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8089/actuator/health"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:${AUTH_SERVICE_PORT}/actuator/health"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 20s
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "${HOST_BIND_IP:-127.0.0.1}:${PROMETHEUS_HOST_PORT:?Define PROMETHEUS_HOST_PORT in .env}:9090"
+    volumes:
+      - prometheus-data:/prometheus
+    networks:
+      - microservicios-network
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "${HOST_BIND_IP:-127.0.0.1}:${GRAFANA_HOST_PORT:?Define GRAFANA_HOST_PORT in .env}:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:?Define GRAFANA_ADMIN_USER in .env}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Define GRAFANA_ADMIN_PASSWORD in .env}
+      PROMETHEUS_DATASOURCE_URL: ${PROMETHEUS_DATASOURCE_URL:?Define PROMETHEUS_DATASOURCE_URL in .env}
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      prometheus:
+        condition: service_started
+    networks:
+      - microservicios-network
+    restart: unless-stopped
+
+  loki:
+    image: grafana/loki:latest
+    container_name: loki
+    command:
+      - -config.file=/etc/loki/loki-config.yml
+    ports:
+      - "${HOST_BIND_IP:-127.0.0.1}:${LOKI_HOST_PORT:?Define LOKI_HOST_PORT in .env}:3100"
+    volumes:
+      - ./observability/loki/loki-config.yml:/etc/loki/loki-config.yml:ro
+      - loki-data:/loki
+    networks:
+      - microservicios-network
+    restart: unless-stopped
+
+  promtail:
+    image: grafana/promtail:latest
+    container_name: promtail
+    command:
+      - -config.file=/etc/promtail/promtail-config.yml
+      - -config.expand-env=true
+    environment:
+      LOKI_PUSH_URL: ${LOKI_PUSH_URL:?Define LOKI_PUSH_URL in .env}
+    volumes:
+      - ./observability/promtail/promtail-config.yml:/etc/promtail/promtail-config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - promtail-positions:/var/lib/promtail
+    depends_on:
+      loki:
+        condition: service_started
+    networks:
+      - microservicios-network
+    restart: unless-stopped
+
+  zipkin:
+    image: openzipkin/zipkin:latest
+    container_name: zipkin
+    ports:
+      - "${HOST_BIND_IP:-127.0.0.1}:${ZIPKIN_HOST_PORT:?Define ZIPKIN_HOST_PORT in .env}:9411"
+    networks:
+      - microservicios-network
     restart: unless-stopped
 
   sonar-db:
@@ -403,9 +487,9 @@ services:
     image: sonarqube:lts-community
     container_name: sonarqube
     ports:
-      - "9000:9000"
+      - "${HOST_BIND_IP:-127.0.0.1}:${SONARQUBE_HOST_PORT:?Define SONARQUBE_HOST_PORT in .env}:9000"
     environment:
-      SONAR_JDBC_URL: jdbc:postgresql://sonar-db:5432/${SONAR_DB_NAME:?Define SONAR_DB_NAME en .env}
+      SONAR_JDBC_URL: jdbc:postgresql://${SONAR_DB_HOST:?Define SONAR_DB_HOST in .env}:${SONAR_DB_PORT:?Define SONAR_DB_PORT in .env}/${SONAR_DB_NAME:?Define SONAR_DB_NAME en .env}
       SONAR_JDBC_USERNAME: ${SONAR_DB_USER:?Define SONAR_DB_USER en .env}
       SONAR_JDBC_PASSWORD: ${SONAR_DB_PASSWORD:?Define SONAR_DB_PASSWORD en .env}
     volumes:
@@ -428,6 +512,8 @@ services:
       - build-tools
 
   jenkins:
+    profiles:
+      - ci
     build:
       context: ./jenkins
       dockerfile: Dockerfile
@@ -437,8 +523,8 @@ services:
     group_add:
       - "${DOCKER_GID:-0}"
     ports:
-      - "9090:8080"   # Interfaz web: http://localhost:9090
-      - "50000:50000" # Puerto para agentes de Jenkins
+      - "${HOST_BIND_IP:-127.0.0.1}:${JENKINS_HOST_PORT:?Define JENKINS_HOST_PORT in .env}:8080"
+      - "${HOST_BIND_IP:-127.0.0.1}:${JENKINS_AGENT_PORT:?Define JENKINS_AGENT_PORT in .env}:50000" # Puerto para agentes de Jenkins
     environment:
       JAVA_OPTS: -Djenkins.install.runSetupWizard=false
       CASC_JENKINS_CONFIG: /var/jenkins_home/casc_configs
@@ -475,3 +561,7 @@ volumes:
   sonarqube_data:
   sonarqube_logs:
   sonarqube_extensions:
+  prometheus-data:
+  grafana-data:
+  loki-data:
+  promtail-positions:

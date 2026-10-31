@@ -22,7 +22,7 @@
       "request": {
         "method": "POST",
         "header": [{"key": "Content-Type", "value": "application/json"}],
-        "body": {"mode": "raw", "raw": "{\"email\":\"admin@empresa.com\",\"password\":\"admin123\"}", "options": {"raw": {"language": "json"}}},
+        "body": {"mode": "raw", "raw": "{\"email\":\"{{adminEmail}}\",\"password\":\"{{adminPassword}}\"}", "options": {"raw": {"language": "json"}}},
         "url": "{{baseUrl}}/auth/login"
       },
       "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": ["pm.test('Admin inicia sesion', () => pm.response.to.have.status(200));", "pm.collectionVariables.set('adminToken', pm.response.json().token);"]}}]
@@ -337,6 +337,7 @@
   ],
   "variable": [
     {"key": "baseUrl", "value": "http://localhost:8088"},
+    {"key": "adminPassword", "value": ""},
     {"key": "today", "value": ""},
     {"key": "adminToken", "value": ""},
     {"key": "userTokenE001", "value": ""},

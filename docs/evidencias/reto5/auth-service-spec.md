@@ -102,7 +102,7 @@ El `auth-service` actuarÃ¡ como **Productor** y **Consumidor** en RabbitMQ.
 Para garantizar que el sistema no nazca bloqueado, el auth-service cuenta con un componente AdminSeeder. Al levantar la aplicacion, si no existe el admin, se crea:
 * ID: ADMIN-001
 * Email: admin@empresa.com
-* Password: admin123 (Se guarda encriptada)
+* Password: valor configurado en `ADMIN_PASSWORD` en `.env` (se guarda encriptada)
 
 ## 7. Manejo de Errores
 Se integro un RestExceptionHandler global que formatea todos los errores al estandar ResponseDTO.

@@ -1,8 +1,8 @@
 package config;
 
 /**
- * Configuración de las pruebas E2E. Prioridad: variable de entorno, luego propiedad de sistema
- * ({@code -De2e.baseUrl=...}), luego el valor por defecto. Nunca se guardan secretos en el código.
+ * Configuración E2E: variable de entorno, propiedad de sistema y valores predeterminados no sensibles.
+ * Las credenciales se deben proporcionar explícitamente; nunca se guardan secretos en el código.
  */
 public final class E2EConfig {
 
@@ -11,44 +11,64 @@ public final class E2EConfig {
 
     /** URL del API Gateway, único puerto de aplicación publicado por docker-compose. */
     public static String baseUrl() {
-        return read("E2E_BASE_URL", "e2e.baseUrl", "http://localhost:8088");
+        String value = read("E2E_BASE_URL", "e2e.baseUrl", "");
+        if (value.isBlank()) {
+            throw new IllegalStateException("Configure E2E_BASE_URL antes de ejecutar los tests");
+        }
+        return value;
     }
 
     public static String adminEmail() {
-        return read("E2E_ADMIN_EMAIL", "e2e.adminEmail", "admin@empresa.com");
+        String value = read("E2E_ADMIN_EMAIL", "e2e.adminEmail", "");
+        if (value.isBlank()) {
+            throw new IllegalStateException("Configure E2E_ADMIN_EMAIL before running ADMIN scenarios");
+        }
+        return value;
     }
 
     public static String adminPassword() {
-        return read("E2E_ADMIN_PASSWORD", "e2e.adminPassword", "admin123");
+        String value = read("E2E_ADMIN_PASSWORD", "e2e.adminPassword", "");
+        if (value.isBlank()) {
+            throw new IllegalStateException("Configure E2E_ADMIN_PASSWORD before running ADMIN scenarios");
+        }
+        return value;
     }
 
     public static String userEmail() {
-        return read("E2E_USER_EMAIL", "e2e.userEmail", "");
+        String value = read("E2E_USER_EMAIL", "e2e.userEmail", "");
+        if (value.isBlank()) {
+            throw new IllegalStateException("Configure E2E_USER_EMAIL before running USER scenarios");
+        }
+        return value;
     }
 
     public static String userPassword() {
-        return read("E2E_USER_PASSWORD", "e2e.userPassword", "");
+        String value = read("E2E_USER_PASSWORD", "e2e.userPassword", "");
+        if (value.isBlank()) {
+            throw new IllegalStateException("Configure E2E_USER_PASSWORD before running USER scenarios");
+        }
+        return value;
     }
 
     /** Tiempo máximo (segundos) de espera a que el sistema esté disponible antes de fallar. */
     public static int startupTimeoutSeconds() {
-        return Integer.parseInt(read("E2E_STARTUP_TIMEOUT_SECONDS", "e2e.startupTimeoutSeconds", "120"));
+        return Integer.parseInt(read("E2E_STARTUP_TIMEOUT_SECONDS", "e2e.startupTimeoutSeconds", ""));
     }
 
     public static int requestTimeoutMillis() {
-        return Integer.parseInt(read("E2E_REQUEST_TIMEOUT_MS", "e2e.requestTimeoutMs", "30000"));
+        return Integer.parseInt(read("E2E_REQUEST_TIMEOUT_MS", "e2e.requestTimeoutMs", ""));
     }
 
     public static int pollingMaxAttempts() {
-        return positiveInt("E2E_POLLING_MAX_ATTEMPTS", "e2e.pollingMaxAttempts", "15");
+        return positiveInt("E2E_POLLING_MAX_ATTEMPTS", "e2e.pollingMaxAttempts", "");
     }
 
     public static int pollingIntervalMillis() {
-        return positiveInt("E2E_POLLING_INTERVAL_MS", "e2e.pollingIntervalMs", "2000");
+        return positiveInt("E2E_POLLING_INTERVAL_MS", "e2e.pollingIntervalMs", "");
     }
 
     public static int pollingTimeoutSeconds() {
-        return positiveInt("E2E_POLLING_TIMEOUT_SECONDS", "e2e.pollingTimeoutSeconds", "90");
+        return positiveInt("E2E_POLLING_TIMEOUT_SECONDS", "e2e.pollingTimeoutSeconds", "");
     }
 
     /** Secreto compartido solo para emitir tokens temporales dentro del entorno E2E. */
