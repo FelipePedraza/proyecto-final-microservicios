@@ -3,8 +3,9 @@ package config
 import "os"
 
 type Config struct {
-	Port, DBHost, DBPort, DBName, DBUser, DBPassword string
+	Port, DBHost, DBPort, DBName, DBUser, DBPassword                                string
 	RabbitHost, RabbitPort, RabbitUser, RabbitPassword, RabbitExchange, RabbitQueue string
+	OtelServiceName, OtelZipkinEndpoint                                             string
 }
 
 func Load() Config {
@@ -14,10 +15,17 @@ func Load() Config {
 		RabbitHost: env("RABBITMQ_HOST", "message-broker"), RabbitPort: env("RABBITMQ_PORT", "5672"),
 		RabbitUser: env("RABBITMQ_USER", "admin"), RabbitPassword: env("RABBITMQ_PASSWORD", ""),
 		RabbitExchange: env("RABBITMQ_EXCHANGE", "empleados_exchange"), RabbitQueue: env("RABBITMQ_QUEUE", "perfiles.empleados"),
+		OtelServiceName:    env("OTEL_SERVICE_NAME", "perfiles-service"),
+		OtelZipkinEndpoint: env("OTEL_EXPORTER_ZIPKIN_ENDPOINT", "http://zipkin:9411/api/v2/spans"),
 	}
 }
 
 func (c Config) DatabaseURL() string {
 	return "postgres://" + c.DBUser + ":" + c.DBPassword + "@" + c.DBHost + ":" + c.DBPort + "/" + c.DBName
 }
-func env(key, fallback string) string { if value := os.Getenv(key); value != "" { return value }; return fallback }
+func env(key, fallback string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return fallback
+}

@@ -18,4 +18,4 @@ USER appuser
 EXPOSE 8081
 
 # COMANDO PARA EJECUTAR LA APLICACION
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8081}"]
+CMD ["sh", "-c", "opentelemetry-instrument uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8081}"]

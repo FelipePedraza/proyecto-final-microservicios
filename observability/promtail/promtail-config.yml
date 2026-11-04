@@ -10,14 +10,67 @@ clients:
 
 scrape_configs:
   - job_name: docker-containers
+    pipeline_stages:
+      # Quita el envelope del driver json-file y conserva su timestamp/stream.
+      - docker: {}
+
+      # Contrato común: Node, Python, Go y los campos camelCase agregados en Java.
+      - json:
+          expressions:
+            level: level
+            traceId: traceId
+            spanId: spanId
+            logger: logger
+
+      # Spring usa logger_name; traceId/spanId ya fueron añadidos por el customizer.
+      - match:
+          selector: '{service=~"gateway-service|auth-service|vacaciones-service"}'
+          stages:
+            - json:
+                expressions:
+                  logger: logger_name
+
+      # JsonConsole de .NET usa nombres PascalCase y guarda la correlación en Scopes.
+      - match:
+          selector: '{service="empleado-service"}'
+          stages:
+            - json:
+                expressions:
+                  level: LogLevel
+                  logger: Category
+                  traceId: 'Scopes[?traceId].traceId | [0]'
+                  spanId: 'Scopes[?spanId].spanId | [0]'
+
+      # Reduce Information/Warning/Error de .NET al contrato común de cinco niveles.
+      - template:
+          source: level
+          template: >-
+            {{- if eq .Value "Information" -}}INFO
+            {{- else if eq .Value "Warning" -}}WARN
+            {{- else if eq .Value "Critical" -}}FATAL
+            {{- else if .Value -}}{{ ToUpper .Value }}
+            {{- else -}}UNKNOWN{{- end -}}
+
+      # level es de baja cardinalidad; identificadores de traza no deben indexarse.
+      - labels:
+          level:
+      - structured_metadata:
+          traceId:
+          spanId:
+          logger:
     docker_sd_configs:
       - host: unix:///var/run/docker.sock
         refresh_interval: 5s
     relabel_configs:
+      - source_labels: [__meta_docker_container_label_com_docker_compose_service]
+        regex: (gateway-service|empleado-service|departamento-service|notificaciones-service|perfiles-service|vacaciones-service|auth-service)
+        action: keep
       - source_labels: [__meta_docker_container_name]
         regex: /(.+)
         target_label: container
       - source_labels: [__meta_docker_container_label_com_docker_compose_service]
         target_label: service
+      - target_label: job
+        replacement: microservicios
       - source_labels: [__meta_docker_container_log_path]
         target_label: __path__

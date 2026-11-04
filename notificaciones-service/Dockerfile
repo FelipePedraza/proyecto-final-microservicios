@@ -39,4 +39,4 @@ EXPOSE 8082
 
 # El healthcheck vive en docker-compose.yml (mismo patron que los otros Dockerfiles
 # del proyecto: ninguno define HEALTHCHECK aqui, todos lo hacen en el compose).
-CMD ["node", "src/server.js"]
+CMD ["node", "--require", "@opentelemetry/auto-instrumentations-node/register", "src/server.js"]

@@ -13,6 +13,8 @@ using EmpleadoService.Domain.Entities;
 using EmpleadoService.Domain.Exceptions;
 using EmpleadoService.Domain.Repositories;
 using EmpleadoService.Infrastructure.Messaging;
+using EmpleadoService.Infrastructure.Health;
+using EmpleadoService.Api.Dtos;
 using Xunit;
 
 namespace EmpleadoService.Tests;
@@ -30,6 +32,8 @@ public sealed class EmpleadoWebApplicationFactory : WebApplicationFactory<Progra
             services.AddSingleton<IDepartamentoClient, DepartamentoClientFake>();
             services.RemoveAll<IEventPublisher>();
             services.AddSingleton<IEventPublisher, EndpointNoOpEventPublisher>();
+            services.RemoveAll<IServiceHealthProbe>();
+            services.AddSingleton<IServiceHealthProbe, HealthyServiceHealthProbe>();
         });
         builder.UseSetting("environment", "Testing");
     }
@@ -37,7 +41,20 @@ public sealed class EmpleadoWebApplicationFactory : WebApplicationFactory<Progra
 
 internal sealed class EndpointNoOpEventPublisher : IEventPublisher
 {
+    public bool IsHealthy => true;
     public void Publish<T>(string eventType, T data) { }
+}
+
+internal sealed class HealthyServiceHealthProbe : IServiceHealthProbe
+{
+    public Task<ServiceHealthSnapshot> CheckAsync(CancellationToken cancellationToken = default)
+        => Task.FromResult(new ServiceHealthSnapshot(true, true));
+}
+
+internal sealed class FixedServiceHealthProbe(bool database, bool broker) : IServiceHealthProbe
+{
+    public Task<ServiceHealthSnapshot> CheckAsync(CancellationToken cancellationToken = default)
+        => Task.FromResult(new ServiceHealthSnapshot(database, broker));
 }
 
 internal sealed class TestEmpleadoRepository : IEmpleadoRepository
@@ -115,6 +132,46 @@ public sealed class EmpleadosEndpointsTests : IClassFixture<EmpleadoWebApplicati
     public EmpleadosEndpointsTests(EmpleadoWebApplicationFactory factory)
     {
         _client = factory.CreateClient();
+    }
+
+    [Theory]
+    [InlineData(false, true, "DOWN", "UP")]
+    [InlineData(true, false, "UP", "DOWN")]
+    public async Task Health_CaidaDeDependencia_Devuelve503(
+        bool database,
+        bool broker,
+        string expectedDatabase,
+        string expectedBroker)
+    {
+        await using var factory = new EmpleadoWebApplicationFactory().WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IServiceHealthProbe>();
+                services.AddSingleton<IServiceHealthProbe>(
+                    new FixedServiceHealthProbe(database, broker));
+            }));
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/health");
+        var body = await response.Content.ReadFromJsonAsync<HealthResponse>();
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        Assert.Equal("DOWN", body!.Status);
+        Assert.Equal(expectedDatabase, body.Checks["database"]);
+        Assert.Equal(expectedBroker, body.Checks["messageBroker"]);
+    }
+
+    [Fact]
+    public async Task Metrics_ExponeMetricasDeProcesoYHttpEnFormatoPrometheus()
+    {
+        await _client.GetAsync("/health");
+        var response = await _client.GetAsync("/metrics");
+        var body = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("process_working_set_bytes", body);
+        Assert.Contains("http_requests_received_total", body);
+        Assert.Contains("http_request_duration_seconds", body);
     }
 
     [Fact]

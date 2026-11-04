@@ -19,8 +19,11 @@ public class GatewayController {
 
     @GetMapping(path = "/health", produces = MediaType.APPLICATION_JSON_VALUE)
     @Operation(summary = "Salud del API Gateway", security = {})
-    public Mono<ResponseEntity<Map<String, String>>> health() {
-        return Mono.just(ResponseEntity.ok(Map.of("status", "healthy")));
+    public Mono<ResponseEntity<Map<String, Object>>> health() {
+        return Mono.just(ResponseEntity.ok(Map.of(
+                "status", "UP",
+                "service", "gateway-service",
+                "checks", Map.of())));
     }
 
     @RequestMapping(path = "/fallback/{service}", produces = MediaType.APPLICATION_JSON_VALUE)

@@ -845,6 +845,182 @@ La URL de Prometheus que Grafana usa como fuente de datos se define en
 
 Las credenciales iniciales de Grafana se configuran mediante
 `GRAFANA_ADMIN_USER` y `GRAFANA_ADMIN_PASSWORD` en `.env`; cambia el valor de
-ejemplo antes de exponer el servicio. En esta etapa aún no se configura el
-archivo de trabajos de *scrape* de Prometheus ni se instrumentan los
-microservicios; esas tareas pertenecen a los puntos posteriores del reto.
+ejemplo antes de exponer el servicio.
+
+## 3. Configuración de Prometheus
+
+El archivo
+[`observability/prometheus/prometheus.yml`](./observability/prometheus/prometheus.yml)
+configura un trabajo de *scrape* por microservicio. El Gateway aparece primero
+porque representa la experiencia del cliente y concentra el tráfico de entrada.
+Todos los destinos usan nombres de servicio de Compose, nunca direcciones IP ni
+`localhost`.
+
+| Orden | Job | Target Docker | Ruta |
+|---:|---|---|---|
+| 1 | `gateway-service` | `gateway-service:8088` | `/actuator/prometheus` |
+| 2 | `empleado-service` | `empleado-service:8080` | `/metrics` |
+| 3 | `departamento-service` | `departamento-service:8081` | `/metrics` |
+| 4 | `notificaciones-service` | `notificaciones-service:8082` | `/metrics` |
+| 5 | `perfiles-service` | `perfiles-service:8083` | `/metrics` |
+| 6 | `vacaciones-service` | `vacaciones-service:8085` | `/actuator/prometheus` |
+| 7 | `auth-service` | `auth-service:8089` | `/actuator/prometheus` |
+
+Prometheus consulta los siete destinos cada 15 segundos. La etiqueta `service`
+identifica el microservicio y la etiqueta `lenguaje` permite comparar las
+implementaciones del ecosistema políglota.
+
+## 4. Instrumentación de los Microservicios
+
+### 4.1 Exposición de métricas Prometheus
+
+Todos los microservicios exponen métricas en texto plano compatibles con
+Prometheus. Las rutas no requieren JWT porque Prometheus accede directamente a
+los servicios por la red privada `microservicios-network`.
+
+| Servicio | Librería | Métricas HTTP principales |
+|---|---|---|
+| Gateway | Spring Boot Actuator + `micrometer-registry-prometheus` | `http_server_requests_seconds_count`, `http_server_requests_seconds_sum` |
+| Empleados | `prometheus-net.AspNetCore` | `http_requests_received_total`, `http_request_duration_seconds` |
+| Departamentos | `prometheus-fastapi-instrumentator` | `http_requests_total`, `http_request_duration_seconds` |
+| Notificaciones | `prom-client` | `http_requests_total`, `http_request_duration_seconds` |
+| Perfiles | `prometheus/client_golang` | `http_requests_total`, `http_request_duration_seconds` |
+| Vacaciones | Spring Boot Actuator + `micrometer-registry-prometheus` | `http_server_requests_seconds_count`, `http_server_requests_seconds_sum` |
+| Autenticación | Spring Boot Actuator + `micrometer-registry-prometheus` | `http_server_requests_seconds_count`, `http_server_requests_seconds_sum` |
+
+Además de las métricas HTTP, cada cliente registra información de CPU y memoria
+del proceso o del runtime: JVM y proceso en Java, proceso .NET, proceso Python,
+collectors predeterminados de Node.js y collectors de proceso/runtime de Go.
+Los histogramas permiten calcular percentiles y latencia promedio; los
+contadores incluyen método, ruta y código HTTP sin usar identificadores de
+recursos como etiquetas, evitando cardinalidad no acotada.
+
+Después de levantar el ecosistema se verifica el punto en
+`http://localhost:9091/targets`: los siete jobs deben aparecer en estado `UP`.
+También se puede consultar directamente desde el contenedor de Prometheus:
+
+```bash
+docker compose exec -T prometheus wget -qO- http://gateway-service:8088/actuator/prometheus
+docker compose exec -T prometheus wget -qO- http://empleado-service:8080/metrics
+docker compose exec -T prometheus wget -qO- http://departamento-service:8081/metrics
+docker compose exec -T prometheus wget -qO- http://notificaciones-service:8082/metrics
+docker compose exec -T prometheus wget -qO- http://perfiles-service:8083/metrics
+docker compose exec -T prometheus wget -qO- http://vacaciones-service:8085/actuator/prometheus
+docker compose exec -T prometheus wget -qO- http://auth-service:8089/actuator/prometheus
+```
+
+### 4.2 OpenTelemetry y trazas distribuidas HTTP/RabbitMQ
+
+Los siete servicios inicializan un SDK de OpenTelemetry y usan propagación W3C
+`tracecontext,baggage`. Esto permite que una petición que entra al Gateway y se
+reenvía por HTTP conserve el mismo `traceId`; cada servicio agrega su propio
+*span* con tiempos, estado y atributos HTTP.
+
+La configuración compartida está declarada como un ancla en
+`docker-compose.yml`:
+
+```yaml
+OTEL_TRACES_EXPORTER: zipkin
+OTEL_EXPORTER_ZIPKIN_ENDPOINT: http://zipkin:9411/api/v2/spans
+OTEL_PROPAGATORS: tracecontext,baggage
+OTEL_TRACES_SAMPLER: always_on
+OTEL_METRICS_EXPORTER: none
+OTEL_LOGS_EXPORTER: none
+```
+
+Cada contenedor añade un `OTEL_SERVICE_NAME` distinto. Métricas y logs se
+desactivan en el SDK OTel porque ya se gestionan con Prometheus y el pipeline
+de logs del reto; en este punto OTel se usa únicamente para trazas.
+
+| Servicio | Instrumentación HTTP |
+|---|---|
+| Gateway, Auth y Vacaciones | Starter OTel para Spring Boot; instrumentación WebFlux/MVC automática |
+| Empleados | `OpenTelemetry.Instrumentation.AspNetCore` y `OpenTelemetry.Instrumentation.Http` |
+| Departamentos | `opentelemetry-instrumentation-fastapi` mediante `opentelemetry-instrument` |
+| Notificaciones | `@opentelemetry/auto-instrumentations-node` cargado antes de Express |
+| Perfiles | middleware `otelhttp.NewHandler` y proveedor global del SDK Go |
+
+En Java se mantiene el starter actual, compatible con Spring Boot 4. El
+exportador Zipkin oficial de OTel fue retirado después de la versión 1.55 y no
+es binariamente compatible con el SDK actual; por eso los tres servicios Java
+registran un proveedor `zipkin` pequeño que serializa `SpanData` al formato
+JSON de la API Zipkin v2 usando solo APIs públicas del SDK.
+
+Para comprobar una traza HTTP sin necesitar un JWT:
+
+```bash
+docker compose up --build -d
+curl -sS http://localhost:8088/openapi/departamentos >/dev/null
+```
+
+Luego se abre `http://localhost:9411`, se selecciona **Run Query** y se busca
+la traza más reciente. Debe verse al menos el salto
+`gateway-service -> departamento-service`, con un único `traceId` y un span
+por servicio. También se puede consultar la API de Zipkin:
+
+```bash
+curl -sS 'http://localhost:9411/api/v2/traces?serviceName=gateway-service&limit=5'
+```
+
+La propagación también continúa a través de RabbitMQ. Los productores de
+Empleados, Auth y Vacaciones crean un span de tipo `PRODUCER` e inyectan
+`traceparent` y `baggage` en las cabeceras AMQP antes de publicar. Los
+consumidores de Auth, Vacaciones, Notificaciones y Perfiles extraen esas
+cabeceras y crean un span `CONSUMER` como hijo del productor. Así, una misma
+traza puede cruzar HTTP, RabbitMQ y el procesamiento posterior sin cambiar su
+`traceId`.
+
+Los spans de mensajería incluyen `messaging.system=rabbitmq`, el exchange o la
+cola en `messaging.destination.name`, la operación (`publish` o `process`) y el
+tipo de evento. Los errores que llevan a DLQ o reencolado se registran en el
+span sin alterar la política de ACK/NACK existente. En Notificaciones se
+desactiva solo la instrumentación automática de `amqplib`, porque allí el span
+manual refleja con precisión el resultado del procesamiento y evita duplicados.
+
+Para verificarlo en Zipkin, se puede crear o actualizar un empleado desde el
+Gateway y buscar la traza más reciente. Debe observarse el span HTTP de la
+operación, `empleados_exchange publish` y los spans de consumo de las colas
+correspondientes, todos bajo el mismo `traceId`.
+
+### 4.4 Logs JSON correlacionados con trazas
+
+Los siete microservicios escriben una línea JSON por evento en la salida
+estándar. El contrato común contiene como mínimo `timestamp`, `level`,
+`service`, `message`, `traceId` y `spanId`. Cuando el log se produce fuera de
+una petición o mensaje instrumentado, los identificadores de traza quedan
+vacíos; dentro de HTTP o RabbitMQ se obtienen del contexto activo de
+OpenTelemetry.
+
+| Plataforma | Implementación |
+|---|---|
+| Spring Boot | structured logging `logstash` y customizer OTel |
+| .NET | `AddJsonConsole` con seguimiento de `Activity` |
+| Python | `JsonTraceFormatter` sobre el módulo estándar `logging` |
+| Node.js | adaptador JSON de `console` cargado antes de la aplicación |
+| Go | `slog.JSONHandler` envuelto por `TraceHandler` |
+
+Promtail descubre únicamente los siete contenedores de aplicación, elimina el
+envoltorio del driver `json-file` y decodifica el JSON interno. El pipeline
+normaliza los nombres de nivel de .NET (`Information`, `Warning`, etc.) y las
+variantes de `logger` de Spring y .NET. Solo `level`, que tiene cardinalidad
+acotada, se convierte en etiqueta; `traceId`, `spanId` y `logger` se guardan
+como metadatos estructurados de Loki para poder filtrarlos sin inflar el
+índice.
+
+Grafana aprovisiona Loki con `LOKI_DATASOURCE_URL`. La fuente incluye un campo
+derivado que reconoce `traceId` y abre la traza correspondiente en Zipkin; la
+URL visible desde el navegador se configura con `ZIPKIN_EXTERNAL_URL`. Loki
+usa esquema TSDB v13 y conserva siete días de logs, evitando que el volumen
+local crezca indefinidamente.
+
+Consultas LogQL útiles:
+
+```logql
+{service="empleado-service"} | json
+{service="auth-service", level="ERROR"}
+{job="microservicios"} | traceId="<trace-id-de-zipkin>"
+```
+
+La tercera consulta usa el metadato estructurado para localizar todos los logs
+de una operación distribuida. En Grafana también se puede expandir una línea y
+usar **Ver traza en Zipkin** sin copiar manualmente el identificador.

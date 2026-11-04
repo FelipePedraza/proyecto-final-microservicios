@@ -6,7 +6,10 @@ namespace EmpleadoService.Api.Dtos;
 public sealed record ErrorResponse(string Error);
 
 /// <summary>Response returned by the liveness endpoint.</summary>
-public sealed record HealthResponse(string Status);
+public sealed record HealthResponse(
+    string Status,
+    string Service,
+    IReadOnlyDictionary<string, string> Checks);
 
 /// <summary>Response returned by the readiness endpoint when it can report database state.</summary>
 public sealed record ReadinessResponse(string Status, string Database);

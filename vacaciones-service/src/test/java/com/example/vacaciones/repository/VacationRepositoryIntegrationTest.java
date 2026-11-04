@@ -204,7 +204,12 @@ class VacationRepositoryIntegrationTest {
 
         assertTrue(created.id().startsWith("V-" + LocalDate.now(ZoneOffset.UTC).getYear() + "-"));
         assertEquals(VacationStatus.PROGRAMADA, repository.findById(created.id()).orElseThrow().getStatus());
-        verify(rabbitTemplate).convertAndSend(eq("empleados_exchange"), eq(""), org.mockito.ArgumentMatchers.<Object>any());
+        verify(rabbitTemplate).convertAndSend(
+                eq("empleados_exchange"),
+                eq(""),
+                org.mockito.ArgumentMatchers.<Object>any(),
+                org.mockito.ArgumentMatchers.any(org.springframework.amqp.core.MessagePostProcessor.class)
+        );
 
         assertThrows(VacationConflictException.class,
                 () -> service.create(new VacationRequest("E001", BASE.plusDays(6), BASE.plusDays(9))));

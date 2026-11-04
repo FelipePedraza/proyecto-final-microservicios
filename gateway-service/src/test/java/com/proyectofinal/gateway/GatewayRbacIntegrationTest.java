@@ -17,7 +17,15 @@ import io.jsonwebtoken.security.Keys;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
-        "jwt.secret=" + GatewayRbacIntegrationTest.SECRET
+        "jwt.secret=" + GatewayRbacIntegrationTest.SECRET,
+        "GATEWAY_CONNECT_TIMEOUT_MS=3000",
+        "GATEWAY_RESPONSE_TIMEOUT=15s",
+        "AUTH_SERVICE_URL=http://localhost:8089",
+        "EMPLEADOS_SERVICE_URL=http://localhost:8080",
+        "DEPARTAMENTO_SERVICE_URL=http://localhost:8081",
+        "PERFILES_SERVICE_URL=http://localhost:8083",
+        "NOTIFICACIONES_SERVICE_URL=http://localhost:8082",
+        "VACACIONES_SERVICE_URL=http://localhost:8085"
 })
 class GatewayRbacIntegrationTest {
 
@@ -40,7 +48,21 @@ class GatewayRbacIntegrationTest {
         client.get()
                 .uri("/health")
                 .exchange()
-                .expectStatus().isOk();
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.status").isEqualTo("UP")
+                .jsonPath("$.service").isEqualTo("gateway-service")
+                .jsonPath("$.checks").isMap();
+    }
+
+    @Test
+    void prometheusEsPublicoYExponeMetricasDelProceso() {
+        client.get()
+                .uri("/actuator/prometheus")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(String.class)
+                .value(body -> assertTrue(body.contains("jvm_memory_used_bytes")));
     }
 
     @Test

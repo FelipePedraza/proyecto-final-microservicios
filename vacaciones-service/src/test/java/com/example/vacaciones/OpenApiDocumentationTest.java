@@ -24,6 +24,7 @@ import org.springdoc.webmvc.core.configuration.SpringDocWebMvcConfiguration;
 import org.springdoc.webmvc.ui.SwaggerConfig;
 
 import javax.sql.DataSource;
+import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 
 @WebMvcTest(
         controllers = {
@@ -52,6 +53,9 @@ class OpenApiDocumentationTest {
 
     @MockitoBean
     private DataSource dataSource;
+
+    @MockitoBean
+    private ConnectionFactory rabbitConnectionFactory;
 
     @Test
     void publishesRootOpenApiSpecWithOperationsSchemasAndBearerAuth() throws Exception {

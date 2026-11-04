@@ -9,6 +9,7 @@ import java.time.LocalDate;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.amqp.core.MessagePostProcessor;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 
 class VacationEventPublisherTest {
@@ -28,7 +29,12 @@ class VacationEventPublisherTest {
         publisher.publish(event);
 
         ArgumentCaptor<Object> envelope = ArgumentCaptor.forClass(Object.class);
-        verify(rabbit).convertAndSend(eq("empleados_exchange"), eq(""), envelope.capture());
+        verify(rabbit).convertAndSend(
+                eq("empleados_exchange"),
+                eq(""),
+                envelope.capture(),
+                org.mockito.ArgumentMatchers.any(MessagePostProcessor.class)
+        );
         var value = new ObjectMapper().valueToTree(envelope.getValue());
         assertEquals("vacaciones.finalizadas", value.get("type").asText());
         org.junit.jupiter.api.Assertions.assertTrue(value.get("version").isTextual());

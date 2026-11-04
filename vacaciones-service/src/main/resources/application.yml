@@ -1,6 +1,16 @@
 server:
   port: ${PORT:8085}
+
+logging:
+  structured:
+    format:
+      console: logstash
+    json:
+      add:
+        service: vacaciones-service
+      customizer: observability.TraceLoggingCustomizer
 spring:
+  main.banner-mode: off
   application.name: vacaciones-service
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:vacaciones}
@@ -22,6 +32,14 @@ management:
   endpoint.health.probes.enabled: true
   endpoint.prometheus.enabled: true
   metrics.tags.application: ${spring.application.name}
+otel:
+  service.name: ${OTEL_SERVICE_NAME:${spring.application.name}}
+  traces.exporter: ${OTEL_TRACES_EXPORTER:zipkin}
+  traces.sampler: ${OTEL_TRACES_SAMPLER:always_on}
+  exporter.zipkin.endpoint: ${OTEL_EXPORTER_ZIPKIN_ENDPOINT:http://zipkin:9411/api/v2/spans}
+  propagators: ${OTEL_PROPAGATORS:tracecontext,baggage}
+  metrics.exporter: ${OTEL_METRICS_EXPORTER:none}
+  logs.exporter: ${OTEL_LOGS_EXPORTER:none}
 vacaciones:
   scheduler:
     cron: ${VACACIONES_CRON:0 * * * * *}

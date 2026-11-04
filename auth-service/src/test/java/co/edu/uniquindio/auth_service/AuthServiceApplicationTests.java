@@ -11,7 +11,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.hamcrest.Matchers.containsString;
 
 @SpringBootTest(properties = {
 		"jwt.secret=clave-de-pruebas-de-al-menos-32-bytes-0123456789",
@@ -34,6 +36,13 @@ class AuthServiceApplicationTests {
 
 	@Test
 	void contextLoads() {
+	}
+
+	@Test
+	void prometheusEsPublicoYExponeMetricasDelProceso() throws Exception {
+		mockMvc.perform(get("/actuator/prometheus"))
+				.andExpect(status().isOk())
+				.andExpect(content().string(containsString("jvm_memory_used_bytes")));
 	}
 
 	@Test

@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -13,7 +14,10 @@ import (
 	"github.com/FelipePedraza/proyecto-final-microservicios/perfiles-service/internal/repository"
 )
 
-type fakeRepository struct{ profile domain.Perfil }
+type fakeRepository struct {
+	profile  domain.Perfil
+	readyErr error
+}
 
 func (f *fakeRepository) List(context.Context) ([]domain.Perfil, error) {
 	return []domain.Perfil{f.profile}, nil
@@ -34,7 +38,42 @@ func (f *fakeRepository) Update(_ context.Context, id string, u domain.UpdatePer
 	f.profile.Biografia = u.Biografia
 	return f.profile, nil
 }
-func (*fakeRepository) Ready(context.Context) error { return nil }
+func (f *fakeRepository) Ready(context.Context) error { return f.readyErr }
+
+func TestHealthReportsDependencyFailuresWithoutDocker(t *testing.T) {
+	tests := []struct {
+		name        string
+		repository  *fakeRepository
+		brokerReady bool
+		database    string
+		broker      string
+	}{
+		{"database down", &fakeRepository{readyErr: errors.New("connection refused")}, true, "DOWN", "UP"},
+		{"broker down", &fakeRepository{}, false, "UP", "DOWN"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			router := NewRouter(test.repository, slog.Default(), func() bool { return test.brokerReady })
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/health", nil))
+			if response.Code != http.StatusServiceUnavailable {
+				t.Fatalf("expected 503, got %d", response.Code)
+			}
+			var body struct {
+				Status  string            `json:"status"`
+				Service string            `json:"service"`
+				Checks  map[string]string `json:"checks"`
+			}
+			if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+				t.Fatal(err)
+			}
+			if body.Status != "DOWN" || body.Service != "perfiles-service" ||
+				body.Checks["database"] != test.database || body.Checks["messageBroker"] != test.broker {
+				t.Fatalf("unexpected health response: %#v", body)
+			}
+		})
+	}
+}
 
 func TestGetProfileReturns404(t *testing.T) {
 	r := NewRouter(&fakeRepository{profile: domain.Perfil{EmpleadoID: "E001"}}, slog.Default())
@@ -43,6 +82,31 @@ func TestGetProfileReturns404(t *testing.T) {
 	r.ServeHTTP(res, req)
 	if res.Code != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d", res.Code)
+	}
+}
+
+func TestMetricsExposeProcessTrafficAndLatency(t *testing.T) {
+	r := NewRouter(&fakeRepository{profile: domain.Perfil{EmpleadoID: "E001"}}, slog.Default())
+
+	healthRequest := httptest.NewRequest(http.MethodGet, "/health/live", nil)
+	r.ServeHTTP(httptest.NewRecorder(), healthRequest)
+
+	request := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	response := httptest.NewRecorder()
+	r.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", response.Code)
+	}
+	body := response.Body.String()
+	for _, metric := range []string{
+		"go_memstats_alloc_bytes",
+		"http_requests_total",
+		"http_request_duration_seconds",
+	} {
+		if !strings.Contains(body, metric) {
+			t.Errorf("metrics response is missing %q", metric)
+		}
 	}
 }
 

@@ -3,6 +3,7 @@
 const amqp = require('amqplib');
 const env = require('../config/env');
 const { EventoInvalidoError } = require('../domain/eventoParser');
+const { recordSpanError, withRabbitConsumerSpan } = require('../telemetry/rabbitTracing');
 
 /**
  * Consumidor de RabbitMQ: se conecta al mismo exchange fanout que declara
@@ -42,6 +43,7 @@ class RabbitConsumer {
     this.connection = null;
     this.channel = null;
     this.cerrando = false;
+    this.disponible = false;
   }
 
   /**
@@ -71,12 +73,14 @@ class RabbitConsumer {
 
     // Si la conexión se cae más tarde (no en el arranque), se reintenta igual.
     this.connection.on('close', () => {
+      this.disponible = false;
       if (!this.cerrando) {
         console.warn('[rabbit] Conexión cerrada inesperadamente; reintentando...');
         this.iniciar();
       }
     });
     this.connection.on('error', (err) => {
+      this.disponible = false;
       console.error('[rabbit] Error de conexión:', err.message);
     });
 
@@ -91,6 +95,11 @@ class RabbitConsumer {
 
     await this._consumirCola(env.rabbit.queue, env.rabbit.deadLetterQueue, env.rabbit.exchange);
     await this._consumirCola(env.rabbit.authQueue, env.rabbit.authDeadLetterQueue, env.rabbit.authExchange);
+    this.disponible = true;
+  }
+
+  estaDisponible() {
+    return this.disponible;
   }
 
   /** Declara cola + DLQ (durables), liga la cola al exchange fanout y empieza a consumirla. */
@@ -110,41 +119,50 @@ class RabbitConsumer {
 
     console.log(`[rabbit] Conectado. Escuchando "${cola}" ligada a "${exchange}" (fanout).`);
 
-    await this.channel.consume(cola, (mensaje) => this._manejarMensaje(mensaje), { noAck: false });
+    await this.channel.consume(cola, (mensaje) => this._manejarMensaje(mensaje, cola), { noAck: false });
   }
 
-  async _manejarMensaje(mensaje) {
+  async _manejarMensaje(mensaje, cola = 'rabbitmq.unknown') {
     if (!mensaje) return; // el canal se canceló (p. ej. al cerrar el broker)
 
-    let envelope;
-    try {
-      envelope = JSON.parse(mensaje.content.toString('utf8'));
-    } catch (err) {
-      console.error('[rabbit] Mensaje descartado: no es JSON válido.', err.message);
-      this.channel.nack(mensaje, false, false); // a la DLQ, no tiene sentido reintentar
-      return;
-    }
-
-    try {
-      await this.notificacionService.procesarEvento(envelope, {
-        tiposSoportados: env.tiposDeEventoSoportados,
-      });
-      this.channel.ack(mensaje);
-    } catch (err) {
-      if (err instanceof EventoInvalidoError) {
-        console.error(`[rabbit] Evento inválido, se envía a la DLQ: ${err.message}`);
-        this.channel.nack(mensaje, false, false);
+    return withRabbitConsumerSpan(mensaje, cola, async (span) => {
+      let envelope;
+      try {
+        envelope = JSON.parse(mensaje.content.toString('utf8'));
+      } catch (err) {
+        recordSpanError(span, err);
+        console.error('[rabbit] Mensaje descartado: no es JSON válido.', err.message);
+        this.channel.nack(mensaje, false, false); // a la DLQ, no tiene sentido reintentar
         return;
       }
 
-      // Falla transitoria (p. ej. Postgres caído): se reintenta más tarde.
-      console.error('[rabbit] Error procesando el evento, se reencola:', err.message);
-      this.channel.nack(mensaje, false, true);
-    }
+      if (typeof envelope?.type === 'string') {
+        span.setAttribute('messaging.message.type', envelope.type);
+      }
+
+      try {
+        await this.notificacionService.procesarEvento(envelope, {
+          tiposSoportados: env.tiposDeEventoSoportados,
+        });
+        this.channel.ack(mensaje);
+      } catch (err) {
+        recordSpanError(span, err);
+        if (err instanceof EventoInvalidoError) {
+          console.error(`[rabbit] Evento inválido, se envía a la DLQ: ${err.message}`);
+          this.channel.nack(mensaje, false, false);
+          return;
+        }
+
+        // Falla transitoria (p. ej. Postgres caído): se reintenta más tarde.
+        console.error('[rabbit] Error procesando el evento, se reencola:', err.message);
+        this.channel.nack(mensaje, false, true);
+      }
+    });
   }
 
   async cerrar() {
     this.cerrando = true;
+    this.disponible = false;
     try {
       await this.channel?.close();
       await this.connection?.close();

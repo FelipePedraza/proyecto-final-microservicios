@@ -12,7 +12,9 @@ class ValidationErrorResponse(ErrorResponse):
 
 
 class HealthResponse(BaseModel):
-    status: Literal["healthy"]
+    status: Literal["UP", "DOWN"]
+    service: Literal["departamento-service"]
+    checks: dict[str, Literal["UP", "DOWN"]]
 
 
 class ReadyResponse(BaseModel):

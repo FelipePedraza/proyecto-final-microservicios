@@ -1,5 +1,7 @@
 'use strict';
 
+require('./logging/jsonConsole').installJsonConsole();
+
 const env = require('./config/env');
 const { pool, estaLista } = require('./db/pool');
 const { NotificacionRepository } = require('./domain/notificacionRepository');
@@ -10,8 +12,13 @@ const { crearApp } = require('./app');
 async function main() {
   const repository = new NotificacionRepository(pool);
   const notificacionService = new NotificacionService(repository);
+  const rabbitConsumer = new RabbitConsumer(notificacionService);
 
-  const app = crearApp({ notificacionService, estaListaLaBaseDeDatos: estaLista });
+  const app = crearApp({
+    notificacionService,
+    estaListaLaBaseDeDatos: estaLista,
+    estaListoRabbit: () => rabbitConsumer.estaDisponible(),
+  });
   const servidorHttp = app.listen(env.puerto, () => {
     console.log(`[http] notificaciones-service escuchando en el puerto ${env.puerto}`);
     console.log(`[http] Swagger disponible en /docs`);
@@ -19,7 +26,6 @@ async function main() {
 
   // El consumidor arranca en paralelo al servidor HTTP: si RabbitMQ todavía no está
   // listo, la API sigue respondiendo igual (ver comentario en rabbitConsumer.js).
-  const rabbitConsumer = new RabbitConsumer(notificacionService);
   rabbitConsumer.iniciar().catch((err) => {
     // `iniciar()` ya reintenta internamente; si igual rechaza es un error de
     // programación, no una caída transitoria del broker.

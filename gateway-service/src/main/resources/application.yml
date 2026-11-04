@@ -2,6 +2,8 @@ server:
   port: ${GATEWAY_SERVICE_PORT}
 
 spring:
+  main:
+    banner-mode: off
   application:
     name: gateway-service
   cloud:
@@ -111,6 +113,7 @@ gateway:
     public-paths:
       - /health
       - /actuator/health/**
+      - /actuator/prometheus
       - /fallback/**
       - /auth/login
       - /auth/recover-password
@@ -121,6 +124,35 @@ gateway:
       - /v3/api-docs.yaml
       - /openapi/**
       - /webjars/**
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  endpoint:
+    prometheus:
+      access: unrestricted
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+# Los valores de producción se inyectan desde docker-compose. Estos defaults
+# permiten ejecutar el servicio dentro de la red Docker sin configuración extra.
+otel:
+  service:
+    name: ${OTEL_SERVICE_NAME:${spring.application.name}}
+  traces:
+    exporter: ${OTEL_TRACES_EXPORTER:zipkin}
+    sampler: ${OTEL_TRACES_SAMPLER:always_on}
+  exporter:
+    zipkin:
+      endpoint: ${OTEL_EXPORTER_ZIPKIN_ENDPOINT:http://zipkin:9411/api/v2/spans}
+  propagators: ${OTEL_PROPAGATORS:tracecontext,baggage}
+  metrics:
+    exporter: ${OTEL_METRICS_EXPORTER:none}
+  logs:
+    exporter: ${OTEL_LOGS_EXPORTER:none}
 
 springdoc:
   swagger-ui:
@@ -169,3 +201,12 @@ resilience4j:
         timeoutDuration: 15s
       vacacionesServiceCircuitBreaker:
         timeoutDuration: 15s
+
+logging:
+  structured:
+    format:
+      console: logstash
+    json:
+      add:
+        service: gateway-service
+      customizer: observability.TraceLoggingCustomizer

@@ -5,6 +5,7 @@ const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./docs/swagger');
 const { crearNotificacionesRouter } = require('./api/notificacionesRouter');
 const { crearHealthRouter } = require('./api/healthRouter');
+const { metricsEndpoint, metricsMiddleware } = require('./metrics');
 
 /**
  * Construye la app de Express, sin arrancarla (`listen`) ni tocar RabbitMQ.
@@ -12,14 +13,18 @@ const { crearHealthRouter } = require('./api/healthRouter');
  * puedan montarla con supertest inyectando un `notificacionService` falso, en vez de
  * depender de Postgres.
  */
-function crearApp({ notificacionService, estaListaLaBaseDeDatos }) {
+function crearApp({ notificacionService, estaListaLaBaseDeDatos, estaListoRabbit = () => true }) {
   const app = express();
   app.use(express.json());
+
+  // /metrics queda fuera del middleware para no medir el propio scraping.
+  app.get('/metrics', metricsEndpoint);
+  app.use(metricsMiddleware);
 
   app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
   app.get('/openapi.json', (req, res) => res.json(swaggerSpec));
 
-  app.use(crearHealthRouter(estaListaLaBaseDeDatos));
+  app.use(crearHealthRouter(estaListaLaBaseDeDatos, estaListoRabbit));
   app.use(crearNotificacionesRouter(notificacionService));
 
   // Mismo formato de error que el resto de servicios del proyecto: { "error": "..." }.

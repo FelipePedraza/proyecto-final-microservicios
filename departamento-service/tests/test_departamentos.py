@@ -6,11 +6,28 @@ utilizando FastAPI TestClient y una base SQLite en memoria.
 
 
 def test_health_endpoint(client):
-    """El endpoint de salud debe responder con estado healthy."""
+    """El endpoint de salud debe reportar la base de datos disponible."""
     response = client.get("/health")
 
     assert response.status_code == 200
-    assert response.json() == {"status": "healthy"}
+    assert response.json() == {
+        "status": "UP",
+        "service": "departamento-service",
+        "checks": {"database": "UP"},
+    }
+
+
+def test_metrics_endpoint_exposes_process_and_http_metrics(client):
+    """Prometheus debe poder consultar métricas de proceso, tráfico y latencia."""
+    client.get("/health")
+    response = client.get("/metrics")
+
+    assert response.status_code == 200
+    # El collector de proceso usa /proc dentro del contenedor Linux; en macOS
+    # TestClient conserva las métricas portables del runtime de Python.
+    assert "python_info" in response.text
+    assert "http_requests_total" in response.text
+    assert "http_request_duration_seconds" in response.text
 
 
 def test_create_and_get_department(client):

@@ -1,5 +1,10 @@
 package co.edu.uniquindio.auth_service.messaging;
 
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.StatusCode;
+import io.opentelemetry.context.Context;
+import io.opentelemetry.context.Scope;
+import observability.RabbitTracePropagation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.AmqpRejectAndDontRequeueException;
@@ -30,6 +35,20 @@ public class AccountLifecycleConsumer {
 
     @RabbitListener(queues = RabbitLifecycleConfig.AUTH_QUEUE)
     public void consume(Message message) {
+        Context parent = RabbitTracePropagation.extract(message.getMessageProperties());
+        Span span = RabbitTracePropagation.startConsumer(parent, RabbitLifecycleConfig.AUTH_QUEUE, null);
+        try (Scope ignored = span.makeCurrent()) {
+            process(message, span);
+        } catch (RuntimeException exception) {
+            span.recordException(exception);
+            span.setStatus(StatusCode.ERROR, exception.getMessage());
+            throw exception;
+        } finally {
+            span.end();
+        }
+    }
+
+    private void process(Message message, Span span) {
         JsonNode root;
         try {
             root = mapper.readTree(new String(message.getBody(), StandardCharsets.UTF_8));
@@ -41,6 +60,9 @@ public class AccountLifecycleConsumer {
         }
 
         String type = text(root, "type", "Type");
+        if (type != null) {
+            span.setAttribute("messaging.message.type", type);
+        }
         if (!AccountLifecycleService.isLifecycleEvent(type)) {
             log.debug("Evento {} ignorado por auth-service.", type);
             return;

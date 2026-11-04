@@ -1,5 +1,10 @@
 package co.edu.uniquindio.auth_service.messaging;
 
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.StatusCode;
+import io.opentelemetry.context.Context;
+import io.opentelemetry.context.Scope;
+import observability.RabbitTracePropagation;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageDeliveryMode;
 import org.springframework.amqp.core.MessageProperties;
@@ -34,6 +39,7 @@ public class AuthEventPublisher {
     }
 
     public void publish(String type, Map<String, Object> data) {
+        Context parentContext = Context.current();
         Map<String, Object> envelope = new LinkedHashMap<>();
         envelope.put("id", UUID.randomUUID().toString());
         envelope.put("type", type);
@@ -52,11 +58,25 @@ public class AuthEventPublisher {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    rabbitTemplate.send(AUTH_EXCHANGE, "", message);
+                    sendWithTrace(message, parentContext, type);
                 }
             });
         } else {
+            sendWithTrace(message, parentContext, type);
+        }
+    }
+
+    private void sendWithTrace(Message message, Context parentContext, String eventType) {
+        Span span = RabbitTracePropagation.startProducer(parentContext, AUTH_EXCHANGE, eventType);
+        try (Scope ignored = span.makeCurrent()) {
+            RabbitTracePropagation.inject(Context.current(), message.getMessageProperties());
             rabbitTemplate.send(AUTH_EXCHANGE, "", message);
+        } catch (RuntimeException exception) {
+            span.recordException(exception);
+            span.setStatus(StatusCode.ERROR, exception.getMessage());
+            throw exception;
+        } finally {
+            span.end();
         }
     }
 }

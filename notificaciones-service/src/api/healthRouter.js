@@ -13,7 +13,7 @@ const { Router } = require('express');
  * contra el historial ya guardado. No tiene sentido sacar al servicio de servicio por
  * una dependencia que no bloquea su función de lectura.
  */
-function crearHealthRouter(estaListaLaBaseDeDatos) {
+function crearHealthRouter(estaListaLaBaseDeDatos, estaListoRabbit) {
   const router = Router();
 
   /**
@@ -30,9 +30,20 @@ function crearHealthRouter(estaListaLaBaseDeDatos) {
    *             schema:
    *               $ref: '#/components/schemas/HealthStatus'
    */
-  router.get('/health', (req, res) => {
-    res.json({ status: 'healthy' });
-  });
+  const comprobarSalud = async (req, res) => {
+    const [database, messageBroker] = await Promise.all([
+      estaListaLaBaseDeDatos().then((ok) => (ok ? 'UP' : 'DOWN')).catch(() => 'DOWN'),
+      Promise.resolve().then(estaListoRabbit).then((ok) => (ok ? 'UP' : 'DOWN')).catch(() => 'DOWN'),
+    ]);
+    const status = database === 'UP' && messageBroker === 'UP' ? 'UP' : 'DOWN';
+    res.status(status === 'UP' ? 200 : 503).json({
+      status,
+      service: 'notificaciones-service',
+      checks: { database, messageBroker },
+    });
+  };
+
+  router.get('/health', comprobarSalud);
 
   /**
    * @openapi
@@ -54,14 +65,7 @@ function crearHealthRouter(estaListaLaBaseDeDatos) {
    *             schema:
    *               $ref: '#/components/schemas/HealthStatus'
    */
-  router.get('/health/ready', async (req, res) => {
-    const dbOk = await estaListaLaBaseDeDatos();
-    if (dbOk) {
-      res.json({ status: 'ready', database: 'up' });
-    } else {
-      res.status(503).json({ status: 'not_ready', database: 'down' });
-    }
-  });
+  router.get('/health/ready', comprobarSalud);
 
   return router;
 }

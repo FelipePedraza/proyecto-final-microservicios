@@ -46,32 +46,65 @@ describe('API HTTP de notificaciones-service', () => {
   const app = crearApp({
     notificacionService: crearNotificacionServiceFalso(),
     estaListaLaBaseDeDatos: async () => true,
+    estaListoRabbit: () => true,
   });
 
   test('GET /health responde 200 sin depender de nada externo', async () => {
     const respuesta = await request(app).get('/health');
 
     expect(respuesta.status).toBe(200);
-    expect(respuesta.body).toEqual({ status: 'healthy' });
+    expect(respuesta.body).toEqual({
+      status: 'UP',
+      service: 'notificaciones-service',
+      checks: { database: 'UP', messageBroker: 'UP' },
+    });
+  });
+
+  test('GET /metrics expone métricas de proceso, tráfico y latencia', async () => {
+    await request(app).get('/health');
+    const respuesta = await request(app).get('/metrics');
+
+    expect(respuesta.status).toBe(200);
+    expect(respuesta.text).toContain('process_resident_memory_bytes');
+    expect(respuesta.text).toContain('http_requests_total');
+    expect(respuesta.text).toContain('http_request_duration_seconds');
   });
 
   test('GET /health/ready responde 200 cuando la base está arriba', async () => {
     const respuesta = await request(app).get('/health/ready');
 
     expect(respuesta.status).toBe(200);
-    expect(respuesta.body).toEqual({ status: 'ready', database: 'up' });
+    expect(respuesta.body.status).toBe('UP');
   });
 
   test('GET /health/ready responde 503 cuando la base no responde', async () => {
     const appConDbCaida = crearApp({
       notificacionService: crearNotificacionServiceFalso(),
       estaListaLaBaseDeDatos: async () => false,
+      estaListoRabbit: () => true,
     });
 
     const respuesta = await request(appConDbCaida).get('/health/ready');
 
     expect(respuesta.status).toBe(503);
-    expect(respuesta.body.status).toBe('not_ready');
+    expect(respuesta.body).toEqual({
+      status: 'DOWN',
+      service: 'notificaciones-service',
+      checks: { database: 'DOWN', messageBroker: 'UP' },
+    });
+  });
+
+  test('GET /health responde 503 cuando RabbitMQ está caído', async () => {
+    const appConBrokerCaido = crearApp({
+      notificacionService: crearNotificacionServiceFalso(),
+      estaListaLaBaseDeDatos: async () => true,
+      estaListoRabbit: () => false,
+    });
+
+    const respuesta = await request(appConBrokerCaido).get('/health');
+
+    expect(respuesta.status).toBe(503);
+    expect(respuesta.body.checks).toEqual({ database: 'UP', messageBroker: 'DOWN' });
   });
 
   test('GET /notificaciones devuelve el historial con la estructura del reto', async () => {

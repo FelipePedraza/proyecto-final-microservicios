@@ -1,4 +1,5 @@
-﻿using EmpleadoService.Domain.Entities;
+﻿using System.Diagnostics;
+using EmpleadoService.Domain.Entities;
 using EmpleadoService.Domain.Repositories;
 using EmpleadoService.Domain.Services;
 using EmpleadoService.Domain.Exceptions;
@@ -10,12 +11,49 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using EmpleadoService.Infrastructure.Departamentos;
 using EmpleadoService.Infrastructure.Persistence;
+using EmpleadoService.Infrastructure.Health;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.OpenApi;
+using Microsoft.Extensions.Logging.Console;
 using Npgsql;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
+using Prometheus;
 using EmpleadoDomainService = EmpleadoService.Domain.Services.EmpleadoService;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Una línea JSON por evento. El proveedor agrega TraceId/SpanId desde Activity.Current.
+builder.Logging.ClearProviders();
+builder.Logging.AddJsonConsole(options =>
+{
+    options.IncludeScopes = true;
+    options.UseUtcTimestamp = true;
+    options.TimestampFormat = "yyyy-MM-dd'T'HH:mm:ss.fff'Z'";
+    options.JsonWriterOptions = new System.Text.Json.JsonWriterOptions { Indented = false };
+});
+builder.Services.Configure<LoggerFactoryOptions>(options =>
+    options.ActivityTrackingOptions = ActivityTrackingOptions.TraceId |
+        ActivityTrackingOptions.SpanId |
+        ActivityTrackingOptions.ParentId);
+
+var otelServiceName = builder.Configuration["OTEL_SERVICE_NAME"] ?? "empleado-service";
+var zipkinEndpoint = builder.Configuration["OTEL_EXPORTER_ZIPKIN_ENDPOINT"]
+    ?? "http://zipkin:9411/api/v2/spans";
+
+// AspNetCore extrae traceparent/baggage de la petición entrante; HttpClient los
+// inyecta en la llamada a departamento-service para conservar el mismo trace id.
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource => resource.AddService(otelServiceName))
+    .WithTracing(tracing => tracing
+        .SetSampler(new AlwaysOnSampler())
+        .AddSource("EmpleadoService.Messaging")
+        .AddAspNetCoreInstrumentation(options =>
+        {
+            options.Filter = context => !context.Request.Path.StartsWithSegments("/metrics");
+        })
+        .AddHttpClientInstrumentation()
+        .AddZipkinExporter(options => options.Endpoint = new Uri(zipkinEndpoint)));
 
 builder.Services.AddDbContext<EmpleadoDbContext>(options =>
     options.UseNpgsql(
@@ -47,6 +85,7 @@ builder.Services.AddHttpClient<IDepartamentoClient, DepartamentoClient>((sp, cli
     client.DefaultRequestHeaders.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
 });
 builder.Services.AddSingleton<EmpleadoService.Infrastructure.Messaging.IEventPublisher, EmpleadoService.Infrastructure.Messaging.RabbitMqPublisher>();
+builder.Services.AddScoped<IServiceHealthProbe, ServiceHealthProbe>();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
@@ -77,7 +116,25 @@ builder.Services.AddSwaggerGen(options =>
 
 var app = builder.Build();
 
-// PRIMER middleware del pipeline: nada debe escaparse sin traducir.
+// Añade nombres homogéneos dentro de Scopes del JSON, además de los campos
+// Activity que el proveedor incluye automáticamente.
+app.Use(async (context, next) =>
+{
+    var activity = Activity.Current;
+    var logger = context.RequestServices.GetRequiredService<ILoggerFactory>()
+        .CreateLogger("request-context");
+    using (logger.BeginScope(new Dictionary<string, object?>
+    {
+        ["service"] = "empleado-service",
+        ["traceId"] = activity?.TraceId.ToString() ?? "",
+        ["spanId"] = activity?.SpanId.ToString() ?? ""
+    }))
+    {
+        await next();
+    }
+});
+
+// Manejador global: traduce las excepciones del resto del pipeline.
 app.UseExceptionHandler(exceptionHandlerApp =>
 {
     exceptionHandlerApp.Run(async httpContext =>
@@ -150,12 +207,34 @@ app.UseExceptionHandler(exceptionHandlerApp =>
 app.UseSwagger();
 app.UseSwaggerUI();
 
-app.MapGet("/health", () => Results.Ok(new HealthResponse("healthy")))
+// Expone conteos y latencias HTTP y registra las métricas de proceso del runtime.
+// Debe ejecutarse antes de mapear los endpoints para observar todas las solicitudes.
+app.UseHttpMetrics();
+
+// Endpoint scrapeado por Prometheus dentro de la red Docker.
+app.MapMetrics("/metrics");
+
+app.MapGet("/health", async (IServiceHealthProbe probe, CancellationToken ct) =>
+{
+    var health = await probe.CheckAsync(ct);
+    var response = new HealthResponse(
+        health.Database && health.MessageBroker ? "UP" : "DOWN",
+        "empleado-service",
+        new Dictionary<string, string>
+        {
+            ["database"] = health.Database ? "UP" : "DOWN",
+            ["messageBroker"] = health.MessageBroker ? "UP" : "DOWN"
+        });
+    return response.Status == "UP"
+        ? Results.Ok(response)
+        : Results.Json(response, statusCode: StatusCodes.Status503ServiceUnavailable);
+})
     .WithTags("Health")
     .WithName("Health")
     .WithSummary("Comprueba que EmpleadoService está activo.")
-    .WithDescription("Endpoint de liveness. No consulta la base de datos.")
-    .Produces<HealthResponse>(StatusCodes.Status200OK);
+    .WithDescription("Comprueba PostgreSQL y RabbitMQ sin modificar datos.")
+    .Produces<HealthResponse>(StatusCodes.Status200OK)
+    .Produces<HealthResponse>(StatusCodes.Status503ServiceUnavailable);
 
 app.MapGet("/health/ready", async (EmpleadoDbContext db, CancellationToken ct) =>
 {

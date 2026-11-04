@@ -1,11 +1,18 @@
 package com.example.vacaciones.messaging;
 
 import java.time.Instant;
+import java.nio.charset.StandardCharsets;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.StatusCode;
+import io.opentelemetry.context.Context;
+import io.opentelemetry.context.Scope;
+import observability.RabbitTracePropagation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.AmqpRejectAndDontRequeueException;
+import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,7 +48,30 @@ public class EmployeeEventConsumer {
 
     @RabbitListener(queues = "${RABBITMQ_QUEUE:vacaciones.empleados}", ackMode = "AUTO")
     @Transactional
+    public void consume(Message message) throws Exception {
+        String queue = message.getMessageProperties().getConsumerQueue();
+        if (queue == null || queue.isBlank()) {
+            queue = "vacaciones.empleados";
+        }
+        Context parent = RabbitTracePropagation.extract(message.getMessageProperties());
+        Span span = RabbitTracePropagation.startConsumer(parent, queue, null);
+        try (Scope ignored = span.makeCurrent()) {
+            process(new String(message.getBody(), StandardCharsets.UTF_8), span);
+        } catch (Exception exception) {
+            span.recordException(exception);
+            span.setStatus(StatusCode.ERROR, exception.getMessage());
+            throw exception;
+        } finally {
+            span.end();
+        }
+    }
+
+    /** Entrada conservada para pruebas unitarias del procesamiento de envelopes. */
     public void consume(String payload) throws Exception {
+        process(payload, Span.getInvalid());
+    }
+
+    private void process(String payload, Span span) throws Exception {
         if (payload == null || payload.isBlank()) {
             throw new IllegalArgumentException("event payload is required");
         }
@@ -74,6 +104,7 @@ public class EmployeeEventConsumer {
         if (type == null || type.isBlank()) {
             throw new IllegalArgumentException("event type is required");
         }
+        span.setAttribute("messaging.message.type", type);
         if (!type.equals("empleado.creado")
                 && !type.equals("empleado.actualizado")
                 && !type.equals("empleado.retirado")) {

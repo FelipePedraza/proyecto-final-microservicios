@@ -2,6 +2,20 @@ from unittest.mock import patch
 from sqlalchemy.exc import OperationalError
 
 
+def test_health_con_bd_caida_devuelve_503(client):
+    with patch("app.main.engine.connect", side_effect=OperationalError(
+        "SELECT 1", {}, Exception("connection refused")
+    )):
+        response = client.get("/health")
+
+    assert response.status_code == 503
+    assert response.json() == {
+        "status": "DOWN",
+        "service": "departamento-service",
+        "checks": {"database": "DOWN"},
+    }
+
+
 def test_get_department_con_bd_caida_devuelve_503(client):
     with patch("app.repositories.department_repository.department_repository.get_by_id",
                side_effect=OperationalError("SELECT 1", {}, Exception("connection refused"))):

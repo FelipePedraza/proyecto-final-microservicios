@@ -8,16 +8,19 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError, InterfaceError, SQLAlchemyError
 from fastapi.openapi.utils import get_openapi
+from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.api.departments_api import router as departamentos_router
 from app.db.database import engine
 from app.exceptions import DepartamentoNoEncontradoError, DepartamentoYaExisteError
+from app.logging_config import configure_json_logging
 from app.schemas.respuestas import (
     DatabaseUnavailableResponse,
     HealthResponse,
     ReadyResponse,
 )
 
+configure_json_logging()
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
@@ -33,6 +36,14 @@ app = FastAPI(
         {"name": "Departamentos", "description": "Operaciones de departamentos."},
         {"name": "Health", "description": "Liveness y disponibilidad de la base de datos."},
     ],
+)
+
+# Instrumenta automáticamente conteos y latencias HTTP. El cliente Prometheus
+# incluido por la librería también publica CPU y memoria del proceso.
+Instrumentator().instrument(app).expose(
+    app,
+    endpoint="/metrics",
+    include_in_schema=False,
 )
 
 
@@ -171,8 +182,25 @@ async def unhandled_handler(request: Request, exc: Exception):
     response_description="El proceso está en ejecución.",
 )
 def health():
-    """Liveness: el proceso está vivo."""
-    return {"status": "healthy"}
+    """Estado agregado del servicio y su conexión con PostgreSQL."""
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        return {
+            "status": "UP",
+            "service": "departamento-service",
+            "checks": {"database": "UP"},
+        }
+    except SQLAlchemyError:
+        logger.warning("Health fallida: base de datos inaccesible")
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={
+                "status": "DOWN",
+                "service": "departamento-service",
+                "checks": {"database": "DOWN"},
+            },
+        )
 
 
 @app.get(
