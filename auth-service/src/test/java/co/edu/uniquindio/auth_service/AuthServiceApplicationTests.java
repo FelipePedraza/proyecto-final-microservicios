@@ -16,6 +16,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.hamcrest.Matchers.containsString;
 
 @SpringBootTest(properties = {
+		"SERVER_PORT=8080",
 		"jwt.secret=clave-de-pruebas-de-al-menos-32-bytes-0123456789",
 		"admin.default.password=Admin-de-pruebas-1",
 		"spring.datasource.url=jdbc:h2:mem:authdb;MODE=PostgreSQL;DB_CLOSE_DELAY=-1",
