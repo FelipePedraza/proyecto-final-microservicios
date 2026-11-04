@@ -583,7 +583,7 @@ La integración continua (CI) automatiza la compilación, las pruebas y los cont
 1. Copia `.env.example` como `.env` (`Copy-Item .env.example .env` en PowerShell), genera secretos aleatorios únicos para los campos vacíos y configura `SONAR_TOKEN` con un token de análisis de SonarQube; no subas `.env` a Git. Si se rotan credenciales de servicios con volúmenes existentes, actualiza también las credenciales persistidas.
 2. Levanta la base de SonarQube y SonarQube: `docker compose up -d sonar-db sonarqube`. En una instalación nueva, inicia sesión en [SonarQube](http://localhost:9000) con `admin` / `admin`, cambia la contraseña, y genera un token de administrador para aprovisionar el gate.
 3. Ejecuta `python tools/provision_sonarqube.py` desde la raíz. El programa solicita el token sin mostrarlo y crea/actualiza el gate `QualityGate70` (`coverage LT 70`), lo asigna como predeterminado y registra el webhook de Jenkins. Si tu servidor no está en `http://localhost:9000`, define `SONAR_URL` antes de ejecutar el script.
-4. Con el token de análisis en `SONAR_TOKEN` y las credenciales de Jenkins en `.env`, construye primero la imagen local del agente .NET (servicio Compose bajo el perfil `build-tools`) con `docker compose --profile build-tools build dotnet-sonar-agent`. Después inicia la pila CI explícitamente con `docker compose --profile ci up --build -d` y consulta el estado con `docker compose ps`.
+4. Con el token de análisis en `SONAR_TOKEN` y las credenciales de Jenkins en `.env`, inicia la pila CI explícitamente con `docker compose --profile ci up --build -d` y consulta el estado con `docker compose ps`. El pipeline de `empleado-service` construye la imagen local `dotnet-sonar:10.0-sonarscanner-10.8` desde [`jenkins/Dockerfile.dotnet-sonar`](./jenkins/Dockerfile.dotnet-sonar) después del checkout; no es necesario construirla manualmente. El servicio Compose `dotnet-sonar-agent` del perfil `build-tools` queda disponible para preparar esa imagen manualmente si se requiere.
 5. Abre [Jenkins](http://localhost:9090) e inicia sesión con `JENKINS_ADMIN_USERNAME` y `JENKINS_ADMIN_PASSWORD` de tu `.env`. No hay contraseña `initialAdminPassword`: el asistente de instalación está desactivado y JCasC crea el administrador.
 6. JCasC crea automáticamente los jobs `auth-service` y `empleado-service`, configurados para leer sus respectivos Jenkinsfiles desde la rama `main` del repositorio. No hay que importarlos manualmente. Para correr uno, entra al job y elige **Build Now**.
 
@@ -594,6 +594,7 @@ La configuración usa el `.env` local montado en Jenkins como `/run/secrets/micr
 | Etapa | Qué verifica |
 |---|---|
 | `Checkout` | Obtiene el código desde la rama configurada en SCM. |
+| `Prepare .NET agent image` | Construye localmente la imagen SDK/Scanner que requieren las etapas Docker del pipeline de `empleado-service`. |
 | `Build` | Compila el servicio (`mvn compile` para auth; `dotnet build` para empleado). |
 | `Test` | Ejecuta pruebas unitarias, publica sus resultados (Surefire/JUnit o TRX/MSTest) y registra JaCoCo o Cobertura. |
 | `SonarQube Analysis` | Envía código y reporte de cobertura a SonarQube. |

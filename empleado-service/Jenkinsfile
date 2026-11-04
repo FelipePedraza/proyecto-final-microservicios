@@ -18,6 +18,12 @@ pipeline {
                 echo 'Código fuente de empleado-service obtenido'
             }
         }
+        stage('Prepare .NET agent image') {
+            agent any
+            steps {
+                sh 'docker build -t dotnet-sonar:10.0-sonarscanner-10.8 -f jenkins/Dockerfile.dotnet-sonar jenkins'
+            }
+        }
         stage('Build') {
             agent {
                 docker {
