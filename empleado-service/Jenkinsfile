@@ -21,13 +21,13 @@ pipeline {
         stage('Prepare .NET agent image') {
             agent any
             steps {
-                sh 'docker build -t dotnet-sonar:10.0-sonarscanner-10.8 -f jenkins/Dockerfile.dotnet-sonar jenkins'
+                sh 'docker build -t dotnet-sonar:10.0-sonarscanner-12.0.0 -f jenkins/Dockerfile.dotnet-sonar jenkins'
             }
         }
         stage('Build') {
             agent {
                 docker {
-                    image 'dotnet-sonar:10.0-sonarscanner-10.8'
+                    image 'dotnet-sonar:10.0-sonarscanner-12.0.0'
                     args '--network microservicios-network -v dotnet_cache:/root/.nuget/packages'
                 }
             }
@@ -40,7 +40,7 @@ pipeline {
         stage('Test') {
             agent {
                 docker {
-                    image 'dotnet-sonar:10.0-sonarscanner-10.8'
+                    image 'dotnet-sonar:10.0-sonarscanner-12.0.0'
                     args '--network microservicios-network -v dotnet_cache:/root/.nuget/packages'
                 }
             }
@@ -65,7 +65,7 @@ pipeline {
         stage('SonarQube Analysis') {
             agent {
                 docker {
-                    image 'dotnet-sonar:10.0-sonarscanner-10.8'
+                    image 'dotnet-sonar:10.0-sonarscanner-12.0.0'
                     args '--network microservicios-network -v dotnet_cache:/root/.nuget/packages'
                 }
             }
