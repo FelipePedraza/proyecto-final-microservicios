@@ -3,6 +3,7 @@ package co.edu.uniquindio.auth_service.service.impl;
 import co.edu.uniquindio.auth_service.dtos.*;
 import co.edu.uniquindio.auth_service.exception.BadRequestException;
 import co.edu.uniquindio.auth_service.exception.ForbiddenException;
+import co.edu.uniquindio.auth_service.exception.InvalidTokenException;
 import co.edu.uniquindio.auth_service.exception.ResourceNotFoundException;
 import co.edu.uniquindio.auth_service.exception.UnauthorizedException;
 import co.edu.uniquindio.auth_service.messaging.AuthEventPayloads;
@@ -12,6 +13,7 @@ import co.edu.uniquindio.auth_service.model.AccountStatus;
 import co.edu.uniquindio.auth_service.repository.AccountRepository;
 import co.edu.uniquindio.auth_service.security.JWTUtils;
 import co.edu.uniquindio.auth_service.service.AuthService;
+import io.jsonwebtoken.JwtException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -30,7 +32,7 @@ public class AuthServiceImpl implements AuthService {
     private final AuthEventPublisher publisher;
 
     @Override
-    public TokenDTO login(LoginDTO loginDTO) throws Exception {
+    public TokenDTO login(LoginDTO loginDTO) {
         Account account = accountRepository.findByEmail(loginDTO.email())
                 .orElseThrow(() -> new UnauthorizedException("Credenciales incorrectas"));
 
@@ -54,7 +56,7 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public void recoverPassword(RecoverPasswordDTO recoverDTO) throws Exception {
+    public void recoverPassword(RecoverPasswordDTO recoverDTO) {
         Account account = accountRepository.findByEmail(recoverDTO.email()).orElse(null);
         
         // Por seguridad, si no existe o está retirada permanentemente, no hacemos nada (pero no lanzamos error)
@@ -72,12 +74,12 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public void resetPassword(ResetPasswordDTO resetDTO) throws Exception {
+    public void resetPassword(ResetPasswordDTO resetDTO) {
         // Validar y extraer el subject (userId) del token
         String userId;
         try {
             userId = jwtUtils.validateAndGetSubject(resetDTO.resetToken(), "RESET_PASSWORD");
-        } catch (Exception e) {
+        } catch (JwtException | InvalidTokenException e) {
             throw new UnauthorizedException("El token de recuperación es inválido o ha expirado.");
         }
 
@@ -105,7 +107,7 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public void changePassword(String userId, ChangePasswordDTO changeDTO) throws Exception {
+    public void changePassword(String userId, ChangePasswordDTO changeDTO) {
         Account account = accountRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Cuenta no encontrada"));
 

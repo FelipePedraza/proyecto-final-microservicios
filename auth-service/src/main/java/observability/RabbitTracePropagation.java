@@ -8,32 +8,21 @@ import io.opentelemetry.context.propagation.TextMapGetter;
 import org.springframework.amqp.core.MessageProperties;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Collections;
 
 public final class RabbitTracePropagation {
 
     private static final String INSTRUMENTATION_SCOPE = "microservicios.rabbitmq";
 
     private static final TextMapGetter<MessageProperties> GETTER =
-            new TextMapGetter<>() {
-                @Override
-                public Iterable<String> keys(MessageProperties carrier) {
-                    return carrier == null
-                            ? Collections.emptyList()
-                            : carrier.getHeaders().keySet();
+            (carrier, key) -> {
+                if (carrier == null) {
+                    return null;
                 }
-
-                @Override
-                public String get(MessageProperties carrier, String key) {
-                    if (carrier == null) {
-                        return null;
-                    }
-                    Object value = carrier.getHeaders().get(key);
-                    if (value instanceof byte[] bytes) {
-                        return new String(bytes, StandardCharsets.UTF_8);
-                    }
-                    return value == null ? null : value.toString();
+                Object value = carrier.getHeaders().get(key);
+                if (value instanceof byte[] bytes) {
+                    return new String(bytes, StandardCharsets.UTF_8);
                 }
+                return value == null ? null : value.toString();
             };
 
     private RabbitTracePropagation() {
@@ -48,7 +37,7 @@ public final class RabbitTracePropagation {
     public static void inject(Context context, MessageProperties properties) {
         GlobalOpenTelemetry.getPropagators()
                 .getTextMapPropagator()
-            .inject(context, properties, (carrier, key, value) -> carrier.setHeader(key, value));
+                .inject(context, properties, MessageProperties::setHeader);
     }
 
     public static Span startProducer(Context parent, String exchange, String eventType) {
@@ -85,4 +74,3 @@ public final class RabbitTracePropagation {
         }
     }
 }
-

@@ -1,5 +1,6 @@
 package co.edu.uniquindio.auth_service.security;
 
+import co.edu.uniquindio.auth_service.exception.InvalidTokenException;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
@@ -41,7 +42,7 @@ public class JWTUtils {
                 .compact();
     }
 
-    public String validateAndGetSubject(String token, String expectedType) throws Exception {
+    public String validateAndGetSubject(String token, String expectedType) {
         Claims claims = Jwts.parser()
                 .verifyWith(getKey())
                 .build()
@@ -50,7 +51,7 @@ public class JWTUtils {
 
         String type = claims.get("type", String.class);
         if (expectedType != null && !expectedType.equals(type)) {
-            throw new Exception("Tipo de token inválido");
+            throw new InvalidTokenException("Tipo de token inválido");
         }
 
         return claims.getSubject();

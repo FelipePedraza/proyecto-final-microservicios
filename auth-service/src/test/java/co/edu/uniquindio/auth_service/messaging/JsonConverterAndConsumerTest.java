@@ -66,11 +66,14 @@ class JsonConverterAndConsumerTest {
         consumer.consume(json("{\"id\":\"e3\",\"type\":\"empleado.actualizado\",\"data\":{\"id\":\"E001\"}}"));
         verify(service, never()).process(any(), any(), any(), any());
 
-        assertThrows(AmqpRejectAndDontRequeueException.class, () -> consumer.consume(json("no es json")));
+        Message malformedJson = json("no es json");
+        Message missingData = json("{\"id\":\"e4\",\"type\":\"empleado.retirado\",\"data\":{}}");
+        Message missingEmployeeId = json("{\"id\":\"e5\",\"type\":\"empleado.creado\",\"data\":{\"id\":\"E9\"}}");
+        assertThrows(AmqpRejectAndDontRequeueException.class, () -> consumer.consume(malformedJson));
         assertThrows(AmqpRejectAndDontRequeueException.class,
-                () -> consumer.consume(json("{\"id\":\"e4\",\"type\":\"empleado.retirado\",\"data\":{}}")));
+                () -> consumer.consume(missingData));
         assertThrows(AmqpRejectAndDontRequeueException.class,
-                () -> consumer.consume(json("{\"id\":\"e5\",\"type\":\"empleado.creado\",\"data\":{\"id\":\"E9\"}}")));
+                () -> consumer.consume(missingEmployeeId));
         verify(service, never()).process(eq("e5"), any(), any(), any());
     }
 }

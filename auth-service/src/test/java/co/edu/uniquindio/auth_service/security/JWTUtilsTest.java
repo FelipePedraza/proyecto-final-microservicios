@@ -1,5 +1,6 @@
 package co.edu.uniquindio.auth_service.security;
 
+import co.edu.uniquindio.auth_service.exception.InvalidTokenException;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -45,17 +46,19 @@ class JWTUtilsTest {
     }
 
     @Test
-    void elResetTokenSigueValidandoseConSuTipoDeClaim() throws Exception {
+    void elResetTokenSigueValidandoseConSuTipoDeClaim() {
         JWTUtils jwt = utils("clave-de-pruebas-de-al-menos-32-bytes-0123456789");
         String reset = jwt.generateToken("E001", Map.of("type", "RESET_PASSWORD"), 60_000);
         String access = jwt.generateToken("E001", Map.of("role", "USER"), 60_000);
 
         assertEquals("E001", jwt.validateAndGetSubject(reset, "RESET_PASSWORD"));
-        assertThrows(Exception.class, () -> jwt.validateAndGetSubject(access, "RESET_PASSWORD"));
+        assertThrows(InvalidTokenException.class, () -> jwt.validateAndGetSubject(access, "RESET_PASSWORD"));
     }
 
     @Test
     void unSecretCortoSeRechaza() {
-        assertThrows(IllegalStateException.class, () -> utils("corto").generateToken("E001", Map.of(), 1000));
+        JWTUtils jwt = utils("corto");
+        Map<String, Object> claims = Map.of();
+        assertThrows(IllegalStateException.class, () -> jwt.generateToken("E001", claims, 1000));
     }
 }

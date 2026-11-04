@@ -12,6 +12,9 @@ import java.util.Map;
  */
 public final class AuthEventPayloads {
 
+    private static final String EMPLEADO_ID_FIELD = "empleadoId";
+    private static final String EMAIL_FIELD = "email";
+
     public static final String USUARIO_CREADO = "usuario.creado";
     public static final String USUARIO_RECUPERACION = "usuario.recuperacion";
     public static final String CUENTA_ACTIVADA = "cuenta.activada";
@@ -28,8 +31,8 @@ public final class AuthEventPayloads {
     //  tokenActivacion (por analogía con tokenRecuperacion) y expiraEn (igual que usuario.recuperacion).
     public static Map<String, Object> usuarioCreado(String empleadoId, String email, String tokenActivacion, String expiraEn) {
         Map<String, Object> data = new LinkedHashMap<>();
-        data.put("empleadoId", empleadoId);
-        data.put("email", email);
+        data.put(EMPLEADO_ID_FIELD, empleadoId);
+        data.put(EMAIL_FIELD, email);
         data.put("tokenActivacion", tokenActivacion);
         data.put("expiraEn", expiraEn);
         return data;
@@ -38,7 +41,7 @@ public final class AuthEventPayloads {
     // usuario.recuperacion: campos email, tokenRecuperacion, expiraEn (sin empleadoId).
     public static Map<String, Object> usuarioRecuperacion(String email, String tokenRecuperacion, String expiraEn) {
         Map<String, Object> data = new LinkedHashMap<>();
-        data.put("email", email);
+        data.put(EMAIL_FIELD, email);
         data.put("tokenRecuperacion", tokenRecuperacion);
         data.put("expiraEn", expiraEn);
         return data;
@@ -48,8 +51,8 @@ public final class AuthEventPayloads {
     //  motivo ("RETIRO" | "VACACIONES"), permanente (boolean).
     public static Map<String, Object> cuentaDesactivada(String empleadoId, String email, String motivo, boolean permanente) {
         Map<String, Object> data = new LinkedHashMap<>();
-        data.put("empleadoId", empleadoId);
-        data.put("email", email);
+        data.put(EMPLEADO_ID_FIELD, empleadoId);
+        data.put(EMAIL_FIELD, email);
         data.put("motivo", motivo);
         data.put("permanente", permanente);
         return data;
@@ -58,8 +61,8 @@ public final class AuthEventPayloads {
     // cuenta.activada: campos empleadoId, email, motivo (ACTIVACION_INICIAL | FIN_VACACIONES).
     public static Map<String, Object> cuentaActivada(String empleadoId, String email, String motivo) {
         Map<String, Object> data = new LinkedHashMap<>();
-        data.put("empleadoId", empleadoId);
-        data.put("email", email);
+        data.put(EMPLEADO_ID_FIELD, empleadoId);
+        data.put(EMAIL_FIELD, email);
         data.put("motivo", motivo);
         return data;
     }

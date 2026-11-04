@@ -24,7 +24,7 @@ public class RabbitLifecycleConfig {
 
     /**
      * Conversor JSON (Jackson 3, el equivalente de Jackson2JsonMessageConverter en Spring AMQP 4).
-     * Spring Boot lo aplica al RabbitTemplate y a los listeners, de modo que todo lo que publica
+     * Spring Boot lo aplica al RabbitTemplate y a los listeners para las publicaciones de
      * auth-service con convertAndSend salga como JSON y no como objeto Java serializado.
      */
     @Bean

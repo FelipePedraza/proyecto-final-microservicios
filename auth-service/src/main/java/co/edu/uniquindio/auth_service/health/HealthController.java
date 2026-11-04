@@ -46,8 +46,9 @@ public class HealthController {
     }
 
     private String checkBroker() {
-        try {
-            return rabbitConnectionFactory.createConnection().isOpen() ? "UP" : "DOWN";
+        try (org.springframework.amqp.rabbit.connection.Connection connection =
+                     rabbitConnectionFactory.createConnection()) {
+            return connection.isOpen() ? "UP" : "DOWN";
         } catch (RuntimeException exception) {
             return "DOWN";
         }

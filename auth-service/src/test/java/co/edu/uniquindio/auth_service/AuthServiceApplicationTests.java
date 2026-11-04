@@ -5,10 +5,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.ApplicationContext;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -38,10 +40,14 @@ class AuthServiceApplicationTests {
 	@jakarta.annotation.Resource
 	private MockMvc mockMvc;
 
+	@jakarta.annotation.Resource
+	private ApplicationContext applicationContext;
+
 	private final ObjectMapper objectMapper = new ObjectMapper();
 
 	@Test
 	void contextLoads() {
+		assertNotNull(applicationContext);
 	}
 
 	@Test
