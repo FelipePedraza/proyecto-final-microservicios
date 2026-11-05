@@ -215,7 +215,6 @@ class ConfigureQualityGateTests(unittest.TestCase):
             {"conditions": [condition], "isDefault": True},
             {"conditions": [condition], "isDefault": True},
             {"components": [{"key": "auth-service"}]},
-            {},
         ]
 
         with patch("builtins.print"):

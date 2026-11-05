@@ -74,6 +74,19 @@ pipeline {
                 dir('auth-service') {
                     withSonarQubeEnv('sonarqube') {
                         sh '''
+                            echo "Esperando a que SonarQube esté disponible..."
+                            for attempt in $(seq 1 60); do
+                              if curl --fail --silent "$SONAR_HOST_URL/api/system/status" | grep -q '"status":"UP"'; then
+                                echo "SonarQube está disponible."
+                                break
+                              fi
+                              if [ "$attempt" -eq 60 ]; then
+                                echo "ERROR: SonarQube no quedó disponible después de 5 minutos." >&2
+                                exit 1
+                              fi
+                              sleep 5
+                            done
+
                             mvn $MVN_OPTS \
                               org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
                               -Dsonar.projectKey=auth-service \

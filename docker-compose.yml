@@ -497,6 +497,7 @@ services:
   sonar-db:
     image: postgres:16-alpine
     container_name: sonar-db
+    shm_size: 256m
     environment:
       POSTGRES_DB: ${SONAR_DB_NAME:?Define SONAR_DB_NAME en .env}
       POSTGRES_USER: ${SONAR_DB_USER:?Define SONAR_DB_USER en .env}
@@ -531,6 +532,12 @@ services:
         condition: service_healthy
     networks:
       - microservicios-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://localhost:9000/api/system/status | grep -q '\"status\":\"UP\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 120s
     restart: unless-stopped
 
   dotnet-sonar-agent:
