@@ -104,7 +104,7 @@ func NewRouter(repo profileRepository, logger *slog.Logger, brokerChecks ...func
 		}
 		serviceStatus := "UP"
 		statusCode := http.StatusOK
-		if database == "DOWN" || messageBroker == "DOWN" {
+		if database == "DOWN" {
 			serviceStatus = "DOWN"
 			statusCode = http.StatusServiceUnavailable
 		}

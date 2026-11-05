@@ -40,24 +40,26 @@ func (f *fakeRepository) Update(_ context.Context, id string, u domain.UpdatePer
 }
 func (f *fakeRepository) Ready(context.Context) error { return f.readyErr }
 
-func TestHealthReportsDependencyFailuresWithoutDocker(t *testing.T) {
+func TestHealthRequiresDatabaseButReportsBrokerStatus(t *testing.T) {
 	tests := []struct {
 		name        string
 		repository  *fakeRepository
 		brokerReady bool
 		database    string
 		broker      string
+		status      string
+		statusCode  int
 	}{
-		{"database down", &fakeRepository{readyErr: errors.New("connection refused")}, true, "DOWN", "UP"},
-		{"broker down", &fakeRepository{}, false, "UP", "DOWN"},
+		{"database down", &fakeRepository{readyErr: errors.New("connection refused")}, true, "DOWN", "UP", "DOWN", http.StatusServiceUnavailable},
+		{"broker down", &fakeRepository{}, false, "UP", "DOWN", "UP", http.StatusOK},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			router := NewRouter(test.repository, slog.Default(), func() bool { return test.brokerReady })
 			response := httptest.NewRecorder()
 			router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/health", nil))
-			if response.Code != http.StatusServiceUnavailable {
-				t.Fatalf("expected 503, got %d", response.Code)
+			if response.Code != test.statusCode {
+				t.Fatalf("expected %d, got %d", test.statusCode, response.Code)
 			}
 			var body struct {
 				Status  string            `json:"status"`
@@ -67,7 +69,7 @@ func TestHealthReportsDependencyFailuresWithoutDocker(t *testing.T) {
 			if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
 				t.Fatal(err)
 			}
-			if body.Status != "DOWN" || body.Service != "perfiles-service" ||
+			if body.Status != test.status || body.Service != "perfiles-service" ||
 				body.Checks["database"] != test.database || body.Checks["messageBroker"] != test.broker {
 				t.Fatalf("unexpected health response: %#v", body)
 			}
