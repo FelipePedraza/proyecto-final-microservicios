@@ -68,6 +68,7 @@ def configure_quality_gate(token):
     gates = request("/api/qualitygates/list", token=token).get(
         "qualitygates", []
     )
+    created = False
     gate = next(
         (item for item in gates if item.get("name") == QUALITY_GATE_NAME), None
     )
@@ -78,7 +79,7 @@ def configure_quality_gate(token):
             method="POST",
             token=token,
         )
-        print(f"Creado el Quality Gate {QUALITY_GATE_NAME}.")
+        created = True
         gates = request("/api/qualitygates/list", token=token).get(
             "qualitygates", []
         )
@@ -87,14 +88,41 @@ def configure_quality_gate(token):
             None,
         )
 
-    if gate is None or not gate.get("id"):
+    if gate is None:
         raise SonarQubeError(
-            f"SonarQube no devolvió el ID de {QUALITY_GATE_NAME}."
+            f"SonarQube no encontró {QUALITY_GATE_NAME} después de crearlo."
         )
-    gate_id = str(gate["id"])
     details = request(
         "/api/qualitygates/show", {"name": QUALITY_GATE_NAME}, token=token
     )
+    gate_details = details.get("qualityGate", {})
+    gate_id = gate.get("id") or gate_details.get("id")
+    if not gate_id:
+        actions = gate.get("actions") or gate_details.get("actions", {})
+        required_actions = (
+            "manageConditions",
+            "setAsDefault",
+            "associateProjects",
+        )
+        if actions and any(
+            actions.get(action) is False for action in required_actions
+        ):
+            raise SonarQubeError(
+                f"El token puede ver {QUALITY_GATE_NAME}, pero no tiene permisos "
+                "para administrarlo. Usa un token de una cuenta con el permiso "
+                "global 'Administer Quality Gates'; no uses el token de análisis "
+                "configurado en SONAR_TOKEN."
+            )
+        raise SonarQubeError(
+            f"La API de SonarQube no devolvió el ID de {QUALITY_GATE_NAME} "
+            "ni en qualitygates/list ni en qualitygates/show. Verifica que el "
+            "token ingresado pertenezca a una cuenta con el permiso global "
+            "'Administer Quality Gates'; SONAR_TOKEN es solo para análisis. "
+            "Luego genera un token nuevo para esa cuenta y vuelve a ejecutar."
+        )
+    gate_id = str(gate_id)
+    if created:
+        print(f"Creado el Quality Gate {QUALITY_GATE_NAME}.")
     coverage_conditions = [
         item
         for item in details.get("conditions", [])
