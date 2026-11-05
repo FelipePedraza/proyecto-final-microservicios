@@ -37,7 +37,11 @@ public final class RabbitTracePropagation {
     public static void inject(Context context, MessageProperties properties) {
         GlobalOpenTelemetry.getPropagators()
                 .getTextMapPropagator()
-                .inject(context, properties, MessageProperties::setHeader);
+                .inject(context, properties, (carrier, key, value) -> {
+                    if (carrier != null && key != null && value != null) {
+                        carrier.setHeader(key, value);
+                    }
+                });
     }
 
     public static Span startProducer(Context parent, String exchange, String eventType) {

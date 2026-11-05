@@ -11,7 +11,8 @@ La ejecución del script, la validación del pipeline y las capturas de la inter
 ### Docker Compose
 
 - `sonar-db` usa `postgres:16-alpine`, almacenamiento persistente y healthcheck con `pg_isready`.
-- `sonarqube` usa `sonarqube:lts-community`, publica el puerto `9000` y persiste datos, logs y extensiones.
+- `sonarqube` usa `sonarqube:25.2.0.102705-community`, compatible con SonarScanner for .NET 12; publica el puerto `9000` y persiste datos, logs y extensiones.
+- La actualización desde SonarQube 9.9 requiere el paso intermedio `24.12.0.100206-community`; respaldar la base de datos y conservar los volúmenes durante la migración.
 - Las credenciales de PostgreSQL y el token de análisis se reciben desde `.env`.
 - La red tiene el nombre estable `microservicios-network`, compartido por Jenkins, SonarQube y los agentes Docker del pipeline.
 

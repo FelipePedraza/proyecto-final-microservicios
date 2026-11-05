@@ -514,7 +514,7 @@ services:
     restart: unless-stopped
 
   sonarqube:
-    image: sonarqube:lts-community
+    image: sonarqube:25.2.0.102705-community
     container_name: sonarqube
     ports:
       - "${HOST_BIND_IP:-127.0.0.1}:${SONARQUBE_HOST_PORT:?Define SONARQUBE_HOST_PORT in .env}:9000"
