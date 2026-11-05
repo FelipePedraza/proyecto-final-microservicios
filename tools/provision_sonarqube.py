@@ -72,14 +72,25 @@ def configure_quality_gate(token):
         (item for item in gates if item.get("name") == QUALITY_GATE_NAME), None
     )
     if gate is None:
-        gate = request(
+        request(
             "/api/qualitygates/create",
             {"name": QUALITY_GATE_NAME},
             method="POST",
             token=token,
         )
         print(f"Creado el Quality Gate {QUALITY_GATE_NAME}.")
+        gates = request("/api/qualitygates/list", token=token).get(
+            "qualitygates", []
+        )
+        gate = next(
+            (item for item in gates if item.get("name") == QUALITY_GATE_NAME),
+            None,
+        )
 
+    if gate is None or not gate.get("id"):
+        raise SonarQubeError(
+            f"SonarQube no devolvió el ID de {QUALITY_GATE_NAME}."
+        )
     gate_id = str(gate["id"])
     details = request(
         "/api/qualitygates/show", {"name": QUALITY_GATE_NAME}, token=token
