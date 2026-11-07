@@ -46,7 +46,7 @@ const especificacion = swaggerJsdoc({
         },
         HealthStatus: {
           type: 'object',
-          required: ['status', 'service', 'checks'],
+          required: ['status', 'service'],
           properties: {
             status: { type: 'string', enum: ['UP', 'DOWN'] },
             service: { type: 'string', example: 'notificaciones-service' },
@@ -54,7 +54,6 @@ const especificacion = swaggerJsdoc({
               type: 'object',
               properties: {
                 database: { type: 'string', enum: ['UP', 'DOWN'] },
-                messageBroker: { type: 'string', enum: ['UP', 'DOWN'] },
               },
             },
           },

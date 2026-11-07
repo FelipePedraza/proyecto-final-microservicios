@@ -177,11 +177,18 @@ porque ese sí puede resolverse solo cuando la base vuelva.
 
 ### 6.4 El consumidor arranca en paralelo al servidor HTTP, no antes
 
-Si RabbitMQ tarda en levantar (o el healthcheck de Compose todavía no lo marcó
-`healthy`), `notificaciones-service` igual debe poder responder `GET /notificaciones`
-contra lo que ya tiene guardado. `rabbitConsumer.iniciar()` reintenta la conexión con
-una espera fija en un bucle propio, en paralelo a que Express ya esté escuchando; no
-bloquea el arranque del servidor HTTP.
+Una vez iniciado el proceso, `rabbitConsumer.iniciar()` reintenta la conexión con una
+espera fija en un bucle propio, en paralelo a que Express ya esté escuchando; una caída
+de RabbitMQ no bloquea la API ni termina el proceso. Al iniciar con Docker Compose, el
+servicio espera a que el listener AMQP del broker esté disponible; al ejecutarlo fuera
+de Compose, puede iniciar aunque el broker todavía no esté listo.
+
+La liveness (`GET /health`) solo comprueba que Express responde y la readiness
+(`GET /health/ready`) comprueba PostgreSQL, requerido para consultar el historial.
+RabbitMQ no forma parte de readiness porque la API puede seguir sirviendo ese
+historial mientras el consumidor reintenta su conexión. En Compose, el healthcheck
+del broker verifica específicamente que el listener AMQP esté disponible; el `ping`
+del nodo por sí solo no garantiza que acepte conexiones de clientes.
 
 ## 7. Cambios fuera de esta carpeta
 

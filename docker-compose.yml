@@ -180,11 +180,11 @@ services:
     networks:
       - microservicios-network
     healthcheck:
-      test: ["CMD", "gosu", "rabbitmq", "rabbitmq-diagnostics", "-q", "ping"]
+      test: ["CMD", "gosu", "rabbitmq", "rabbitmq-diagnostics", "-q", "check_port_listener", "5672"]
       interval: 10s
       timeout: 10s
       retries: 12
-      start_period: 30s
+      start_period: 120s
     restart: unless-stopped
 
   notificaciones-db:

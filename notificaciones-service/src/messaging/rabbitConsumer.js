@@ -43,14 +43,11 @@ class RabbitConsumer {
     this.connection = null;
     this.channel = null;
     this.cerrando = false;
-    this.disponible = false;
   }
 
   /**
-   * Se conecta y empieza a consumir. Si RabbitMQ todavía no está arriba (arranque de
-   * docker-compose sin healthcheck que lo garantice, o el broker tarda en levantar)
-   * reintenta con espera fija en vez de morir: este servicio debe poder arrancar
-   * incluso si el broker no está listo todavía.
+   * Se conecta y empieza a consumir. Si RabbitMQ no está disponible al iniciar el
+   * proceso o se reinicia después, reintenta con espera fija en vez de morir.
    */
   async iniciar() {
     while (!this.cerrando) {
@@ -73,14 +70,12 @@ class RabbitConsumer {
 
     // Si la conexión se cae más tarde (no en el arranque), se reintenta igual.
     this.connection.on('close', () => {
-      this.disponible = false;
       if (!this.cerrando) {
         console.warn('[rabbit] Conexión cerrada inesperadamente; reintentando...');
         this.iniciar();
       }
     });
     this.connection.on('error', (err) => {
-      this.disponible = false;
       console.error('[rabbit] Error de conexión:', err.message);
     });
 
@@ -95,11 +90,6 @@ class RabbitConsumer {
 
     await this._consumirCola(env.rabbit.queue, env.rabbit.deadLetterQueue, env.rabbit.exchange);
     await this._consumirCola(env.rabbit.authQueue, env.rabbit.authDeadLetterQueue, env.rabbit.authExchange);
-    this.disponible = true;
-  }
-
-  estaDisponible() {
-    return this.disponible;
   }
 
   /** Declara cola + DLQ (durables), liga la cola al exchange fanout y empieza a consumirla. */
@@ -162,7 +152,6 @@ class RabbitConsumer {
 
   async cerrar() {
     this.cerrando = true;
-    this.disponible = false;
     try {
       await this.channel?.close();
       await this.connection?.close();

@@ -3,17 +3,14 @@
 const { Router } = require('express');
 
 /**
- * Endpoints de salud, con la misma distinción liveness/readiness que ya usan
- * EmpleadoService y DepartamentoService en este proyecto:
- *   - /health        : el proceso está vivo (no depende de nada externo).
- *   - /health/ready  : el servicio puede atender tráfico de verdad (su base responde).
+ * Endpoints de salud:
+ *   - /health        : el proceso HTTP está vivo (no depende de nada externo).
+ *   - /health/ready  : la base de datos necesaria para servir las consultas responde.
  *
- * No se incluye el estado de RabbitMQ en /health/ready a propósito: si el broker cae,
- * el consumidor reintenta solo (ver rabbitConsumer.js) y los GET siguen funcionando
- * contra el historial ya guardado. No tiene sentido sacar al servicio de servicio por
- * una dependencia que no bloquea su función de lectura.
+ * RabbitMQ no forma parte de readiness: el consumidor reintenta si el broker cae
+ * (ver rabbitConsumer.js) y la API sigue sirviendo el historial guardado.
  */
-function crearHealthRouter(estaListaLaBaseDeDatos, estaListoRabbit) {
+function crearHealthRouter(estaListaLaBaseDeDatos) {
   const router = Router();
 
   /**
@@ -30,26 +27,18 @@ function crearHealthRouter(estaListaLaBaseDeDatos, estaListoRabbit) {
    *             schema:
    *               $ref: '#/components/schemas/HealthStatus'
    */
-  const comprobarSalud = async (req, res) => {
-    const [database, messageBroker] = await Promise.all([
-      estaListaLaBaseDeDatos().then((ok) => (ok ? 'UP' : 'DOWN')).catch(() => 'DOWN'),
-      Promise.resolve().then(estaListoRabbit).then((ok) => (ok ? 'UP' : 'DOWN')).catch(() => 'DOWN'),
-    ]);
-    const status = database === 'UP' && messageBroker === 'UP' ? 'UP' : 'DOWN';
-    res.status(status === 'UP' ? 200 : 503).json({
-      status,
+  router.get('/health', (req, res) => {
+    res.status(200).json({
+      status: 'UP',
       service: 'notificaciones-service',
-      checks: { database, messageBroker },
     });
-  };
-
-  router.get('/health', comprobarSalud);
+  });
 
   /**
    * @openapi
    * /health/ready:
    *   get:
-   *     summary: Comprueba que el servicio puede consultar su base de datos.
+   *     summary: Comprueba que la base de datos necesaria para consultar el historial responde.
    *     tags: [Salud]
    *     responses:
    *       200:
@@ -65,7 +54,21 @@ function crearHealthRouter(estaListaLaBaseDeDatos, estaListoRabbit) {
    *             schema:
    *               $ref: '#/components/schemas/HealthStatus'
    */
-  router.get('/health/ready', comprobarSalud);
+  router.get('/health/ready', async (req, res) => {
+    let database = 'UP';
+    try {
+      if (!(await estaListaLaBaseDeDatos())) database = 'DOWN';
+    } catch {
+      database = 'DOWN';
+    }
+
+    const status = database === 'UP' ? 'UP' : 'DOWN';
+    res.status(status === 'UP' ? 200 : 503).json({
+      status,
+      service: 'notificaciones-service',
+      checks: { database },
+    });
+  });
 
   return router;
 }

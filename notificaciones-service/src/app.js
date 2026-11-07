@@ -13,7 +13,7 @@ const { metricsEndpoint, metricsMiddleware } = require('./metrics');
  * puedan montarla con supertest inyectando un `notificacionService` falso, en vez de
  * depender de Postgres.
  */
-function crearApp({ notificacionService, estaListaLaBaseDeDatos, estaListoRabbit = () => true }) {
+function crearApp({ notificacionService, estaListaLaBaseDeDatos }) {
   const app = express();
   app.use(express.json());
 
@@ -24,7 +24,7 @@ function crearApp({ notificacionService, estaListaLaBaseDeDatos, estaListoRabbit
   app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
   app.get('/openapi.json', (req, res) => res.json(swaggerSpec));
 
-  app.use(crearHealthRouter(estaListaLaBaseDeDatos, estaListoRabbit));
+  app.use(crearHealthRouter(estaListaLaBaseDeDatos));
   app.use(crearNotificacionesRouter(notificacionService));
 
   // Mismo formato de error que el resto de servicios del proyecto: { "error": "..." }.

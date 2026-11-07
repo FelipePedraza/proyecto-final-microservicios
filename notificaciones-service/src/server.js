@@ -17,7 +17,6 @@ async function main() {
   const app = crearApp({
     notificacionService,
     estaListaLaBaseDeDatos: estaLista,
-    estaListoRabbit: () => rabbitConsumer.estaDisponible(),
   });
   const servidorHttp = app.listen(env.puerto, () => {
     console.log(`[http] notificaciones-service escuchando en el puerto ${env.puerto}`);

@@ -36,8 +36,8 @@ microservicio.
 |---|---|---|
 | `GET` | `/notificaciones` | Historial completo, más reciente primero. |
 | `GET` | `/notificaciones/{empleadoId}` | Historial de un empleado. `[]` si no tiene. |
-| `GET` | `/health` | Liveness: el proceso está vivo. |
-| `GET` | `/health/ready` | Readiness: además, la base de datos responde. |
+| `GET` | `/health` | Liveness: el proceso HTTP está vivo, sin depender de servicios externos. |
+| `GET` | `/health/ready` | Readiness: la base de datos requerida para consultar el historial responde. |
 | `GET` | `/docs` | Swagger UI (OpenAPI generado desde el código de las rutas). |
 | `GET` | `/openapi.json` | Especificación OpenAPI 3.0.3 en JSON; ruta estable para agregadores. |
 
@@ -67,6 +67,11 @@ docker compose up --build -d
 docker compose ps          # notificaciones-service y notificaciones-db en "healthy"
 curl http://localhost:8088/notificaciones
 ```
+
+RabbitMQ se comprueba por la disponibilidad de su listener AMQP antes de iniciar
+los servicios que lo consumen. Si el broker cae después del arranque,
+`notificaciones-service` reintenta la conexión; la API sigue disponible mientras
+PostgreSQL responda.
 
 ### Local, sin Docker (para desarrollar)
 
