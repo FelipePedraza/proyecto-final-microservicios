@@ -95,3 +95,4 @@ hs_err_pid*
 replay_pid*
 # Reportes BDD generados en cada ejecucion (Jenkins / mvn test)
 e2e-tests/reports/
+.env.bak

@@ -1,0 +1,9 @@
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: microservicios
+    folder: Microservicios
+    interval: 30s
+    rules:
+      - {"uid": "servicio-caido", "title": "Servicio Caido", "condition": "C", "for": "1m", "noDataState": "OK", "execErrState": "Error", "labels": {"severity": "critical"}, "annotations": {"summary": "Un servicio dejo de responder al scraping de Prometheus"}, "data": [{"refId": "A", "relativeTimeRange": {"from": 300, "to": 0}, "datasourceUid": "prometheus", "model": {"refId": "A", "expr": "up{job=~\".+-service\"}", "instant": false, "range": true}}, {"refId": "B", "datasourceUid": "__expr__", "model": {"refId": "B", "type": "reduce", "expression": "A", "reducer": "last", "settings": {"mode": "dropNN"}}}, {"refId": "C", "datasourceUid": "__expr__", "model": {"refId": "C", "type": "threshold", "expression": "B", "conditions": [{"evaluator": {"type": "lt", "params": [1]}}]}}]}
+      - {"uid": "alta-latencia", "title": "Alta Latencia", "condition": "C", "for": "2m", "noDataState": "OK", "execErrState": "Error", "labels": {"severity": "critical"}, "annotations": {"summary": "Latencia promedio > 2s durante 2 minutos"}, "data": [{"refId": "A", "relativeTimeRange": {"from": 300, "to": 0}, "datasourceUid": "prometheus", "model": {"refId": "A", "expr": "(sum by (service) (rate(http_request_duration_seconds_sum[1m])) / sum by (service) (rate(http_request_duration_seconds_count[1m]))) or (sum by (service) (rate(http_server_requests_seconds_sum[1m])) / sum by (service) (rate(http_server_requests_seconds_count[1m])))", "instant": false, "range": true}}, {"refId": "B", "datasourceUid": "__expr__", "model": {"refId": "B", "type": "reduce", "expression": "A", "reducer": "last", "settings": {"mode": "dropNN"}}}, {"refId": "C", "datasourceUid": "__expr__", "model": {"refId": "C", "type": "threshold", "expression": "B", "conditions": [{"evaluator": {"type": "gt", "params": [2]}}]}}]}

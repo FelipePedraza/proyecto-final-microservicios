@@ -439,6 +439,7 @@ services:
       PROMETHEUS_DATASOURCE_URL: ${PROMETHEUS_DATASOURCE_URL:?Define PROMETHEUS_DATASOURCE_URL in .env}
       LOKI_DATASOURCE_URL: ${LOKI_DATASOURCE_URL:?Define LOKI_DATASOURCE_URL in .env}
       ZIPKIN_EXTERNAL_URL: ${ZIPKIN_EXTERNAL_URL:?Define ZIPKIN_EXTERNAL_URL in .env}
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-https://discord.com/api/webhooks/0/placeholder}
     volumes:
       - grafana-data:/var/lib/grafana
       - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro

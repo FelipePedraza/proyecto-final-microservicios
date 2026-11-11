@@ -1026,3 +1026,64 @@ Consultas LogQL útiles:
 La tercera consulta usa el metadato estructurado para localizar todos los logs
 de una operación distribuida. En Grafana también se puede expandir una línea y
 usar **Ver traza en Zipkin** sin copiar manualmente el identificador.
+
+## 5. Dashboard en Grafana
+
+El dashboard **Microservicios - Observabilidad** se aprovisiona solo al levantar
+Grafana (`observability/grafana/provisioning/dashboards/`: `provider.yml` +
+`microservicios.json`), sin configuración manual. Está en la carpeta
+*Microservicios* y tiene dos filas:
+
+| Fila | Panel | Consulta (resumen) |
+|---|---|---|
+| Resumen del Sistema | Estado de cada servicio (Stat verde/rojo) | `up{job=~".+-service"}` |
+| Comportamiento del Tráfico | Tasa de peticiones | `rate(http_requests_total[1m])` por servicio |
+| Comportamiento del Tráfico | Latencia promedio | `rate(..._sum[1m]) / rate(..._count[1m])` |
+| Comportamiento del Tráfico | Errores HTTP 4xx/5xx | `rate(...{status=~"[45].."}[1m])` |
+
+Cada lenguaje nombra distinto sus métricas (`http_requests_total` en
+Python/Node/Go, `http_requests_received_total` en .NET y
+`http_server_requests_seconds_*` en Spring), por lo que cada consulta une las
+variantes con `or` y agrupa por la etiqueta `service`.
+
+## 6. Alertas proactivas
+
+Las reglas y el canal se aprovisionan desde
+`observability/grafana/provisioning/alerting/`:
+
+| Regla | Condición | Duración |
+|---|---|---|
+| Servicio Caído | `up{job=~".+-service"} < 1` | 1 minuto |
+| Alta Latencia | latencia promedio > 2 s | 2 minutos |
+
+**Canal elegido: Webhook de Discord** (baja complejidad y soporte nativo en
+Grafana). Configuración:
+
+1. En Discord: canal → Configuración → Integraciones → Webhooks → Nuevo → copiar URL.
+2. Definir en `.env`: `DISCORD_WEBHOOK_URL=<url>` (sin comillas).
+3. `docker compose up -d --force-recreate grafana` (Grafana lee el `.env` solo al crearse).
+4. Verificar en Alerting → Contact points → `discord-equipo` → Test.
+
+La política de notificaciones envía todas las alertas a `discord-equipo`.
+
+## 7. Pruebas del sistema: simulación del caos
+
+1. Levantar el ecosistema: `docker compose up -d --build`.
+2. Prometheus (`http://localhost:9091/targets`): los 7 targets en UP.
+3. Login y tráfico: `POST /auth/login` y consultas repetidas a `/departamentos` y `/empleados` vía el gateway (`:8088`).
+4. Trazas: Zipkin (`http://localhost:9411`) → cascada del gateway a los servicios.
+5. **Caos 1 - servicio caído:** `docker compose stop departamento-service`. Tras ~2 min el target pasa a DOWN, el panel de estado se pone rojo y llega "Servicio Caído" a Discord. Recuperación: `docker compose start departamento-service`.
+6. **Caos 2 - latencia:** retardo artificial temporal en un endpoint, reconstruir el servicio y observar el panel de latencia y la alerta "Alta Latencia".
+
+### Evidencias
+
+- Dashboard con métricas reales: `docs/evidencias/reto8/capturas/dashboard.png`
+- Traza distribuida en Zipkin: `docs/evidencias/reto8/capturas/zipkin.png`
+- Alerta recibida en Discord: `docs/evidencias/reto8/capturas/discord.png`
+
+> TODO: añadir las capturas en esa carpeta y enlazarlas aquí con `![...](ruta)`.
+
+### ¿Qué servicio tardó más en responder y cómo lo identificaron?
+
+> TODO (completar con datos reales): servicio X, identificado con el panel
+> "Latencia promedio" del dashboard y ordenando los spans por duración en Zipkin.
