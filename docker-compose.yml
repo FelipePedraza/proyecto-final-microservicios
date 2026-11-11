@@ -422,7 +422,7 @@ services:
     ports:
       - "${HOST_BIND_IP:-127.0.0.1}:${PROMETHEUS_HOST_PORT:?Define PROMETHEUS_HOST_PORT in .env}:9090"
     volumes:
-      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro,Z
       - prometheus-data:/prometheus
     networks:
       - microservicios-network
@@ -442,7 +442,7 @@ services:
       DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-https://discord.com/api/webhooks/0/placeholder}
     volumes:
       - grafana-data:/var/lib/grafana
-      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro,Z
     depends_on:
       prometheus:
         condition: service_started
@@ -460,7 +460,7 @@ services:
     ports:
       - "${HOST_BIND_IP:-127.0.0.1}:${LOKI_HOST_PORT:?Define LOKI_HOST_PORT in .env}:3100"
     volumes:
-      - ./observability/loki/loki-config.yml:/etc/loki/loki-config.yml:ro
+      - ./observability/loki/loki-config.yml:/etc/loki/loki-config.yml:ro,Z
       - loki-data:/loki
     networks:
       - microservicios-network
@@ -475,9 +475,9 @@ services:
     environment:
       LOKI_PUSH_URL: ${LOKI_PUSH_URL:?Define LOKI_PUSH_URL in .env}
     volumes:
-      - ./observability/promtail/promtail-config.yml:/etc/promtail/promtail-config.yml:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - ./observability/promtail/promtail-config.yml:/etc/promtail/promtail-config.yml:ro,Z
+      - /var/run/docker.sock:/var/run/docker.sock:ro,Z
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro,Z
       - promtail-positions:/var/lib/promtail
     depends_on:
       loki:
@@ -559,7 +559,7 @@ services:
     # En Docker Desktop el socket suele usar el grupo 0; en Linux, define DOCKER_GID
     # con el gid real del socket (stat -c '%g' /var/run/docker.sock).
     group_add:
-      - "${DOCKER_GID:-0}"
+      - "${DOCKER_GID:?Define DOCKER_GID in .env}"
     ports:
       - "${HOST_BIND_IP:-127.0.0.1}:${JENKINS_HOST_PORT:?Define JENKINS_HOST_PORT in .env}:8080"
       - "${HOST_BIND_IP:-127.0.0.1}:${JENKINS_AGENT_PORT:?Define JENKINS_AGENT_PORT in .env}:50000" # Puerto para agentes de Jenkins
@@ -572,11 +572,12 @@ services:
       JENKINS_ADMIN_USERNAME: ${JENKINS_ADMIN_USERNAME:?define JENKINS_ADMIN_USERNAME en .env}
       JENKINS_ADMIN_PASSWORD: ${JENKINS_ADMIN_PASSWORD:?define JENKINS_ADMIN_PASSWORD en .env}
       SONAR_TOKEN: ${SONAR_TOKEN:?Define SONAR_TOKEN en .env después de generarlo en SonarQube}
+      SONAR_TOKEN_USER: ${SONAR_TOKEN_USER:?Define SONAR_TOKEN_USER en .env}
     volumes:
       - jenkins_data:/var/jenkins_home
       - /var/run/docker.sock:/var/run/docker.sock # Acceso al Docker daemon del host
-      - ./jenkins/casc.yaml:/var/jenkins_home/casc_configs/jenkins.yaml:ro
-      - ./.env:/run/secrets/microservicios.env:ro
+      - ./jenkins/casc.yaml:/var/jenkins_home/casc_configs/jenkins.yaml:ro,Z
+      - ./.env:/run/secrets/microservicios.env:ro,Z
     networks:
       - microservicios-network
     restart: unless-stopped
