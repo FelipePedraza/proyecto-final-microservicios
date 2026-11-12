@@ -422,7 +422,7 @@ services:
     ports:
       - "${HOST_BIND_IP:-127.0.0.1}:${PROMETHEUS_HOST_PORT:?Define PROMETHEUS_HOST_PORT in .env}:9090"
     volumes:
-      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro,Z
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro,z
       - prometheus-data:/prometheus
     networks:
       - microservicios-network
@@ -442,7 +442,7 @@ services:
       DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-https://discord.com/api/webhooks/0/placeholder}
     volumes:
       - grafana-data:/var/lib/grafana
-      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro,Z
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro,z
     depends_on:
       prometheus:
         condition: service_started
@@ -460,7 +460,7 @@ services:
     ports:
       - "${HOST_BIND_IP:-127.0.0.1}:${LOKI_HOST_PORT:?Define LOKI_HOST_PORT in .env}:3100"
     volumes:
-      - ./observability/loki/loki-config.yml:/etc/loki/loki-config.yml:ro,Z
+      - ./observability/loki/loki-config.yml:/etc/loki/loki-config.yml:ro,z
       - loki-data:/loki
     networks:
       - microservicios-network
@@ -475,9 +475,9 @@ services:
     environment:
       LOKI_PUSH_URL: ${LOKI_PUSH_URL:?Define LOKI_PUSH_URL in .env}
     volumes:
-      - ./observability/promtail/promtail-config.yml:/etc/promtail/promtail-config.yml:ro,Z
-      - /var/run/docker.sock:/var/run/docker.sock:ro,Z
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro,Z
+      - ./observability/promtail/promtail-config.yml:/etc/promtail/promtail-config.yml:ro,z
+      - /var/run/docker.sock:/var/run/docker.sock:ro,z
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro,z
       - promtail-positions:/var/lib/promtail
     depends_on:
       loki:
@@ -556,7 +556,6 @@ services:
       context: ./jenkins
       dockerfile: Dockerfile
     container_name: jenkins
-    user: "1000"
     # En Docker Desktop el socket suele usar el grupo 0; en Linux, define DOCKER_GID
     # con el gid real del socket (stat -c '%g' /var/run/docker.sock).
     group_add:
@@ -577,8 +576,8 @@ services:
     volumes:
       - jenkins_data:/var/jenkins_home
       - /var/run/docker.sock:/var/run/docker.sock:rw,z # Acceso al Docker daemon del host
-      - ./jenkins/casc.yaml:/var/jenkins_home/casc_configs/jenkins.yaml:ro,Z
-      - ./.env:/run/secrets/microservicios.env:ro,Z
+      - ./jenkins/casc.yaml:/var/jenkins_home/casc_configs/jenkins.yaml:ro,z
+      - ./.env:/run/secrets/microservicios.env:ro,z
     networks:
       - microservicios-network
     restart: unless-stopped
