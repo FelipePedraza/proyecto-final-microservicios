@@ -561,8 +561,6 @@ services:
     # con el gid real del socket (stat -c '%g' /var/run/docker.sock).
     group_add:
       - "${DOCKER_GID:?Define DOCKER_GID in .env}"
-    security_opt:
-      - label=disable
     ports:
       - "${HOST_BIND_IP:-127.0.0.1}:${JENKINS_HOST_PORT:?Define JENKINS_HOST_PORT in .env}:8080"
       - "${HOST_BIND_IP:-127.0.0.1}:${JENKINS_AGENT_PORT:?Define JENKINS_AGENT_PORT in .env}:50000" # Puerto para agentes de Jenkins
