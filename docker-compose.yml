@@ -575,7 +575,7 @@ services:
       SONAR_TOKEN_USER: ${SONAR_TOKEN_USER:?Define SONAR_TOKEN_USER en .env}
     volumes:
       - jenkins_data:/var/jenkins_home
-      - /var/run/docker.sock:/var/run/docker.sock:rw,z # Acceso al Docker daemon del host
+      - /var/run/docker.sock:/var/run/docker.sock:rw # Acceso al Docker daemon del host
       - ./jenkins/casc.yaml:/var/jenkins_home/casc_configs/jenkins.yaml:ro,z
       - ./.env:/run/secrets/microservicios.env:ro,z
     networks:
