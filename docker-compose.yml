@@ -550,8 +550,6 @@ services:
       - build-tools
 
   jenkins:
-    profiles:
-      - ci
     build:
       context: ./jenkins
       dockerfile: Dockerfile
