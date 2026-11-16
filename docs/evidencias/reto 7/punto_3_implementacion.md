@@ -31,6 +31,12 @@ Después de generar los reportes de pruebas y JaCoCo, el pipeline ejecuta:
 
 El agente Maven se conecta explícitamente a `microservicios-network`; de otro modo, el contenedor efímero no podría resolver el hostname `sonarqube`.
 
+### Pipelines de los demás microservicios
+
+JCasC provisiona jobs con Jenkinsfiles versionados para `empleado-service`, `departamento-service`, `gateway-service`, `notificaciones-service`, `perfiles-service` y `vacaciones-service`. Cada pipeline usa las herramientas declaradas por su servicio (Maven/JaCoCo, pytest-cov, Jest o `go test`), publica los reportes disponibles, ejecuta el scanner apropiado y empaqueta su propia imagen. `departamento-service` levanta una PostgreSQL efímera en la red CI para la prueba de health que conecta directamente a la base. La suite E2E compartida se conserva en `auth-service` y `empleado-service`; no se repite en los jobs restantes para evitar despliegues y limpiezas concurrentes de la misma infraestructura.
+
+Las mediciones locales de los nuevos reportes fueron inferiores al umbral de 70 % para `gateway-service` (60,68 %) y `perfiles-service` (30,8 %); sus Quality Gates pueden fallar hasta ampliar la cobertura. No se considera validado el resultado SonarQube hasta ejecutar los jobs contra la instancia real.
+
 ## Decisiones técnicas
 
 - **Token:** Jenkins Credential aprovisionada con JCasC desde una variable local, nunca hardcodeada en el Jenkinsfile.
@@ -57,7 +63,7 @@ Ambos comandos finalizaron correctamente. Esto verifica formato del diff, interp
 5. Ejecutar el script de aprovisionamiento y confirmar en SonarQube que `QualityGate70` es el gate predeterminado y contiene `coverage LT 70`.
 6. Generar el token, guardarlo como `SONAR_TOKEN` en `.env` y recrear Jenkins.
 7. Confirmar que el webhook global hacia Jenkins está registrado y que las entregas son exitosas.
-8. Ejecutar el job `auth-service` y comprobar sus siete etapas.
+8. Ejecutar los jobs de los siete microservicios y comprobar sus etapas; `auth-service` y `empleado-service` incluyen además las pruebas E2E.
 9. Capturar el dashboard, la cobertura, el Quality Gate aprobado y un Quality Gate fallido.
 
 ## Resultado esperado

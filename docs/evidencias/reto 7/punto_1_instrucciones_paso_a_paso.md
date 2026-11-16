@@ -6,7 +6,7 @@ Esta guia describe la configuracion actual del repositorio. No es necesario crea
 
 - `docker-compose.yml` ejecuta Jenkins en `http://localhost:9090`, expone el puerto de agentes `50000` y monta `/var/run/docker.sock` para Docker-out-of-Docker.
 - `jenkins/Dockerfile` parte de Jenkins LTS con JDK 21, instala el cliente Docker/Compose y preinstala los plugins de pipeline, JUnit, cobertura, Cucumber, HTML y SonarQube.
-- `jenkins/casc.yaml` provisiona el usuario desde `JENKINS_ADMIN_USERNAME` y `JENKINS_ADMIN_PASSWORD`, la credencial `sonarqube-token`, el servidor SonarQube y los jobs `auth-service`, `empleado-service` y `test-docker-pipeline`.
+- `jenkins/casc.yaml` provisiona el usuario desde `JENKINS_ADMIN_USERNAME` y `JENKINS_ADMIN_PASSWORD`, la credencial `sonarqube-token`, el servidor SonarQube y un job por cada uno de los siete microservicios, además de `test-docker-pipeline`.
 - Jenkins y los agentes Docker usan la red `microservicios-network`. En Linux, `DOCKER_GID` debe coincidir con el grupo del socket; en Docker Desktop el ejemplo usa `0`.
 
 ## Arranque
@@ -17,7 +17,7 @@ Esta guia describe la configuracion actual del repositorio. No es necesario crea
 4. Ingresa a `http://localhost:9090` con los valores `JENKINS_ADMIN_USERNAME` y `JENKINS_ADMIN_PASSWORD` de `.env`. El setup wizard esta desactivado y JCasC provisiona ese usuario; no se usa `initialAdminPassword`.
 5. Confirma que aparecen los jobs definidos en JCasC. `test-docker-pipeline` comprueba `docker --version` y `docker ps`; ejecutalo desde la interfaz y revisa el log de consola.
 
-Los pipelines de aplicacion se ejecutan desde `auth-service` y `empleado-service` con **Build Now**. La instancia SonarQube requiere que se creen/verifiquen el Quality Gate de cobertura y el webhook indicados en la [guia del Reto 7](../../README.md#reto-7-integracion-continua-con-jenkins-y-sonarqube).
+Cada pipeline de aplicación se ejecuta desde el job homónimo con **Build Now**. Todos compilan o validan, prueban, analizan en SonarQube, esperan el Quality Gate y construyen la imagen Docker del servicio. Los jobs `auth-service` y `empleado-service` también ejecutan la suite E2E compartida. La instancia SonarQube requiere que se creen/verifiquen el Quality Gate de cobertura y el webhook indicados en la [guia del Reto 7](../../README.md#reto-7-integracion-continua-con-jenkins-y-sonarqube).
 
 ## Limitaciones del acceso al socket
 

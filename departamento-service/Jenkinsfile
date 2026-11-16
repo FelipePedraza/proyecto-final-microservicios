@@ -1,0 +1,143 @@
+pipeline {
+    agent none
+    options {
+        timestamps()
+        timeout(time: 30, unit: 'MINUTES')
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+        disableConcurrentBuilds()
+        skipStagesAfterUnstable()
+    }
+    triggers {
+        pollSCM('H/5 * * * *')
+    }
+    stages {
+        stage('Checkout') {
+            agent any
+            steps {
+                checkout scm
+                echo 'Código fuente de departamento-service obtenido'
+            }
+        }
+        stage('Build') {
+            agent {
+                docker {
+                    image 'python:3.11-slim'
+                    args '--network microservicios-network -v pip_cache:/root/.cache/pip'
+                }
+            }
+            steps {
+                dir('departamento-service') {
+                    sh 'python -m pip install -r requirements-dev.txt'
+                    sh 'python -m compileall -q app'
+                }
+            }
+        }
+        stage('Test') {
+            agent {
+                docker {
+                    image 'python:3.11-slim'
+                    args '--network microservicios-network -v pip_cache:/root/.cache/pip'
+                }
+            }
+            steps {
+                script {
+                    docker.image('postgres:16-alpine').withRun('--network microservicios-network --network-alias departamento-test-db -e POSTGRES_DB=departamento_db -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres') {
+                        withEnv([
+                            'DB_DEPARTAMENTO_HOST=departamento-test-db',
+                            'DB_DEPARTAMENTO_PORT=5432',
+                            'DB_DEPARTAMENTO_NAME=departamento_db',
+                            'DB_DEPARTAMENTO_USER=postgres',
+                            'DB_DEPARTAMENTO_PASSWORD=postgres'
+                        ]) {
+                            dir('departamento-service') {
+                                sh 'python -m pip install -r requirements-dev.txt'
+                                sh '''
+                                    ready=false
+                                    for attempt in $(seq 1 60); do
+                                        if python -c 'import socket; socket.create_connection(("departamento-test-db", 5432), timeout=1).close()'; then
+                                            ready=true
+                                            break
+                                        fi
+                                        sleep 1
+                                    done
+                                    if [ "$ready" != true ]; then
+                                        echo "ERROR: PostgreSQL no estuvo disponible después de 60 segundos." >&2
+                                        exit 1
+                                    fi
+                                    python -m pytest tests -q --junitxml=test-results.xml --cov=app --cov-report=xml:coverage.xml
+                                '''
+                            }
+                        }
+                    }
+                }
+                stash name: 'departamento-coverage-report', includes: 'departamento-service/coverage.xml'
+            }
+            post {
+                always {
+                    junit testResults: 'departamento-service/test-results.xml', allowEmptyResults: true
+                    recordCoverage(
+                        tools: [[parser: 'COBERTURA', pattern: 'departamento-service/coverage.xml']],
+                        sourceDirectories: [[path: 'departamento-service/app']],
+                        sourceCodeRetention: 'EVERY_BUILD'
+                    )
+                    archiveArtifacts artifacts: 'departamento-service/coverage.xml', allowEmptyArchive: true
+                }
+            }
+        }
+        stage('SonarQube Analysis') {
+            agent {
+                docker {
+                    image 'sonarsource/sonar-scanner-cli:latest'
+                    args '--network microservicios-network --entrypoint=""'
+                }
+            }
+            steps {
+                unstash 'departamento-coverage-report'
+                withSonarQubeEnv('sonarqube') {
+                    dir('departamento-service') {
+                        sh '''
+                            sonar-scanner \
+                                -Dsonar.projectKey=departamento-service \
+                                -Dsonar.projectName=departamento-service \
+                                -Dsonar.sources=app \
+                                -Dsonar.tests=tests \
+                                -Dsonar.python.coverage.reportPaths=coverage.xml \
+                                -Dsonar.token="$SONAR_AUTH_TOKEN"
+                        '''
+                    }
+                }
+            }
+        }
+        stage('Quality Gate') {
+            agent any
+            steps {
+                timeout(time: 5, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
+        stage('Package') {
+            agent any
+            steps {
+                script {
+                    def imageName = 'departamento-service'
+                    def imageTag = "${env.BUILD_NUMBER}"
+                    dir('departamento-service') {
+                        sh "docker build -t ${imageName}:${imageTag} -t ${imageName}:latest ."
+                    }
+                }
+            }
+        }
+    }
+    post {
+        always {
+            echo 'Pipeline de departamento-service finalizado'
+        }
+        success {
+            echo 'Build, pruebas, análisis SonarQube, Quality Gate y empaquetado exitosos'
+        }
+        failure {
+            echo 'El pipeline de departamento-service ha fallado'
+        }
+    }
+}

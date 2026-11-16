@@ -49,7 +49,7 @@ Implementar un pipeline de CI automatizado con **Jenkins**, **SonarQube** y **Do
 | **1** | **Configuración de Jenkins en Docker** | Levantar Jenkins reproducible con plugins pre-instalados y acceso a Docker. | `jenkins/Dockerfile`, `docker-compose.yml` (servicio Jenkins), pipeline de verificación con `docker --version`. |
 | **2** | **Primer Jenkinsfile & Reportes** | Compilar, probar y publicar reportes de tests y cobertura. | `Jenkinsfile` declarativo, reportes JUnit + Cobertura con `recordCoverage` en `post { always { } }`, provisionamiento de jobs as Code (JCasC o init scripts). |
 | **3** | **Calidad con SonarQube** | Inspección estática del código y control de Quality Gate. | SonarQube + Postgres en Compose, etapa SonarQube en `Jenkinsfile`, Quality Gate personalizado ($\ge 70\%$ cobertura). |
-| **4** | **Empaquetado Docker & E2E BDD** | Construir imagen, ejecutar pruebas de extremo a extremo y publicar reportes BDD navegables. | Etapa `Package`, ejecución BDD en Compose, publicación con `cucumber-reports` / `htmlpublisher`, archivado de logs, mínimo 2 Jenkinsfiles (2 lenguajes). |
+| **4** | **Empaquetado Docker & E2E BDD** | Construir imágenes para los siete microservicios, ejecutar pruebas E2E y publicar reportes BDD navegables. | Jenkinsfile por microservicio, etapa `Package`, ejecución BDD en Compose desde `auth-service` y `empleado-service`, publicación con `cucumber-reports` / `htmlpublisher` y archivado de logs. |
 | **5** | **Reproducibilidad & Documentación** | Garantizar ejecuciones estables, simulación de fallos y documentación completa. | Pruebas de 3 ejecuciones seguidas, prueba de 4 fallos simulados, `README.md` detallado con capturas de pantalla y tabla de reportes. |
 
 ---

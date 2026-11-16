@@ -1,0 +1,121 @@
+pipeline {
+    agent none
+    options {
+        timestamps()
+        timeout(time: 30, unit: 'MINUTES')
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+        disableConcurrentBuilds()
+        skipStagesAfterUnstable()
+    }
+    triggers {
+        pollSCM('H/5 * * * *')
+    }
+    environment {
+        JEST_JUNIT_OUTPUT_DIR = 'reports'
+        JEST_JUNIT_OUTPUT_NAME = 'junit.xml'
+    }
+    stages {
+        stage('Checkout') {
+            agent any
+            steps {
+                checkout scm
+                echo 'Código fuente de notificaciones-service obtenido'
+            }
+        }
+        stage('Build') {
+            agent {
+                docker {
+                    image 'node:20-alpine'
+                    args '--network microservicios-network -v npm_cache:/root/.npm'
+                }
+            }
+            steps {
+                dir('notificaciones-service') {
+                    sh 'npm ci'
+                    sh 'node --check src/server.js'
+                }
+            }
+        }
+        stage('Test') {
+            agent {
+                docker {
+                    image 'node:20-alpine'
+                    args '--network microservicios-network -v npm_cache:/root/.npm'
+                }
+            }
+            steps {
+                dir('notificaciones-service') {
+                    sh 'npm ci'
+                    sh 'npm test -- --ci --coverage --coverageReporters=lcov --coverageReporters=cobertura --reporters=default --reporters=jest-junit'
+                }
+                stash name: 'notificaciones-coverage-reports', includes: 'notificaciones-service/coverage/lcov.info,notificaciones-service/coverage/cobertura-coverage.xml'
+            }
+            post {
+                always {
+                    junit testResults: 'notificaciones-service/reports/junit.xml', allowEmptyResults: true
+                    recordCoverage(
+                        tools: [[parser: 'COBERTURA', pattern: 'notificaciones-service/coverage/cobertura-coverage.xml']],
+                        sourceDirectories: [[path: 'notificaciones-service/src']],
+                        sourceCodeRetention: 'EVERY_BUILD'
+                    )
+                    archiveArtifacts artifacts: 'notificaciones-service/coverage/**', allowEmptyArchive: true
+                }
+            }
+        }
+        stage('SonarQube Analysis') {
+            agent {
+                docker {
+                    image 'sonarsource/sonar-scanner-cli:latest'
+                    args '--network microservicios-network --entrypoint=""'
+                }
+            }
+            steps {
+                unstash 'notificaciones-coverage-reports'
+                withSonarQubeEnv('sonarqube') {
+                    dir('notificaciones-service') {
+                        sh '''
+                            sonar-scanner \
+                                -Dsonar.projectKey=notificaciones-service \
+                                -Dsonar.projectName=notificaciones-service \
+                                -Dsonar.sources=src \
+                                -Dsonar.tests=test \
+                                -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info \
+                                -Dsonar.token="$SONAR_AUTH_TOKEN"
+                        '''
+                    }
+                }
+            }
+        }
+        stage('Quality Gate') {
+            agent any
+            steps {
+                timeout(time: 5, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
+        stage('Package') {
+            agent any
+            steps {
+                script {
+                    def imageName = 'notificaciones-service'
+                    def imageTag = "${env.BUILD_NUMBER}"
+                    dir('notificaciones-service') {
+                        sh "docker build -t ${imageName}:${imageTag} -t ${imageName}:latest ."
+                    }
+                }
+            }
+        }
+    }
+    post {
+        always {
+            echo 'Pipeline de notificaciones-service finalizado'
+        }
+        success {
+            echo 'Build, pruebas, análisis SonarQube, Quality Gate y empaquetado exitosos'
+        }
+        failure {
+            echo 'El pipeline de notificaciones-service ha fallado'
+        }
+    }
+}

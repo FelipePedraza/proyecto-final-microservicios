@@ -470,7 +470,7 @@ añadir controles de acceso.
   * El usuario y la contraseña se leen de `JENKINS_ADMIN_USERNAME` y `JENKINS_ADMIN_PASSWORD` en `.env`.
   * Credenciales secretas registradas automáticamente (como `sonarqube-token`).
   * URL base de Jenkins, repositorio Git y conexión con SonarQube configurables mediante `JENKINS_ROOT_URL`, `GITHUB_REPOSITORY_URL` y `JENKINS_SONARQUBE_URL` en `.env` (la URL de SonarQube debe ser accesible desde la red de Docker).
-  * Creación automática de los jobs multietapa (`auth-service` y `empleado-service`) mediante Job DSL apuntando al repositorio de Git.
+  * Creación automática de jobs multietapa para los siete microservicios de aplicación mediante Job DSL apuntando al repositorio de Git.
 * **Contraseña inicial de Jenkins:** No se genera ni se necesita `initialAdminPassword`: el setup wizard está desactivado y JCasC crea el usuario configurado en `.env`. Consulta esos valores locales; no uses las credenciales de ejemplo como secretos de producción.
 * **Jenkins CLI:** El archivo `jenkins-cli.jar` no está versionado. Si se necesita CLI, descárgalo desde la instancia Jenkins y usa un API token de Jenkins:
   ```powershell
@@ -506,7 +506,7 @@ añadir controles de acceso.
 * **Infraestructura:** `sonar-db` y `sonarqube` se definen en `docker-compose.yml`; Jenkins y sus agentes se conectan por la red `microservicios-network` a `http://sonarqube:9000`. La base PostgreSQL reserva 256 MB de memoria compartida para evitar caídas `SIGBUS` con el límite predeterminado de Docker (64 MB), y SonarQube tiene un healthcheck que solo pasa cuando la API reporta `UP`. El pipeline de `auth-service` espera esa disponibilidad antes de iniciar el scanner. Se fija la imagen `sonarqube:25.2.0.102705-community`, compatible con SonarScanner for .NET 12.
 * **Actualización desde SonarQube 9.9:** no inicies directamente la imagen final sobre la base de datos existente. SonarSource requiere la ruta `9.9 LTA → 24.12.0.100206-community → 25.2.0.102705-community`. Respaldar la base de datos antes de migrar; conserva los volúmenes `sonar_db_data`, `sonarqube_data`, `sonarqube_logs` y `sonarqube_extensions` durante el proceso, y no uses `docker compose down -v`.
 * **Aprovisionamiento reproducible del Quality Gate:** ejecuta [`tools/provision_sonarqube.py`](./tools/provision_sonarqube.py) después de iniciar SonarQube e iniciar sesión con una cuenta cuyo token tenga el permiso global **Administer Quality Gates**. No uses el token de análisis `SONAR_TOKEN`. El script crea o actualiza el gate global `QualityGate70`, fija `coverage LT 70`, lo asigna como predeterminado y lo aplica también a los proyectos existentes `auth-service` y `empleado-service`. Registra además el webhook global hacia `http://jenkins:8080/sonarqube-webhook/`.
-  La regla `coverage LT 70` hace fallar coberturas menores a 70 %; 70 % exacto satisface esta condición. El gate predeterminado cubre proyectos nuevos y la herramienta asigna el gate a los dos proyectos existentes si ya fueron creados.
+  La regla `coverage LT 70` hace fallar coberturas menores a 70 %; 70 % exacto satisface esta condición. El gate predeterminado cubre los proyectos nuevos; la herramienta asigna el gate explícitamente a los dos proyectos existentes si ya fueron creados.
 * **Webhook SonarQube ➔ Jenkins:** el script de aprovisionamiento lo crea si no existe; no se debe asumir que está configurado hasta ejecutarlo y confirmar las entregas en `Administration → Configuration → Webhooks`.
 * **Etapas en el Pipeline:**
   * `SonarQube Analysis`: ejecuta el escáner correspondiente e importa JaCoCo (Java) u OpenCover (.NET).
@@ -534,7 +534,7 @@ añadir controles de acceso.
 * **Limpieza:** El bloque `post { always { ... } }` intenta detener y eliminar los contenedores y volúmenes de la aplicación seleccionados en el pipeline. Esto ayuda al aislamiento entre builds, pero debe validarse con ejecuciones consecutivas; no equivale por sí mismo a evidencia de reproducibilidad.
 
 #### C. Segundo Pipeline Multilenguaje (empleado-service en C# / .NET 10)
-Ambos pipelines (`auth-service` y `empleado-service`) cuentan con las mismas siete etapas: Checkout, Build, Test, SonarQube Analysis, Quality Gate, Package y E2E Tests.
+Los siete pipelines incluyen Checkout, Build, Test, SonarQube Analysis, Quality Gate y Package. Los jobs `auth-service` y `empleado-service` añaden las pruebas E2E compartidas, para evitar que cada job despliegue y limpie concurrentemente el mismo ecosistema.
 
 1. Checkout
 2. Build
@@ -564,9 +564,9 @@ Para sustentar ante el profesor o jurado, consulta la siguiente tabla de navegac
 
 | Métrica / Reporte | Herramienta | Ruta de Navegación Exacta en la UI | Qué muestra |
 |---|---|---|---|
-| **Resultados de Pruebas Unitarias** | Jenkins | `Job (auth-service o empleado-service)` $\to$ `Build #X` $\to$ **Test Result** | Total de pruebas pasadas/fallidas, tiempo de ejecución y detalle de aserciones. |
-| **Cobertura de Código JaCoCo / Cobertura** | Jenkins | `Job` $\to$ `Build #X` $\to$ **Coverage** o **Coverage Report** | Gráfico de porcentaje de cobertura por líneas, ramas, clases y métodos. |
-| **Calidad de Código y Quality Gate** | SonarQube | [http://localhost:9000](http://localhost:9000) $\to$ Proyecto `auth-service` | Semáforo verde **Passed**, cobertura ($\ge 70\%$), 0 bugs, 0 vulnerabilidades, code smells y duplicación. |
+| **Resultados de Pruebas Unitarias** | Jenkins | `Job del microservicio` $\to$ `Build #X` $\to$ **Test Result** o consola | Resultados JUnit/TRX en los stacks compatibles; Go presenta su salida de `go test` en consola. |
+| **Cobertura de Código** | Jenkins | `Job` $\to$ `Build #X` $\to$ **Coverage** o **Artifacts** | JaCoCo/Cobertura se publican en Coverage; perfiles LCOV y Go quedan archivados para SonarQube. |
+| **Calidad de Código y Quality Gate** | SonarQube | [http://localhost:9000](http://localhost:9000) $\to$ proyecto asociado al job | Semáforo del gate del proyecto, cobertura, bugs, vulnerabilidades, code smells y duplicación. |
 | **Webhook de SonarQube** | SonarQube | [http://localhost:9000](http://localhost:9000) $\to$ `Administration` $\to$ `Configuration` $\to$ `Webhooks` | Historial de entregas exitosas (código HTTP 200) hacia Jenkins. |
 | **Reporte Gráfico BDD (Cucumber)** | Jenkins | `Job` $\to$ `Build #X` $\to$ **Cucumber Reports** o menú lateral **Reporte BDD** | Gráficas circulares con los 19 escenarios BDD, pasos aprobados y tiempos de respuesta. |
 | **Logs de Diagnóstico de Microservicios** | Jenkins | `Job` $\to$ `Build #X` $\to$ **Artifacts** $\to$ `docker-logs.txt` | Registros completos de los 14 contenedores Docker durante la prueba E2E. |
@@ -577,7 +577,7 @@ Para sustentar ante el profesor o jurado, consulta la siguiente tabla de navegac
 
 ### CI en este proyecto
 
-La integración continua (CI) automatiza la compilación, las pruebas y los controles de calidad cada vez que hay cambios en el código. Aquí Jenkins ejecuta pipelines para `auth-service` y `empleado-service`, publica los resultados de pruebas/cobertura, consulta el Quality Gate de SonarQube y construye la imagen Docker antes de ejecutar la suite E2E/BDD. Esto permite detectar regresiones antes de integrar cambios.
+La integración continua (CI) automatiza la compilación o validación, las pruebas y los controles de calidad cada vez que hay cambios en el código. Jenkins ejecuta un pipeline para cada uno de los siete microservicios, publica los reportes que genera cada stack, consulta el Quality Gate de SonarQube y construye la imagen Docker del servicio. Los jobs `auth-service` y `empleado-service` también ejecutan la suite E2E/BDD compartida. Esto permite detectar regresiones antes de integrar cambios.
 
 ### Levantar Jenkins y crear los pipelines
 
@@ -586,7 +586,7 @@ La integración continua (CI) automatiza la compilación, las pruebas y los cont
 3. Ejecuta `python tools/provision_sonarqube.py` desde la raíz. El programa solicita el token sin mostrarlo y crea/actualiza el gate `QualityGate70` (`coverage LT 70`), lo asigna como predeterminado y registra el webhook de Jenkins. Si tu servidor no está en `http://localhost:9000`, define `SONAR_URL` antes de ejecutar el script.
 4. Con el token de análisis en `SONAR_TOKEN` y las credenciales de Jenkins en `.env`, inicia la pila CI explícitamente con `docker compose --profile ci up --build -d` y consulta el estado con `docker compose ps`. El pipeline de `empleado-service` construye la imagen local `dotnet-sonar:10.0-sonarscanner-12.0.0` desde [`jenkins/Dockerfile.dotnet-sonar`](./jenkins/Dockerfile.dotnet-sonar) después del checkout; no es necesario construirla manualmente. El servicio Compose `dotnet-sonar-agent` del perfil `build-tools` queda disponible para preparar esa imagen manualmente si se requiere.
 5. Abre [Jenkins](http://localhost:9090) e inicia sesión con `JENKINS_ADMIN_USERNAME` y `JENKINS_ADMIN_PASSWORD` de tu `.env`. No hay contraseña `initialAdminPassword`: el asistente de instalación está desactivado y JCasC crea el administrador.
-6. JCasC crea automáticamente los jobs `auth-service` y `empleado-service`, configurados para leer sus respectivos Jenkinsfiles desde la rama `main` del repositorio. No hay que importarlos manualmente. Para correr uno, entra al job y elige **Build Now**.
+6. JCasC crea automáticamente un job por cada microservicio (`auth-service`, `empleado-service`, `departamento-service`, `gateway-service`, `notificaciones-service`, `perfiles-service` y `vacaciones-service`), configurados para leer sus Jenkinsfiles desde la rama `main` del repositorio. No hay que importarlos manualmente. Para correr uno, entra al job y elige **Build Now**.
 
 La configuración usa el `.env` local montado en Jenkins como `/run/secrets/microservicios.env` y leído por `DOTENV_FILE`; no usa una credencial Jenkins `Secret file` llamada `microservicios-env`. Jenkins requiere acceso al socket Docker del host para construir y levantar el stack E2E.
 
@@ -596,9 +596,9 @@ La configuración usa el `.env` local montado en Jenkins como `/run/secrets/micr
 |---|---|
 | `Checkout` | Obtiene el código desde la rama configurada en SCM. |
 | `Prepare .NET agent image` | Construye localmente la imagen SDK/Scanner que requieren las etapas Docker del pipeline de `empleado-service`. |
-| `Build` | Compila el servicio (`mvn compile` para auth; `dotnet build` para empleado). |
-| `Test` | Ejecuta pruebas unitarias, publica sus resultados (Surefire/JUnit o TRX/MSTest) y registra JaCoCo o Cobertura. |
-| `SonarQube Analysis` | Envía código y reporte de cobertura a SonarQube. |
+| `Build` | Compila o valida el servicio con sus herramientas (Maven, .NET, Python, Node.js o Go). |
+| `Test` | Ejecuta las pruebas del stack; publica JUnit/TRX cuando está disponible y registra o archiva su cobertura. |
+| `SonarQube Analysis` | Envía código y reporte de cobertura compatible a SonarQube. |
 | `Quality Gate` | Espera el webhook; falla si SonarQube rechaza el gate de calidad o si se agota el timeout. |
 | `Package` | Construye la imagen Docker del servicio; errores de Dockerfile/build detienen esta etapa. |
 | `E2E Tests` | Despliega los servicios requeridos y ejecuta los escenarios BDD Cucumber contra el Gateway. |
@@ -626,7 +626,7 @@ La configuración usa el `.env` local montado en Jenkins como `/run/secrets/micr
 
 ### Disparo automático por cambios
 
-Los Jenkinsfiles de `auth-service` y `empleado-service` configuran `pollSCM('H/5 * * * *')`. Jenkins consulta el SCM aproximadamente cada cinco minutos y programa un build si detecta cambios en la rama configurada (`main`). Esto no es un webhook instantáneo: puede haber hasta cinco minutos de demora. Ejecuta primero un build manual para que Jenkins cargue el trigger del Jenkinsfile; después verifica el disparo con un push y una nueva ejecución en el historial del job.
+Los Jenkinsfiles de los siete microservicios configuran `pollSCM('H/5 * * * *')`. Jenkins consulta el SCM aproximadamente cada cinco minutos y programa un build si detecta cambios en la rama configurada (`main`). Esto no es un webhook instantáneo: puede haber hasta cinco minutos de demora. Ejecuta primero un build manual para que Jenkins cargue el trigger del Jenkinsfile; después verifica el disparo con un push y una nueva ejecución en el historial del job.
 
 ### Capturas que faltan agregar
 
@@ -642,7 +642,7 @@ Crea `docs/evidencias/reto 7/capturas/` y guarda allí las capturas reales despu
 
 ### A. Demostración de reproducibilidad (3 ejecuciones)
 
-Ejecuta cada job (`auth-service` y `empleado-service`) tres veces, esperando a que termine cada build antes de iniciar el siguiente. Registra el número y estado de cada build en Jenkins y revisa que los resultados sean consistentes. El procedimiento no constituye evidencia de ejecución: las capturas/resultados deben agregarse después de correr los jobs. La limpieza de E2E intenta eliminar contenedores y volúmenes de aplicación, pero no garantiza por sí sola el éxito de los builds.
+Ejecuta cada uno de los siete jobs tres veces, esperando a que termine cada build antes de iniciar el siguiente. Registra el número y estado de cada build en Jenkins y revisa que los resultados sean consistentes. El procedimiento no constituye evidencia de ejecución: las capturas/resultados deben agregarse después de correr los jobs. La limpieza de E2E en `auth-service` y `empleado-service` intenta eliminar contenedores y volúmenes de aplicación, pero no garantiza por sí sola el éxito de los builds.
 
 ---
 

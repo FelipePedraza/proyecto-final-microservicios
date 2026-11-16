@@ -1,0 +1,109 @@
+pipeline {
+    agent none
+    options {
+        timestamps()
+        timeout(time: 30, unit: 'MINUTES')
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+        disableConcurrentBuilds()
+        skipStagesAfterUnstable()
+    }
+    triggers {
+        pollSCM('H/5 * * * *')
+    }
+    stages {
+        stage('Checkout') {
+            agent any
+            steps {
+                checkout scm
+                echo 'Código fuente de perfiles-service obtenido'
+            }
+        }
+        stage('Build') {
+            agent {
+                docker {
+                    image 'golang:1.26-alpine'
+                    args '--network microservicios-network -v go_mod_cache:/go/pkg/mod'
+                }
+            }
+            steps {
+                dir('perfiles-service') {
+                    sh 'go mod download'
+                    sh 'go build -trimpath -o /tmp/perfiles-service ./cmd/server'
+                }
+            }
+        }
+        stage('Test') {
+            agent {
+                docker {
+                    image 'golang:1.26-alpine'
+                    args '--network microservicios-network -v go_mod_cache:/go/pkg/mod'
+                }
+            }
+            steps {
+                dir('perfiles-service') {
+                    sh 'go test -coverprofile=coverage.out -covermode=atomic ./...'
+                }
+                stash name: 'perfiles-coverage-report', includes: 'perfiles-service/coverage.out'
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'perfiles-service/coverage.out', allowEmptyArchive: true
+                }
+            }
+        }
+        stage('SonarQube Analysis') {
+            agent {
+                docker {
+                    image 'sonarsource/sonar-scanner-cli:latest'
+                    args '--network microservicios-network --entrypoint=""'
+                }
+            }
+            steps {
+                unstash 'perfiles-coverage-report'
+                withSonarQubeEnv('sonarqube') {
+                    dir('perfiles-service') {
+                        sh '''
+                            sonar-scanner \
+                                -Dsonar.projectKey=perfiles-service \
+                                -Dsonar.projectName=perfiles-service \
+                                -Dsonar.sources=. \
+                                -Dsonar.go.coverage.reportPaths=coverage.out \
+                                -Dsonar.token="$SONAR_AUTH_TOKEN"
+                        '''
+                    }
+                }
+            }
+        }
+        stage('Quality Gate') {
+            agent any
+            steps {
+                timeout(time: 5, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
+        stage('Package') {
+            agent any
+            steps {
+                script {
+                    def imageName = 'perfiles-service'
+                    def imageTag = "${env.BUILD_NUMBER}"
+                    dir('perfiles-service') {
+                        sh "docker build -t ${imageName}:${imageTag} -t ${imageName}:latest ."
+                    }
+                }
+            }
+        }
+    }
+    post {
+        always {
+            echo 'Pipeline de perfiles-service finalizado'
+        }
+        success {
+            echo 'Build, pruebas, análisis SonarQube, Quality Gate y empaquetado exitosos'
+        }
+        failure {
+            echo 'El pipeline de perfiles-service ha fallado'
+        }
+    }
+}

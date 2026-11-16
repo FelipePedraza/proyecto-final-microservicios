@@ -1,0 +1,117 @@
+pipeline {
+    agent none
+    options {
+        timestamps()
+        timeout(time: 30, unit: 'MINUTES')
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+        disableConcurrentBuilds()
+        skipStagesAfterUnstable()
+    }
+    triggers {
+        pollSCM('H/5 * * * *')
+    }
+    environment {
+        MVN_OPTS = '-B -Dmaven.repo.local=/tmp/.m2/repository'
+    }
+    stages {
+        stage('Checkout') {
+            agent any
+            steps {
+                checkout scm
+                echo 'Código fuente de gateway-service obtenido'
+            }
+        }
+        stage('Build') {
+            agent {
+                docker {
+                    image 'maven:3.9-eclipse-temurin-21'
+                    args '--network microservicios-network -v maven_repo_cache:/tmp -e HOME=/tmp'
+                }
+            }
+            steps {
+                dir('gateway-service') {
+                    sh 'mvn $MVN_OPTS clean compile -DskipTests'
+                }
+            }
+        }
+        stage('Test') {
+            agent {
+                docker {
+                    image 'maven:3.9-eclipse-temurin-21'
+                    args '--network microservicios-network -v maven_repo_cache:/tmp -e HOME=/tmp'
+                }
+            }
+            steps {
+                dir('gateway-service') {
+                    sh 'mvn $MVN_OPTS verify -Dmaven.test.failure.ignore=true'
+                }
+                stash name: 'gateway-jacoco-report', includes: 'gateway-service/target/site/jacoco/jacoco.xml'
+            }
+            post {
+                always {
+                    junit 'gateway-service/target/surefire-reports/*.xml'
+                    recordCoverage(
+                        tools: [[parser: 'JACOCO', pattern: 'gateway-service/target/site/jacoco/jacoco.xml']],
+                        sourceDirectories: [[path: 'gateway-service/src/main/java']],
+                        sourceCodeRetention: 'EVERY_BUILD'
+                    )
+                    archiveArtifacts artifacts: 'gateway-service/target/site/jacoco/**', allowEmptyArchive: true
+                }
+            }
+        }
+        stage('SonarQube Analysis') {
+            agent {
+                docker {
+                    image 'maven:3.9-eclipse-temurin-21'
+                    args '--network microservicios-network -v maven_repo_cache:/tmp -e HOME=/tmp'
+                }
+            }
+            steps {
+                unstash 'gateway-jacoco-report'
+                dir('gateway-service') {
+                    withSonarQubeEnv('sonarqube') {
+                        sh '''
+                            mvn $MVN_OPTS \
+                                org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
+                                -Dsonar.projectKey=gateway-service \
+                                -Dsonar.projectName=gateway-service \
+                                -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml \
+                                -Dsonar.token="$SONAR_AUTH_TOKEN"
+                        '''
+                    }
+                }
+            }
+        }
+        stage('Quality Gate') {
+            agent any
+            steps {
+                timeout(time: 5, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
+        stage('Package') {
+            agent any
+            steps {
+                script {
+                    def imageName = 'gateway-service'
+                    def imageTag = "${env.BUILD_NUMBER}"
+                    dir('gateway-service') {
+                        sh "docker build -t ${imageName}:${imageTag} -t ${imageName}:latest ."
+                    }
+                }
+            }
+        }
+    }
+    post {
+        always {
+            echo 'Pipeline de gateway-service finalizado'
+        }
+        success {
+            echo 'Build, pruebas, análisis SonarQube, Quality Gate y empaquetado exitosos'
+        }
+        failure {
+            echo 'El pipeline de gateway-service ha fallado'
+        }
+    }
+}

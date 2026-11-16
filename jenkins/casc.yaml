@@ -72,6 +72,86 @@ jobs:
         }
       }
 
+      pipelineJob('departamento-service') {
+        definition {
+          cpsScm {
+            scm {
+              git {
+                remote {
+                  url('${GITHUB_REPOSITORY_URL}')
+                }
+                branch('*/main')
+              }
+            }
+            scriptPath('departamento-service/Jenkinsfile')
+          }
+        }
+      }
+
+      pipelineJob('gateway-service') {
+        definition {
+          cpsScm {
+            scm {
+              git {
+                remote {
+                  url('${GITHUB_REPOSITORY_URL}')
+                }
+                branch('*/main')
+              }
+            }
+            scriptPath('gateway-service/Jenkinsfile')
+          }
+        }
+      }
+
+      pipelineJob('notificaciones-service') {
+        definition {
+          cpsScm {
+            scm {
+              git {
+                remote {
+                  url('${GITHUB_REPOSITORY_URL}')
+                }
+                branch('*/main')
+              }
+            }
+            scriptPath('notificaciones-service/Jenkinsfile')
+          }
+        }
+      }
+
+      pipelineJob('perfiles-service') {
+        definition {
+          cpsScm {
+            scm {
+              git {
+                remote {
+                  url('${GITHUB_REPOSITORY_URL}')
+                }
+                branch('*/main')
+              }
+            }
+            scriptPath('perfiles-service/Jenkinsfile')
+          }
+        }
+      }
+
+      pipelineJob('vacaciones-service') {
+        definition {
+          cpsScm {
+            scm {
+              git {
+                remote {
+                  url('${GITHUB_REPOSITORY_URL}')
+                }
+                branch('*/main')
+              }
+            }
+            scriptPath('vacaciones-service/Jenkinsfile')
+          }
+        }
+      }
+
       pipelineJob('test-docker-pipeline') {
         definition {
           cps {
