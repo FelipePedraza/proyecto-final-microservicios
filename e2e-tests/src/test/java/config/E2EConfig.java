@@ -11,11 +11,7 @@ public final class E2EConfig {
 
     /** URL del API Gateway, único puerto de aplicación publicado por docker-compose. */
     public static String baseUrl() {
-        String value = read("E2E_BASE_URL", "e2e.baseUrl", "");
-        if (value.isBlank()) {
-            throw new IllegalStateException("Configure E2E_BASE_URL antes de ejecutar los tests");
-        }
-        return value;
+        return read("E2E_BASE_URL", "e2e.baseUrl", "http://localhost:8088");
     }
 
     public static String adminEmail() {
@@ -52,23 +48,23 @@ public final class E2EConfig {
 
     /** Tiempo máximo (segundos) de espera a que el sistema esté disponible antes de fallar. */
     public static int startupTimeoutSeconds() {
-        return Integer.parseInt(read("E2E_STARTUP_TIMEOUT_SECONDS", "e2e.startupTimeoutSeconds", ""));
+        return Integer.parseInt(read("E2E_STARTUP_TIMEOUT_SECONDS", "e2e.startupTimeoutSeconds", "120"));
     }
 
     public static int requestTimeoutMillis() {
-        return Integer.parseInt(read("E2E_REQUEST_TIMEOUT_MS", "e2e.requestTimeoutMs", ""));
+        return Integer.parseInt(read("E2E_REQUEST_TIMEOUT_MS", "e2e.requestTimeoutMs", "30000"));
     }
 
     public static int pollingMaxAttempts() {
-        return positiveInt("E2E_POLLING_MAX_ATTEMPTS", "e2e.pollingMaxAttempts", "");
+        return positiveInt("E2E_POLLING_MAX_ATTEMPTS", "e2e.pollingMaxAttempts", "15");
     }
 
     public static int pollingIntervalMillis() {
-        return positiveInt("E2E_POLLING_INTERVAL_MS", "e2e.pollingIntervalMs", "");
+        return positiveInt("E2E_POLLING_INTERVAL_MS", "e2e.pollingIntervalMs", "2000");
     }
 
     public static int pollingTimeoutSeconds() {
-        return positiveInt("E2E_POLLING_TIMEOUT_SECONDS", "e2e.pollingTimeoutSeconds", "");
+        return positiveInt("E2E_POLLING_TIMEOUT_SECONDS", "e2e.pollingTimeoutSeconds", "90");
     }
 
     /** Secreto compartido solo para emitir tokens temporales dentro del entorno E2E. */
