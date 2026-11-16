@@ -22,12 +22,12 @@ pipeline {
             agent {
                 docker {
                     image 'python:3.11-slim'
-                    args '--network microservicios-network -v pip_cache:/root/.cache/pip'
+                    args '--network microservicios-network'
                 }
             }
             steps {
                 dir('departamento-service') {
-                    sh 'python -m pip install -r requirements-dev.txt'
+                    sh 'python -m pip install --no-cache-dir --target=/tmp/python-deps -r requirements-dev.txt'
                     sh 'python -m compileall -q app'
                 }
             }
@@ -36,7 +36,7 @@ pipeline {
             agent {
                 docker {
                     image 'python:3.11-slim'
-                    args '--network microservicios-network -v pip_cache:/root/.cache/pip'
+                    args '--network microservicios-network'
                 }
             }
             steps {
@@ -50,8 +50,9 @@ pipeline {
                             'DB_DEPARTAMENTO_PASSWORD=postgres'
                         ]) {
                             dir('departamento-service') {
-                                sh 'python -m pip install -r requirements-dev.txt'
+                                sh 'python -m pip install --no-cache-dir --target=/tmp/python-deps -r requirements-dev.txt'
                                 sh '''
+                                    export PYTHONPATH="/tmp/python-deps${PYTHONPATH:+:$PYTHONPATH}"
                                     ready=false
                                     for attempt in $(seq 1 60); do
                                         if python -c 'import socket; socket.create_connection(("departamento-test-db", 5432), timeout=1).close()'; then
