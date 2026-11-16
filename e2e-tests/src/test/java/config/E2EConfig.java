@@ -31,19 +31,11 @@ public final class E2EConfig {
     }
 
     public static String userEmail() {
-        String value = read("E2E_USER_EMAIL", "e2e.userEmail", "");
-        if (value.isBlank()) {
-            throw new IllegalStateException("Configure E2E_USER_EMAIL before running USER scenarios");
-        }
-        return value;
+        return read("E2E_USER_EMAIL", "e2e.userEmail", "");
     }
 
     public static String userPassword() {
-        String value = read("E2E_USER_PASSWORD", "e2e.userPassword", "");
-        if (value.isBlank()) {
-            throw new IllegalStateException("Configure E2E_USER_PASSWORD before running USER scenarios");
-        }
-        return value;
+        return read("E2E_USER_PASSWORD", "e2e.userPassword", "");
     }
 
     /** Tiempo máximo (segundos) de espera a que el sistema esté disponible antes de fallar. */

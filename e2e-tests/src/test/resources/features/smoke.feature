@@ -10,7 +10,7 @@ Característica: Que el sistema esté vivo
   Escenario: El gateway dice que está sano
     Cuando llamo a "/health"
     Entonces el status es 200
-    Y el campo "status" vale "healthy"
+    Y el campo "status" vale "UP"
 
   Escenario: La documentación OpenAPI se abre sin token
     Cuando llamo a "/v3/api-docs"

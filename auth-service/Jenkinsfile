@@ -135,6 +135,8 @@ pipeline {
                     env.E2E_BASE_URL = e2eBaseUrl
                     env.E2E_ADMIN_EMAIL = config.E2E_ADMIN_EMAIL ?: config.ADMIN_EMAIL ?: ''
                     env.E2E_ADMIN_PASSWORD = config.E2E_ADMIN_PASSWORD ?: config.ADMIN_PASSWORD ?: ''
+                    env.E2E_USER_EMAIL = config.E2E_USER_EMAIL ?: ''
+                    env.E2E_USER_PASSWORD = config.E2E_USER_PASSWORD ?: ''
                     env.E2E_JWT_SECRET = jwtSecret
                     env.E2E_STARTUP_TIMEOUT_SECONDS = config.E2E_STARTUP_TIMEOUT_SECONDS ?: '120'
                     env.E2E_REQUEST_TIMEOUT_MS = config.E2E_REQUEST_TIMEOUT_MS ?: '30000'
