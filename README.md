@@ -290,6 +290,118 @@ La especificación de autenticación usa una URL relativa para que Swagger enví
 `/auth/login` al mismo origen del Gateway (por ejemplo, `http://localhost:8088`)
 y no intente acceder desde el navegador al hostname interno `auth-service`.
 
+## Reto 9: auditoría de configuración y secretos
+
+### Investigación previa
+
+- **Twelve-Factor App — Factor III:** la configuración que varía entre despliegues debe
+  vivir fuera del código y de los artefactos. El fuente puede compartirse sin incluir
+  contraseñas, claves o credenciales.
+- **Variable de entorno frente a `/run/secrets/`:** una variable puede quedar visible en
+  metadatos de contenedores, procesos hijos o salida de diagnósticos. Un secreto montado
+  como archivo tiene menor exposición en `docker inspect`, aunque sigue requiriendo
+  permisos y lectura controlada dentro del contenedor.
+- **`.env` y `.gitignore`:** Docker Compose carga `.env` automáticamente y sustituye
+  `${VARIABLE}`. `.env.example` es una plantilla segura y debe versionarse; `.env`,
+  `*.env`, `.env.local`, `.env.*.local` y `secrets/` no deben versionarse.
+- **Docker Compose `secrets:`:** el descriptor `file:` monta el secreto en
+  `/run/secrets/<nombre>` dentro de cada contenedor declarado. Solo los servicios que
+  lo necesitan deben recibirlo.
+- **Rotación:** reemplazar periódicamente credenciales limita el daño acumulado de una
+  fuga futura o pasada. Rotar el JWT invalida accesos activos; las contraseñas de base
+  de datos y RabbitMQ deben cambiar simultáneamente en el servidor y sus clientes.
+
+### Auditoría manual — secretos del ecosistema
+
+| Servicio/origen | Tipo de secreto | Ubicación actual | Mecanismo objetivo |
+|---|---|---|---|
+| empleado-db / empleado-service | Contraseña PostgreSQL | `.env.example` y variables `EMPLEADO_DB_PASSWORD` en Compose | `db_empleado_password` en Docker Secret |
+| departamento-db / departamento-service | Contraseña PostgreSQL | `.env.example`, Compose y fallback `"postgres"` en Python | `db_departamentos_password` en Docker Secret |
+| notificaciones-db / notificaciones-service | Contraseña PostgreSQL | `.env.example`, Compose y fallback en Node.js | `db_notificaciones_password` en Docker Secret |
+| perfiles-db / perfiles-service | Contraseña PostgreSQL | `.env.example`, Compose y fallback vacío en Go | `db_perfiles_password` en Docker Secret |
+| vacaciones-db / vacaciones-service | Contraseña PostgreSQL | `.env.example`, Compose y fallback `"postgres"` en Spring | `db_vacaciones_password` en Docker Secret |
+| auth-db / auth-service | Contraseña PostgreSQL | `.env.example` y Compose | `db_auth_password` en Docker Secret |
+| RabbitMQ | Usuario, contraseña y Erlang cookie | `.env.example` y variables de Compose/servicios | Secretos separados en Compose |
+| auth-service / gateway-service | Firma JWT compartida | `JWT_SECRET_KEY` en `.env.example` y Compose | `jwt_secret` montado y leído por ambos |
+| auth-service | Contraseña administrativa inicial | `ADMIN_PASSWORD` en `.env.example` y Compose | `auth_admin_password` en Docker Secret |
+| Grafana | Usuario y contraseña de administración | `.env.example` y Compose | Secret separado para Grafana |
+| SonarQube / Sonar DB | Contraseña PostgreSQL y token de integración | `.env.example`, Compose y configuración Jenkins | Secretos separados |
+| Jenkins | Usuario y contraseña administrativos | `.env.example`, Compose y `jenkins/casc.yaml` | Secretos separados; evitar montaje completo de `.env` |
+| Pruebas E2E | Contraseña ADMIN y secreto JWT temporal | `.env.example` de E2E y configuración de pruebas | Variables locales no sensibles al repositorio |
+| Discord | Webhook | Variable `DISCORD_WEBHOOK_URL` en `.env.example`/Compose | Secreto separado si se usa |
+| SMTP | Credenciales de correo | Sin integración SMTP real encontrada | Nivelar si se implementa envío real |
+
+Hallazgos adicionales:
+
+- El fallback de `vacaciones-service` usa `postgres/guest` y el de
+  `notificaciones-service` usa contraseñas y usuario por defecto. Son valores
+  inseguromente recuperables y deben convertirse en fallos explícitos.
+- `departamento-service` usa `postgres` como contraseña local por defecto.
+- `perfiles-service` permite una contraseña RabbitMQ vacía y usa `admin` como
+  usuario por defecto.
+- Hay secretos o credenciales de prueba en archivos de documentación, clases E2E
+  y pruebas unitarias. Son fixtures controlados, no sustituyen secretos reales.
+- El pipeline temporal de `departamento-service` usa una contraseña PostgreSQL
+  local solo para el contenedor de pruebas; debe evitarse aunque no sea producción.
+
+### Auditoría automatizada
+
+Se instaló `detect-secrets` y se ejecutó el escaneo del estado actual:
+
+```bash
+python -m pip install --user detect-secrets
+python -m detect_secrets scan \
+  --exclude-files='(^|/)(\.git|target|bin|obj|node_modules|reports|TestResults|\.venv)(/|$)' \
+  . > .secrets.baseline
+```
+
+Evidencia: `.secrets.baseline` contiene 15 hallazgos clasificados en 8 archivos.
+El análisis distingue 3 verdaderos positivos y 12 falsos positivos de fixtures o
+documentación. Los 12 falsos positivos no representan secretos reales ni deben
+convertirse en credenciales nuevas. Se mantienen como datos controlados de prueba
+o ejemplos, mientras se evita que parezcan credenciales válidas de producción.
+Los detectores fueron `Secret Keyword` y
+`Base64 High Entropy String`. Los valores no se reproducen en esta sección.
+
+```bash
+detect-secrets audit --stats --json .secrets.baseline
+```
+
+### Qué implica cada archivo
+
+| Archivo | Acción actual | Implicación |
+|---|---|---|
+| `.env.local` | No modificar ni versionar | Contiene valores reales solo en tu equipo. No aparece en el escaneo y puede usarse durante el desarrollo. |
+| `.env` | Nunca escribirlo en Git ni pegar valores reales en evidencias | Docker Compose lo carga automáticamente. Las credenciales reales deben vivir allí hasta migrar al mecanismo de Secrets. |
+| `.env.example` | Mantener variables y marcadores vacíos | Es la plantilla versionable. Ya tiene variables sensibles vacías; no debe contener contraseñas reales ni cambiarse por un secreto generado. |
+| `docker-compose.yml` | Sustituir valores sensibles por referencias a variables o `secrets:` | Por sí mismo no contiene valores reales; la remediación consiste en eliminar variables sensibles de `environment:` e incorporarlas mediante `secrets:` en los servicios correspondientes. |
+| `application.yml` / configuración de un servicio | Eliminar fallbacks conocidos como `postgres` o `guest` | Debe leer el secreto desde `/run/secrets/` y fallar explícitamente si no está disponible. |
+| `Jenkinsfile` de pruebas | Sustituir la contraseña fija del contenedor PostgreSQL temporal | Es una credencial de prueba conocida, no una credencial real; puede usarse una variable temporal controlada o un valor aleatorio creado solo para ese contenedor. |
+
+Para los 3 verdaderos positivos, no es correcto escribir nuevas contraseñas reales
+en `.env.example`, ni copiar secretos locales a este README o al repositorio.
+La corrección será:
+
+1. Generar valores reales dentro de `.env` local o `secrets/`, según el nivel
+   implementado.
+2. Eliminar fallback conocidos de `vacaciones-service` y otros servicios.
+3. Hacer que los pipelines y pruebas usen valores temporales sin credenciales reales.
+4. Migrar las credenciales de producción a Docker Compose Secrets.
+
+No se encontró en el historial ningún archivo `.env` real ni `secrets/*.txt`;
+persisten `.env.example` y ejemplos históricos como plantillas. TruffleHog
+también se ejecutó sobre el historial con Docker Desktop y encontró
+**0 secretos verificados** y **0 secretos no verificados**.
+
+### Remediación pendiente
+
+- Retirar fallbacks de producción con contraseñas conocidas.
+- Sustituir variables sensibles de `docker-compose.yml` por `secrets:`.
+- Leer primero `/run/secrets/...` y fallar con un mensaje explícito si falta el secreto.
+- Mantener `.env.example` completo y limitar `.env` a la máquina local.
+- Rotar inmediatamente todos los valores que alguna vez hayan estado versionados.
+- Ejecutar la auditoría automatizada en CI para prevenir nuevas fugas.
+
 ## Puesta en marcha
 
 ### Requisitos

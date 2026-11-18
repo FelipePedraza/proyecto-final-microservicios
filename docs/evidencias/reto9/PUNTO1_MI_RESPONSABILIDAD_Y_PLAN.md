@@ -158,10 +158,13 @@ se genera el valor localmente.
 ## 7. Estado actual
 
 - **Plan del reto 9:** creado.
+- **Auditoría manual:** completada como inventario inicial.
+- **Baseline `detect-secrets`:** generado y clasificado, con 15 hallazgos en 8 archivos: 3 verdaderos positivos y 12 falsos positivos.
+- **Historial:** no se encontraron archivos `.env` reales ni `secrets/*.txt` versionados.
+- **TruffleHog:** ejecutado sobre todo el historial con Docker; encontró 0 secretos verificados y 0 no verificados.
 - **Responsabilidad de Punto 1:** definida.
-- **Implementación:** pendiente.
-- **Auditoría manual:** pendiente de ejecución formal.
-- **Auditoría automatizada:** pendiente de ejecución formal.
+- **Resultado:** Punto 1 cerrado a nivel de auditoría y diagnóstico.
+- **Remediación:** corresponde comenzar el Nivel 1 y coordinar los cambios con los responsables de cada servicio.
 - **Cambio de código:** ninguno.
 
 ## 8. Orden recomendado
