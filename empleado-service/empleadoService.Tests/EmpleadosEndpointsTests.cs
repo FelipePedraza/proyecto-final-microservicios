@@ -21,6 +21,12 @@ namespace EmpleadoService.Tests;
 
 public sealed class EmpleadoWebApplicationFactory : WebApplicationFactory<Program>
 {
+    public EmpleadoWebApplicationFactory()
+    {
+        Environment.SetEnvironmentVariable("DB_PASSWORD", "password-exclusivo-de-pruebas");
+        Environment.SetEnvironmentVariable("RABBITMQ_PASSWORD", "broker-exclusivo-de-pruebas");
+    }
+
     protected override void ConfigureWebHost(
         Microsoft.AspNetCore.Hosting.IWebHostBuilder builder)
     {

@@ -31,6 +31,7 @@ síncrona (HTTP, a través de un API Gateway) y asíncrona (eventos sobre Rabbit
 | `vacaciones-service` | `vacaciones-service/` | Java 21, Spring Boot 4.1.1 | PostgreSQL 17 (`vacaciones-db`) | `8085` |
 | `auth-service` | `auth-service/` | Java 21, Spring Boot 4.1.1, Spring Security | PostgreSQL 17 (`auth-db`) | `8089` |
 | `message-broker` | imagen `rabbitmq:3-management` | RabbitMQ con plugin de administración | — | `5672` (AMQP) y `15672` (UI), ambos publicados al host |
+| `vault` (perfil opcional) | imagen `hashicorp/vault:2.2.2` | HashiCorp Vault KV v2 + AppRole | almacenamiento en memoria, solo laboratorio | `8200` |
 
 Todos los contenedores comparten la red `microservicios-network` (definida en
 `docker-compose.yml` con `driver: bridge`). Según ese archivo, **el único
@@ -313,10 +314,10 @@ y no intente acceder desde el navegador al hostname interno `auth-service`.
 
 ### Auditoría manual — secretos del ecosistema
 
-| Servicio/origen | Tipo de secreto | Ubicación actual | Mecanismo objetivo |
+| Servicio/origen | Tipo de secreto | Ubicación encontrada en la auditoría inicial | Mecanismo implementado |
 |---|---|---|---|
 | empleado-db / empleado-service | Contraseña PostgreSQL | `.env.example` y variables `EMPLEADO_DB_PASSWORD` en Compose | `db_empleado_password` en Docker Secret |
-| departamento-db / departamento-service | Contraseña PostgreSQL | `.env.example`, Compose y fallback `"postgres"` en Python | `db_departamentos_password` en Docker Secret |
+| departamento-db / departamento-service | Contraseña PostgreSQL | `.env.example`, Compose y fallback `"postgres"` en Python | `db_departamento_password` en Docker Secret |
 | notificaciones-db / notificaciones-service | Contraseña PostgreSQL | `.env.example`, Compose y fallback en Node.js | `db_notificaciones_password` en Docker Secret |
 | perfiles-db / perfiles-service | Contraseña PostgreSQL | `.env.example`, Compose y fallback vacío en Go | `db_perfiles_password` en Docker Secret |
 | vacaciones-db / vacaciones-service | Contraseña PostgreSQL | `.env.example`, Compose y fallback `"postgres"` en Spring | `db_vacaciones_password` en Docker Secret |
@@ -329,16 +330,18 @@ y no intente acceder desde el navegador al hostname interno `auth-service`.
 | Jenkins | Usuario y contraseña administrativos | `.env.example`, Compose y `jenkins/casc.yaml` | Secretos separados; evitar montaje completo de `.env` |
 | Pruebas E2E | Contraseña ADMIN y secreto JWT temporal | `.env.example` de E2E y configuración de pruebas | Variables locales no sensibles al repositorio |
 | Discord | Webhook | Variable `DISCORD_WEBHOOK_URL` en `.env.example`/Compose | Secreto separado si se usa |
+| Vault | Token raíz únicamente para bootstrap didáctico | No existía | `vault_root_token` montado solo en Vault y bootstrap; Auth usa AppRole |
 | SMTP | Credenciales de correo | Sin integración SMTP real encontrada | Nivelar si se implementa envío real |
 
-Hallazgos adicionales:
+Hallazgos iniciales, corregidos en el Nivel 2:
 
-- El fallback de `vacaciones-service` usa `postgres/guest` y el de
-  `notificaciones-service` usa contraseñas y usuario por defecto. Son valores
-  inseguromente recuperables y deben convertirse en fallos explícitos.
-- `departamento-service` usa `postgres` como contraseña local por defecto.
-- `perfiles-service` permite una contraseña RabbitMQ vacía y usa `admin` como
-  usuario por defecto.
+- El fallback de `vacaciones-service` usaba `postgres/guest` y el de
+  `notificaciones-service` usaba contraseñas y usuario por defecto. Ahora la
+  ausencia del secreto produce un fallo explícito.
+- `departamento-service` usaba `postgres` como contraseña local por defecto;
+  ahora lee `db_departamento_password`.
+- `perfiles-service` permitía una contraseña RabbitMQ vacía; ahora exige el
+  archivo `broker_password` o una variable explícita para desarrollo.
 - Hay secretos o credenciales de prueba en archivos de documentación, clases E2E
   y pruebas unitarias. Son fixtures controlados, no sustituyen secretos reales.
 - El pipeline temporal de `departamento-service` usa una contraseña PostgreSQL
@@ -372,21 +375,20 @@ detect-secrets audit --stats --json .secrets.baseline
 | Archivo | Acción actual | Implicación |
 |---|---|---|
 | `.env.local` | No modificar ni versionar | Contiene valores reales solo en tu equipo. No aparece en el escaneo y puede usarse durante el desarrollo. |
-| `.env` | Nunca escribirlo en Git ni pegar valores reales en evidencias | Docker Compose lo carga automáticamente. Las credenciales reales deben vivir allí hasta migrar al mecanismo de Secrets. |
-| `.env.example` | Mantener variables y marcadores vacíos | Es la plantilla versionable. Ya tiene variables sensibles vacías; no debe contener contraseñas reales ni cambiarse por un secreto generado. |
+| `.env` | Nunca escribirlo en Git ni pegar valores reales en evidencias | Docker Compose lo carga automáticamente. Tras el Nivel 2 solo conserva configuración no sensible y marcadores que remiten a Secrets. |
+| `.env.example` | Mantener marcadores explícitos `REEMPLAZAR_*` | Es la plantilla versionable. No debe contener contraseñas reales ni cambiarse por un secreto generado. |
 | `docker-compose.yml` | Sustituir valores sensibles por referencias a variables o `secrets:` | Por sí mismo no contiene valores reales; la remediación consiste en eliminar variables sensibles de `environment:` e incorporarlas mediante `secrets:` en los servicios correspondientes. |
 | `application.yml` / configuración de un servicio | Eliminar fallbacks conocidos como `postgres` o `guest` | Debe leer el secreto desde `/run/secrets/` y fallar explícitamente si no está disponible. |
 | `Jenkinsfile` de pruebas | Sustituir la contraseña fija del contenedor PostgreSQL temporal | Es una credencial de prueba conocida, no una credencial real; puede usarse una variable temporal controlada o un valor aleatorio creado solo para ese contenedor. |
 
 Para los 3 verdaderos positivos, no es correcto escribir nuevas contraseñas reales
 en `.env.example`, ni copiar secretos locales a este README o al repositorio.
-La corrección será:
+La corrección implementada fue:
 
-1. Generar valores reales dentro de `.env` local o `secrets/`, según el nivel
-   implementado.
-2. Eliminar fallback conocidos de `vacaciones-service` y otros servicios.
-3. Hacer que los pipelines y pruebas usen valores temporales sin credenciales reales.
-4. Migrar las credenciales de producción a Docker Compose Secrets.
+1. Generar valores locales dentro de `secrets/` sin mostrarlos en la terminal.
+2. Eliminar fallbacks conocidos de `vacaciones-service` y los demás servicios.
+3. Hacer que los pipelines y pruebas usen archivos montados o valores temporales.
+4. Migrar las credenciales de ejecución a Docker Compose Secrets.
 
 No se encontró en el historial ningún archivo `.env` real ni `secrets/*.txt`;
 persisten `.env.example` y ejemplos históricos como plantillas. TruffleHog
@@ -395,31 +397,273 @@ también se ejecutó sobre el historial con Docker Desktop y encontró
 
 ### Remediación pendiente
 
-- Retirar fallbacks de producción con contraseñas conocidas.
-- Sustituir variables sensibles de `docker-compose.yml` por `secrets:`.
-- Leer primero `/run/secrets/...` y fallar con un mensaje explícito si falta el secreto.
-- Mantener `.env.example` completo y limitar `.env` a la máquina local.
 - Rotar inmediatamente todos los valores que alguna vez hayan estado versionados.
 - Ejecutar la auditoría automatizada en CI para prevenir nuevas fugas.
+
+### Nivel 1: configuración local con `.env`
+
+El Nivel 1 se inicializa con `scripts/setup-secrets.sh`. La plantilla versionada
+conserva marcadores `REEMPLAZAR_*`, mientras el `.env` local contiene únicamente
+configuración no sensible y referencias `GESTIONADO_EN_SECRETS_*`. El script aplica
+permisos `600` al `.env` y no imprime ningún valor sensible.
+
+### Nivel 2: Docker Compose Secrets
+
+El mismo script crea `secrets/` con permisos `700` y dieciséis archivos con permisos
+`600`: seis contraseñas de bases de datos, RabbitMQ, cookie Erlang, JWT, administrador
+de Auth, Jenkins, base de SonarQube, token de SonarQube, Grafana y webhook de Discord.
+El archivo adicional `vault_root_token.txt` se usa únicamente al activar el nivel
+avanzado de Vault.
+Si se migra desde un `.env` anterior, conserva sus valores antes de sanearlo; si un
+archivo ya existe, no lo rota silenciosamente.
+
+`docker-compose.yml` declara cada archivo mediante `secrets: ... file:` y monta en
+cada contenedor únicamente lo que necesita. Los siete microservicios usan el mismo
+convenio: primero `/run/secrets/<nombre>` y después la variable de entorno indicada
+para desarrollo sin Docker. Un valor ausente, vacío o con marcador de plantilla
+detiene el arranque con un mensaje explícito.
+
+| Consumidor | Secretos montados |
+|---|---|
+| `empleado-service` | `db_empleado_password`, `broker_password` |
+| `departamento-service` | `db_departamento_password` |
+| `notificaciones-service` | `db_notificaciones_password`, `broker_password` |
+| `perfiles-service` | `db_perfiles_password`, `broker_password` |
+| `vacaciones-service` | `db_vacaciones_password`, `broker_password` |
+| `auth-service` | `db_auth_password`, `broker_password`, `jwt_secret`, `auth_admin_password` |
+| `gateway-service` | `jwt_secret` |
+
+Para desarrollo local sin el montaje de Compose, cada lector utiliza estas variables
+de entorno como fallback. El archivo siempre tiene prioridad si existe:
+
+| Microservicio | Archivo de secreto | Variable fallback |
+|---|---|---|
+| `empleado-service` | `db_empleado_password` / `broker_password` | `DB_PASSWORD` / `RABBITMQ_PASSWORD` |
+| `departamento-service` | `db_departamento_password` | `DB_DEPARTAMENTO_PASSWORD` |
+| `notificaciones-service` | `db_notificaciones_password` / `broker_password` | `DB_PASSWORD` / `RABBITMQ_PASSWORD` |
+| `perfiles-service` | `db_perfiles_password` / `broker_password` | `DB_PASSWORD` / `RABBITMQ_PASSWORD` |
+| `vacaciones-service` | `db_vacaciones_password` / `broker_password` | `DB_PASSWORD` / `RABBITMQ_PASSWORD` |
+| `auth-service` | `db_auth_password` / `broker_password` / `jwt_secret` / `auth_admin_password` | `DB_PASSWORD` / `RABBITMQ_PASSWORD` / `JWT_SECRET` / `ADMIN_PASSWORD` |
+| `gateway-service` | `jwt_secret` | `JWT_SECRET` |
+
+Los lectores eliminan saltos de línea al final, rechazan valores vacíos y los
+marcadores `REEMPLAZAR_*` o `GESTIONADO_EN_SECRETS_*`, y detienen el arranque con
+un error que identifica el archivo y la variable esperados. `SECRETS_DIR` permite
+cambiar `/run/secrets` exclusivamente para pruebas o ejecución local controlada.
+
+#### Fallo explícito y controlado
+
+Los lectores diferencian la causa sin incluir nunca el contenido sensible en el
+mensaje ni continuar con una contraseña por defecto:
+
+| Condición | Resultado esperado |
+|---|---|
+| No existe archivo ni variable fallback | `ERROR: Secreto '<nombre>' no configurado. Montar /run/secrets/<nombre> o definir <VARIABLE>.` |
+| El archivo o variable está vacío | `ERROR: Secreto '<nombre>' está vacío. ...` |
+| Contiene `REEMPLAZAR_*` o `GESTIONADO_EN_SECRETS_*` | `ERROR: Secreto '<nombre>' contiene un marcador de plantilla inseguro. ...` |
+| El archivo existe pero no puede leerse | `ERROR: No se pudo leer el secreto '<nombre>' desde <ruta>.` |
+
+Este comportamiento se comprueba con pruebas unitarias en Java, .NET, Python,
+Node.js y Go. Así puede verificarse sin renombrar los secretos locales ni levantar
+contenedores; las pruebas usan directorios temporales mediante `SECRETS_DIR`.
+
+PostgreSQL y Grafana usan sus mecanismos `*_FILE`. RabbitMQ y SonarQube, cuyas
+imágenes no ofrecen un mecanismo equivalente para todas estas claves, leen los
+archivos en su proceso de entrada y exportan el valor únicamente dentro del
+contenedor. Jenkins hace lo mismo para JCasC y recibe los secretos de aplicación
+porque ejecuta Compose durante las pruebas E2E.
+
+`secrets/sonar_token.txt` queda inicialmente con un valor pendiente no funcional:
+hay que reemplazarlo con un token creado dentro de SonarQube antes de ejecutar los
+análisis de Jenkins. `secrets/discord_webhook_url.txt` usa un endpoint ficticio hasta
+que el equipo habilite la integración.
+
+### Nivel 3: HashiCorp Vault (bonus)
+
+Vault 2.2.2 está definido en `docker-compose.yml` bajo el perfil opcional `vault`.
+El modo `dev` se usa únicamente para el laboratorio: mantiene los datos en memoria,
+queda desellado automáticamente y no representa una configuración de producción.
+El flujo obligatorio de Docker Compose Secrets continúa funcionando cuando
+`VAULT_ADDR` está vacío.
+
+Para activar el perfil avanzado después de ejecutar `scripts/setup-secrets.sh`:
+
+```bash
+VAULT_ADDR=http://vault:8200 docker compose --profile vault up --build
+```
+
+El perfil agrega dos componentes:
+
+- `vault`: servidor didáctico cuya token raíz se lee en tiempo de ejecución desde
+  `/run/secrets/vault_root_token`; el valor no se declara en `environment:`.
+- `vault-bootstrap`: habilita AppRole, instala la política `auth-service`, copia los
+  cuatro secretos de Auth a KV v2 y entrega RoleID/SecretID mediante el volumen
+  local `vault-approle`. No imprime ninguna credencial.
+
+`auth-service` detecta `VAULT_ADDR`, espera el bootstrap, se autentica en
+`POST /v1/auth/approle/login` y consulta mediante API REST:
+
+| Ruta KV v2 | Propiedad de Auth |
+|---|---|
+| `secret/data/auth-service/db-password` | `DB_PASSWORD` |
+| `secret/data/auth-service/broker-password` | `RABBITMQ_PASSWORD` |
+| `secret/data/auth-service/jwt-secret` | `JWT_SECRET` |
+| `secret/data/auth-service/admin-password` | `ADMIN_PASSWORD` |
+
+La política permite exclusivamente `read` sobre
+`secret/data/auth-service/*`. Auth nunca recibe el token raíz. Si `VAULT_ADDR` no
+está configurado, conserva el comportamiento de Nivel 2: archivo en
+`/run/secrets/` y fallback a variable de entorno.
+
+#### AppRole y token raíz
+
+AppRole es un método de autenticación orientado a máquinas. El RoleID identifica la
+aplicación y el SecretID actúa como credencial; al iniciar sesión, Vault entrega un
+token temporal limitado por las políticas de ese rol. En esta implementación el
+token es de tipo batch, dura cinco minutos y solo puede leer los secretos de Auth.
+
+Una token raíz omite el principio de mínimo privilegio: puede leer, modificar o
+borrar cualquier secreto, política y método de autenticación. Por eso solo el
+bootstrap aislado la utiliza para preparar el entorno de aprendizaje. En producción
+deben usarse Vault inicializado y sellado, TLS, almacenamiento persistente,
+auditoría, SecretID de corta duración y entrega separada o response wrapping; nunca
+modo `dev` ni una token raíz conocida por la aplicación.
+
+Comprobaciones cuando exista capacidad para ejecutar contenedores:
+
+```bash
+VAULT_ADDR=http://vault:8200 docker compose --profile vault ps
+docker compose logs vault-bootstrap
+curl -fsS http://localhost:8200/v1/sys/health
+```
+
+Los logs esperados del bootstrap confirman la inicialización, pero no contienen
+RoleID, SecretID, token raíz ni valores KV. La integración del cliente se valida sin
+Docker mediante `VaultSecretLoaderTest`, que simula AppRole y KV v2 y comprueba que
+los cuerpos de error de Vault no se filtran.
+
+### Rotación de secretos
+
+Rotar limita el tiempo durante el cual una credencial filtrada puede utilizarse.
+La rotación no consiste únicamente en cambiar un archivo: cuando existe un sistema
+que almacena la credencial (PostgreSQL, RabbitMQ, Grafana o SonarQube), deben
+actualizarse coordinadamente el proveedor y sus consumidores.
+
+#### JWT Secret
+
+La rotación local es atómica y no imprime los valores:
+
+```bash
+./scripts/rotate-secret.sh jwt
+```
+
+El script valida el secreto actual, crea uno nuevo de al menos 32 bytes, conserva
+un backup `600` dentro de `secrets/backups/` y reemplaza
+`secrets/jwt_secret.txt` mediante `mv` en el mismo sistema de archivos. Después se
+deben reiniciar únicamente `auth-service` y `gateway-service` y comprobar un login
+nuevo. Todos los access tokens, tokens de activación y recuperación firmados con la
+clave anterior quedan invalidados. El backup sirve solo para rollback inmediato y
+debe eliminarse de forma segura cuando termine la ventana de validación.
+
+La prueba local del script no modifica secretos reales:
+
+```bash
+./scripts/tests/rotate-secret-test.sh
+```
+
+#### Contraseñas PostgreSQL
+
+Aplica individualmente a `db_empleado_password`, `db_departamento_password`,
+`db_notificaciones_password`, `db_perfiles_password`, `db_vacaciones_password`,
+`db_auth_password` y `sonar_db_password`:
+
+1. Abrir una ventana de mantenimiento y generar el nuevo valor en un archivo
+   temporal con permisos `600`, sin pasarlo como argumento de consola.
+2. Cambiar la contraseña del rol dentro de PostgreSQL mediante una sesión segura
+   (`\\password <rol>` o el mecanismo administrado equivalente).
+3. Crear un backup local restringido del archivo actual y reemplazarlo atómicamente.
+4. Reiniciar solo el microservicio consumidor; para Sonar, reiniciar SonarQube.
+5. Verificar conexión, health y una operación de lectura/escritura antes de borrar
+   el backup.
+
+En volúmenes PostgreSQL ya inicializados, cambiar `POSTGRES_PASSWORD_FILE` no cambia
+la contraseña almacenada por PostgreSQL. Omitir el paso 2 deja el servicio sin
+conexión. Para rollback se restaura primero la contraseña del rol y después el
+archivo anterior.
+
+#### RabbitMQ
+
+Para `broker_password`, cambiar primero la contraseña del usuario con la herramienta
+administrativa de RabbitMQ, reemplazar el archivo atómicamente y reiniciar el broker
+y todos sus consumidores: `empleado-service`, `notificaciones-service`,
+`perfiles-service`, `vacaciones-service` y `auth-service`. Verificar publicación,
+consumo y colas de mensajes muertos antes de revocar el valor anterior.
+
+La `rabbitmq_erlang_cookie` autentica nodos RabbitMQ, no clientes AMQP. Debe rotarse
+en todos los nodos durante una misma ventana y reiniciar el clúster completo. Este
+Compose usa un solo nodo, pero una cookie diferente impediría que futuros nodos se
+unan al clúster.
+
+#### Credenciales administrativas e integraciones
+
+| Secreto | Procedimiento e impacto |
+|---|---|
+| `auth_admin_password` | Cambiar la contraseña del usuario ADMIN mediante Auth; luego actualizar el archivo. El seeder no modifica automáticamente un administrador ya existente. |
+| `jenkins_admin_password` | Reemplazar el archivo, recrear Jenkins para que JCasC vuelva a aplicarse y comprobar login antes de retirar el backup. |
+| `grafana_admin_password` | Cambiar la contraseña mediante la API/CLI de Grafana y después actualizar el archivo. La variable de inicialización no modifica automáticamente una base Grafana existente. |
+| `sonar_token` | Crear un token nuevo, actualizar el archivo, recargar/recrear Jenkins, ejecutar un análisis y solo entonces revocar el token anterior. |
+| `discord_webhook_url` | Crear un webhook nuevo, actualizar el archivo, recargar Grafana, enviar una alerta de prueba y eliminar el webhook anterior. |
+
+#### Rotación con Vault
+
+KV v2 conserva versiones, pero una versión anterior sigue siendo sensible. Para
+rotar un secreto gestionado por el perfil Vault se actualiza primero el proveedor
+externo cuando aplique, se reemplaza el archivo fuente local, se vuelve a ejecutar
+`vault-bootstrap` para crear una versión KV nueva y se reinicia Auth. Después de la
+verificación deben destruirse las versiones antiguas que ya no sean necesarias.
+
+El SecretID de AppRole tiene TTL de 24 horas y límite de 100 autenticaciones; cada
+ejecución del bootstrap emite uno nuevo. En producción se debe revocar el accessor
+anterior y entregar el nuevo SecretID mediante response wrapping. La token raíz del
+modo `dev` se regenera recreando el entorno completo; no se distribuye ni se usa para
+consultas de la aplicación.
+
+Nunca deben registrarse valores, hashes reutilizables, comandos con contraseñas o
+contenido de backups como evidencia. La evidencia debe limitarse a permisos,
+cambio confirmado, servicios afectados y resultado funcional.
 
 ## Puesta en marcha
 
 ### Requisitos
 
 - Docker y Docker Compose.
-- Un archivo `.env` en la raíz del repositorio con las variables que exige
-  `docker-compose.yml` (ver `.env.example` como referencia; completa los
-  secretos vacíos con valores aleatorios únicos antes de iniciar. Compose no
-  arrancará si faltan variables obligatorias).
+- Bash, `openssl` y `awk` para generar la configuración local.
+- Un archivo `.env` generado desde `.env.example` mediante el script de
+  inicialización. Compose no arrancará si faltan variables obligatorias.
 
 ### Encender el sistema
 
 Ejecutar desde la raíz del repositorio:
 
 ```bash
-cp .env.example .env   # completa los secretos vacíos con valores aleatorios únicos
+bash scripts/setup-secrets.sh
 docker compose up --build -d
 docker compose ps
+```
+
+El script es seguro frente a ejecuciones repetidas: conserva los archivos de secreto
+válidos que ya existen y normaliza `.env` para que solo contenga referencias. No debe
+usarse para rotar credenciales. Para JWT se usa `scripts/rotate-secret.sh`; las bases
+de datos y RabbitMQ requieren el procedimiento coordinado descrito en la sección de
+rotación, porque sus volúmenes conservan las credenciales anteriores.
+
+Comprobaciones de los niveles 1 y 2:
+
+```bash
+test "$(stat -f '%Lp' .env 2>/dev/null || stat -c '%a' .env)" = "600"
+git check-ignore .env secrets/prueba.txt archivo.env
+docker compose config --quiet
+test -z "$(find secrets -type f -name '*.txt' ! -perm 600 -print)"
 ```
 
 Según las dependencias declaradas en `docker-compose.yml`
@@ -536,7 +780,9 @@ Para el ciclo de vacaciones la suite usa los endpoints manuales del scheduler, a
 
 1. Levantar el sistema desde la raíz: `docker compose up -d --build` y esperar a que los contenedores estén `healthy` (`docker compose ps`).
 2. Exportar las variables de la suite (ver `e2e-tests/.env.example`): como mínimo `E2E_ADMIN_EMAIL`, `E2E_ADMIN_PASSWORD` (los `ADMIN_*` del `.env`)
-   y `E2E_JWT_SECRET` (el `JWT_SECRET_KEY` del `.env`). Las credenciales USER son opcionales: si no se definen, la suite crea una cuenta USER efímera.
+   y `E2E_JWT_SECRET`. Jenkins los obtiene de `auth_admin_password` y `jwt_secret`;
+   al ejecutar la suite manualmente pueden definirse como variables locales. Las
+   credenciales USER son opcionales: si no se definen, la suite crea una cuenta USER efímera.
 3. Ejecutar: `cd e2e-tests && mvn clean test`. Solo el smoke: `mvn test -Dcucumber.filter.tags="@smoke"`.
 4. Abrir `e2e-tests/reports/cucumber.html` en el navegador.
 
@@ -557,10 +803,10 @@ Esta sección documenta detalladamente la arquitectura, configuración, ejecuci�
 
 | Servicio | URL Local | Credenciales | Propósito |
 |---|---|---|---|
-| **Jenkins** | [http://localhost:9090](http://localhost:9090) | `JENKINS_ADMIN_USERNAME` y `JENKINS_ADMIN_PASSWORD` de `.env` | Servidor de automatización y orquestación de pipelines CI/CD |
+| **Jenkins** | [http://localhost:9090](http://localhost:9090) | `JENKINS_ADMIN_USERNAME` y `secrets/jenkins_admin_password.txt` | Servidor de automatización y orquestación de pipelines CI/CD |
 | **SonarQube** | [http://localhost:9000](http://localhost:9000) | Primera instalación: `admin` / `admin`; cambia la contraseña inmediatamente | Plataforma de inspección continua y Quality Gate |
 | **API Gateway** | [http://localhost:8088](http://localhost:8088) | `ADMIN_EMAIL` y `ADMIN_PASSWORD` de `.env` | Punto de entrada único para pruebas E2E |
-| **RabbitMQ UI** | [http://localhost:15672](http://localhost:15672) | `RABBITMQ_USER` y `RABBITMQ_PASSWORD` de `.env` | Broker de mensajería asíncrona |
+| **RabbitMQ UI** | [http://localhost:15672](http://localhost:15672) | `RABBITMQ_USER` y `secrets/broker_password.txt` | Broker de mensajería asíncrona |
 
 Los puertos publicados por Compose se enlazan por defecto a `127.0.0.1` mediante
 `HOST_BIND_IP`; no lo cambies a `0.0.0.0` en una red compartida o pública sin
@@ -579,7 +825,8 @@ añadir controles de acceso.
   * `junit`, `coverage` (soporte JaCoCo y Cobertura), `cucumber-reports`, `htmlpublisher`, `mstest`
 * **Acceso al Docker Socket:** Monta `/var/run/docker.sock` del host y configura el grupo con `DOCKER_GID`. El socket concede control prácticamente equivalente a administrador del host; usa Jenkins solo con pipelines confiables y no expongas sus puertos fuera de loopback.
 * **Configuración como Código (JCasC):** [`jenkins/casc.yaml`](./jenkins/casc.yaml) configura el usuario administrador, el servidor SonarQube, su credencial de análisis y los jobs:
-  * El usuario y la contraseña se leen de `JENKINS_ADMIN_USERNAME` y `JENKINS_ADMIN_PASSWORD` en `.env`.
+  * El usuario se lee de `JENKINS_ADMIN_USERNAME`; la contraseña se monta como
+    `jenkins_admin_password` y el entrypoint la entrega a JCasC sin incluirla en Compose.
   * Credenciales secretas registradas automáticamente (como `sonarqube-token`).
   * URL base de Jenkins, repositorio Git y conexión con SonarQube configurables mediante `JENKINS_ROOT_URL`, `GITHUB_REPOSITORY_URL` y `JENKINS_SONARQUBE_URL` en `.env` (la URL de SonarQube debe ser accesible desde la red de Docker).
   * Creación automática de jobs multietapa para los siete microservicios de aplicación mediante Job DSL apuntando al repositorio de Git.
@@ -633,7 +880,10 @@ añadir controles de acceso.
 
 #### B. Pruebas E2E Multicontenedor (`stage('E2E Tests')`)
 * **Aislamiento de Infraestructura:** Lee `APP_SERVICES` desde la configuración para limitar las operaciones a los 14 servicios y bases de datos de negocio (`gateway-service`, `empleado-service`, `departamento-service`, `perfiles-service`, `notificaciones-service`, `vacaciones-service`, `auth-service`, `message-broker`, etc.), protegiendo los contenedores de CI (`jenkins`, `sonarqube`, `sonar-db`) de ser detenidos.
-* **Configuración para E2E:** Jenkins recibe el `.env` raíz mediante un montaje de solo lectura en `/run/secrets/microservicios.env`; JCasC publica esa ruta como `DOTENV_FILE`. No se configura la credencial Jenkins `microservicios-env`. Mantén en `.env` los valores válidos de `APP_SERVICES`, `JENKINS_E2E_BASE_URL`, `JWT_SECRET_KEY`, `ADMIN_EMAIL` y `ADMIN_PASSWORD` (y no subas `.env` a Git).
+* **Configuración para E2E:** Jenkins recibe la configuración no sensible del `.env`
+  en `/run/config/microservicios.env`; JCasC publica esa ruta como `DOTENV_FILE`.
+  JWT y contraseña ADMIN se leen directamente de los secretos montados. `SECRETS_DIR`
+  apunta a `/run/secrets` para que Compose encuentre los archivos durante el despliegue E2E.
 * **Despliegue DooD:** Los Jenkinsfiles usan `docker compose --env-file "$DOTENV_FILE"` para construir y levantar los servicios de la aplicación a través del socket Docker montado.
 * **Bases de Datos Autocontenidas:** Cada servicio Postgres (`vacaciones-db`, `departamento-db`, etc.) construye su imagen con Dockerfile propio que incluye su script de inicialización (`001-schema.sql`), garantizando total compatibilidad en entornos Docker-out-of-Docker sin depender de rutas del host.
 * **Verificación de Salud:** Realiza un bucle de sondeo sobre `docker compose ps` verificando que todos los microservicios alcancen el estado `healthy`.
@@ -696,11 +946,14 @@ La integración continua (CI) automatiza la compilación o validación, las prue
 1. Copia `.env.example` como `.env` (`Copy-Item .env.example .env` en PowerShell), genera secretos aleatorios únicos para los campos vacíos y configura `SONAR_TOKEN` con un token de análisis de SonarQube; no subas `.env` a Git. Si se rotan credenciales de servicios con volúmenes existentes, actualiza también las credenciales persistidas.
 2. Levanta la base de SonarQube y SonarQube: `docker compose up -d sonar-db sonarqube`. En una instalación nueva, inicia sesión en [SonarQube](http://localhost:9000) con `admin` / `admin`, cambia la contraseña, y genera un token de una cuenta con el permiso global **Administer Quality Gates** para aprovisionar el gate. El token de análisis de `SONAR_TOKEN` no tiene este permiso.
 3. Ejecuta `python tools/provision_sonarqube.py` desde la raíz. El programa solicita el token sin mostrarlo y crea/actualiza el gate `QualityGate70` (`coverage LT 70`), lo asigna como predeterminado y registra el webhook de Jenkins. Si tu servidor no está en `http://localhost:9000`, define `SONAR_URL` antes de ejecutar el script.
-4. Con el token de análisis en `SONAR_TOKEN` y las credenciales de Jenkins en `.env`, inicia la pila CI explícitamente con `docker compose --profile ci up --build -d` y consulta el estado con `docker compose ps`. El pipeline de `empleado-service` construye la imagen local `dotnet-sonar:10.0-sonarscanner-12.0.0` desde [`jenkins/Dockerfile.dotnet-sonar`](./jenkins/Dockerfile.dotnet-sonar) después del checkout; no es necesario construirla manualmente. El servicio Compose `dotnet-sonar-agent` del perfil `build-tools` queda disponible para preparar esa imagen manualmente si se requiere.
-5. Abre [Jenkins](http://localhost:9090) e inicia sesión con `JENKINS_ADMIN_USERNAME` y `JENKINS_ADMIN_PASSWORD` de tu `.env`. No hay contraseña `initialAdminPassword`: el asistente de instalación está desactivado y JCasC crea el administrador.
+4. Guarda el token de análisis en `secrets/sonar_token.txt` e inicia la pila CI con `docker compose up --build -d`; consulta el estado con `docker compose ps`. El pipeline de `empleado-service` construye la imagen local `dotnet-sonar:10.0-sonarscanner-12.0.0` desde [`jenkins/Dockerfile.dotnet-sonar`](./jenkins/Dockerfile.dotnet-sonar) después del checkout; no es necesario construirla manualmente. El servicio Compose `dotnet-sonar-agent` del perfil `build-tools` queda disponible para preparar esa imagen manualmente si se requiere.
+5. Abre [Jenkins](http://localhost:9090) e inicia sesión con `JENKINS_ADMIN_USERNAME` y la contraseña de `secrets/jenkins_admin_password.txt`. No hay contraseña `initialAdminPassword`: el asistente de instalación está desactivado y JCasC crea el administrador.
 6. JCasC crea automáticamente un job por cada microservicio (`auth-service`, `empleado-service`, `departamento-service`, `gateway-service`, `notificaciones-service`, `perfiles-service` y `vacaciones-service`), configurados para leer sus Jenkinsfiles desde la rama `main` del repositorio. No hay que importarlos manualmente. Para correr uno, entra al job y elige **Build Now**.
 
-La configuración usa el `.env` local montado en Jenkins como `/run/secrets/microservicios.env` y leído por `DOTENV_FILE`; no usa una credencial Jenkins `Secret file` llamada `microservicios-env`. Jenkins requiere acceso al socket Docker del host para construir y levantar el stack E2E.
+La configuración no sensible del `.env` se monta en Jenkins como
+`/run/config/microservicios.env` y se lee mediante `DOTENV_FILE`. Los secretos llegan
+por Docker Compose Secrets. Jenkins requiere acceso al socket Docker del host para
+construir y levantar el stack E2E.
 
 ### Etapas de los pipelines
 
@@ -957,9 +1210,9 @@ La URL de Prometheus que Grafana usa como fuente de datos se define en
 `PROMETHEUS_DATASOURCE_URL` en `.env`; por defecto es
 `http://prometheus:9090`, accesible desde Grafana mediante la red Docker.
 
-Las credenciales iniciales de Grafana se configuran mediante
-`GRAFANA_ADMIN_USER` y `GRAFANA_ADMIN_PASSWORD` en `.env`; cambia el valor de
-ejemplo antes de exponer el servicio.
+El usuario inicial de Grafana se configura con `GRAFANA_ADMIN_USER`; la contraseña
+se monta desde `secrets/grafana_admin_password.txt` mediante
+`GF_SECURITY_ADMIN_PASSWORD__FILE`.
 
 ## 3. Configuración de Prometheus
 

@@ -2,9 +2,10 @@
 import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
+from app.config.secrets import read_secret
 
 DB_USER = os.getenv("DB_DEPARTAMENTO_USER", "postgres")
-DB_PASSWORD = os.getenv("DB_DEPARTAMENTO_PASSWORD", "postgres")
+DB_PASSWORD = read_secret("db_departamento_password", "DB_DEPARTAMENTO_PASSWORD")
 DB_HOST = os.getenv("DB_DEPARTAMENTO_HOST", "localhost")
 DB_PORT = os.getenv("DB_DEPARTAMENTO_PORT", "5432")
 DB_NAME = os.getenv("DB_DEPARTAMENTO_NAME", "departamento_db")

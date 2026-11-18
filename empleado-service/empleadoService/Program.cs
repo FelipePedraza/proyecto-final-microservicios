@@ -12,6 +12,7 @@ using Microsoft.Extensions.Options;
 using EmpleadoService.Infrastructure.Departamentos;
 using EmpleadoService.Infrastructure.Persistence;
 using EmpleadoService.Infrastructure.Health;
+using EmpleadoService.Infrastructure.Configuration;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.OpenApi;
 using Microsoft.Extensions.Logging.Console;
@@ -22,6 +23,18 @@ using Prometheus;
 using EmpleadoDomainService = EmpleadoService.Domain.Services.EmpleadoService;
 
 var builder = WebApplication.CreateBuilder(args);
+
+var empleadoDbPassword = SecretReader.ReadRequired("db_empleado_password", "DB_PASSWORD");
+var brokerPassword = SecretReader.ReadRequired("broker_password", "RABBITMQ_PASSWORD");
+builder.Configuration["ConnectionStrings:EmpleadoService"] = new NpgsqlConnectionStringBuilder
+{
+    Host = builder.Configuration["DB_HOST"] ?? "localhost",
+    Port = int.Parse(builder.Configuration["DB_PORT"] ?? "5432"),
+    Database = builder.Configuration["DB_NAME"] ?? "empleado_db",
+    Username = builder.Configuration["DB_USER"] ?? "empleado_user",
+    Password = empleadoDbPassword
+}.ConnectionString;
+builder.Configuration["RabbitMQ:Password"] = brokerPassword;
 
 // Una línea JSON por evento. El proveedor agrega TraceId/SpanId desde Activity.Current.
 builder.Logging.ClearProviders();
@@ -58,9 +71,7 @@ builder.Services.AddOpenTelemetry()
 builder.Services.AddDbContext<EmpleadoDbContext>(options =>
     options.UseNpgsql(
         builder.Configuration.GetConnectionString("EmpleadoService")
-            ?? throw new InvalidOperationException(
-                "Falta la cadena de conexión ConnectionStrings:EmpleadoService. " +
-                "Configúrala con la variable de entorno ConnectionStrings__EmpleadoService."),
+            ?? throw new InvalidOperationException("Falta la cadena de conexión de EmpleadoService."),
         npgsql => npgsql.EnableRetryOnFailure(
             maxRetryCount: 3,
             maxRetryDelay: TimeSpan.FromSeconds(2),

@@ -3,6 +3,7 @@
 # ==========================================
 # Secretos y variables de entorno (NUNCA subir a Git)
 .env
+*.env
 .env.local
 .env.*.local
 secrets/

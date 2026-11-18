@@ -78,18 +78,17 @@ especificación.
 
 ### Persistencia y configuración
 
-El esquema de la base de datos se crea mediante el script
-`database/empleado/001-schema.sql` montado por Docker Compose. La cadena de conexión
-no se guarda en `appsettings.json`: Docker Compose la inyecta como
-`ConnectionStrings__EmpleadoService`, usando las variables `EMPLEADO_DB_NAME`,
-`EMPLEADO_DB_USER` y `EMPLEADO_DB_PASSWORD` del `.env` en la raíz del repositorio.
-Ese archivo está excluido de Git; parte de `.env.example` para crearlo.
+El esquema de la base de datos se crea mediante
+`database/empleado/001-schema.sql`. La cadena de conexión no se guarda en
+`appsettings.json`: se construye al arrancar con `DB_HOST`, `DB_PORT`, `DB_NAME` y
+`DB_USER`. La contraseña se lee primero de
+`/run/secrets/db_empleado_password`; para desarrollo local puede definirse
+`DB_PASSWORD`. RabbitMQ sigue el mismo convenio con
+`/run/secrets/broker_password` y `RABBITMQ_PASSWORD`.
 
-Al ejecutar localmente con `dotnet run`, configura la clave
-`ConnectionStrings:EmpleadoService` con .NET User Secrets o define la variable de
-entorno `ConnectionStrings__EmpleadoService`. No guardes contraseñas en archivos
-versionados. Si no se configura la cadena, el servicio informa claramente del
-requisito al iniciar.
+Los archivos tienen prioridad sobre las variables. Si el secreto falta, está vacío
+o conserva un marcador de plantilla, el servicio detiene el arranque con un error
+explícito. No guardes contraseñas en archivos versionados.
 EmpleadoService no implementa ni almacena Departamentos. Al registrar un empleado, consume
 `GET {BaseUrl}/departamentos/{departamentoId}` del microservicio externo. Un `404` rechaza el
 registro porque el departamento no existe; si el servicio remoto no está disponible, se aplica el

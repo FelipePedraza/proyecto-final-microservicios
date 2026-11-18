@@ -1,5 +1,7 @@
 'use strict';
 
+const { readSecret } = require('./secrets');
+
 /**
  * Configuración del servicio, leída de variables de entorno.
  *
@@ -17,16 +19,16 @@ const env = {
     port: parseInt(process.env.DB_PORT || '5432', 10),
     database: process.env.DB_NAME || 'notificaciones_db',
     user: process.env.DB_USER || 'notificaciones_user',
-    password: process.env.DB_PASSWORD || 'notificaciones_password',
+    password: readSecret('db_notificaciones_password', 'DB_PASSWORD'),
   },
 
   rabbit: {
-    // Debe coincidir con el `message-broker` de docker-compose.yml (usuario/clave
-    // definidos allí como RABBITMQ_DEFAULT_USER / RABBITMQ_DEFAULT_PASS = admin/admin).
+    // Debe coincidir con el `message-broker` de docker-compose.yml. La clave se
+    // obtiene de /run/secrets/broker_password o de RABBITMQ_PASSWORD en local.
     host: process.env.RABBITMQ_HOST || 'localhost',
     port: parseInt(process.env.RABBITMQ_PORT || '5672', 10),
     user: process.env.RABBITMQ_USER || 'admin',
-    password: process.env.RABBITMQ_PASSWORD || 'admin',
+    password: readSecret('broker_password', 'RABBITMQ_PASSWORD'),
     // Exchange declarado por empleados-service (RabbitMqPublisher.cs): fanout, durable.
     // Debe declararse aquí con los MISMOS parámetros, o RabbitMQ rechaza la declaración
     // con un error de canal (PRECONDITION_FAILED) si el exchange ya existe distinto.

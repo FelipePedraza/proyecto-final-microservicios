@@ -1,6 +1,7 @@
 package co.edu.uniquindio.auth_service.security;
 
 import co.edu.uniquindio.auth_service.exception.InvalidTokenException;
+import io.jsonwebtoken.JwtException;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -60,5 +61,19 @@ class JWTUtilsTest {
         JWTUtils jwt = utils("corto");
         Map<String, Object> claims = Map.of();
         assertThrows(IllegalStateException.class, () -> jwt.generateToken("E001", claims, 1000));
+    }
+
+    @Test
+    void unTokenEmitidoAntesDeLaRotacionQuedaInvalidado() {
+        JWTUtils emisorAnterior = utils("jwt-anterior-de-prueba-con-mas-de-32-bytes-0123456789");
+        JWTUtils validadorRotado = utils("jwt-nuevo-de-prueba-con-mas-de-32-bytes-9876543210");
+        String tokenAnterior = emisorAnterior.generateToken(
+                "E001", Map.of("role", "USER"), 60_000);
+        String tokenNuevo = validadorRotado.generateToken(
+                "E001", Map.of("role", "USER"), 60_000);
+
+        assertThrows(JwtException.class,
+                () -> validadorRotado.validateAndGetSubject(tokenAnterior, null));
+        assertEquals("E001", validadorRotado.validateAndGetSubject(tokenNuevo, null));
     }
 }

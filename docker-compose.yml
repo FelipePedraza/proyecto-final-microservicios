@@ -17,7 +17,9 @@ services:
     environment:
       POSTGRES_DB: ${EMPLEADO_DB_NAME:?Define EMPLEADO_DB_NAME in .env}
       POSTGRES_USER: ${EMPLEADO_DB_USER:?Define EMPLEADO_DB_USER in .env}
-      POSTGRES_PASSWORD: ${EMPLEADO_DB_PASSWORD:?Define EMPLEADO_DB_PASSWORD in .env}
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_empleado_password
+    secrets:
+      - db_empleado_password
     volumes:
       - empleado-data:/var/lib/postgresql/data
     networks:
@@ -36,7 +38,9 @@ services:
     environment:
       POSTGRES_DB: ${DEPARTAMENTO_DB_NAME:?Define DEPARTAMENTO_DB_NAME in .env}
       POSTGRES_USER: ${DEPARTAMENTO_DB_USER:?Define DEPARTAMENTO_DB_USER in .env}
-      POSTGRES_PASSWORD: ${DEPARTAMENTO_DB_PASSWORD:?Define DEPARTAMENTO_DB_PASSWORD in .env}
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_departamento_password
+    secrets:
+      - db_departamento_password
     volumes:
       - departamento-data:/var/lib/postgresql/data
     networks:
@@ -60,7 +64,8 @@ services:
       DB_DEPARTAMENTO_PORT: ${DEPARTAMENTO_DB_PORT:?Define DEPARTAMENTO_DB_PORT in .env}
       DB_DEPARTAMENTO_NAME: ${DEPARTAMENTO_DB_NAME:?Define DEPARTAMENTO_DB_NAME in .env}
       DB_DEPARTAMENTO_USER: ${DEPARTAMENTO_DB_USER:?Define DEPARTAMENTO_DB_USER in .env}
-      DB_DEPARTAMENTO_PASSWORD: ${DEPARTAMENTO_DB_PASSWORD:?Define DEPARTAMENTO_DB_PASSWORD in .env}
+    secrets:
+      - db_departamento_password
     expose:
       - "${DEPARTAMENTO_SERVICE_PORT:?Define DEPARTAMENTO_SERVICE_PORT in .env}"
     networks:
@@ -89,7 +94,10 @@ services:
       OTEL_SERVICE_NAME: empleado-service
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:?Define ASPNETCORE_ENVIRONMENT in .env}
       ASPNETCORE_URLS: http://+:${EMPLEADO_SERVICE_PORT:?Define EMPLEADO_SERVICE_PORT in .env}
-      ConnectionStrings__EmpleadoService: Host=${EMPLEADO_DB_HOST:?Define EMPLEADO_DB_HOST in .env};Port=${EMPLEADO_DB_PORT:?Define EMPLEADO_DB_PORT in .env};Database=${EMPLEADO_DB_NAME:?Define EMPLEADO_DB_NAME in .env};Username=${EMPLEADO_DB_USER:?Define EMPLEADO_DB_USER in .env};Password=${EMPLEADO_DB_PASSWORD:?Define EMPLEADO_DB_PASSWORD in .env}
+      DB_HOST: ${EMPLEADO_DB_HOST:?Define EMPLEADO_DB_HOST in .env}
+      DB_PORT: ${EMPLEADO_DB_PORT:?Define EMPLEADO_DB_PORT in .env}
+      DB_NAME: ${EMPLEADO_DB_NAME:?Define EMPLEADO_DB_NAME in .env}
+      DB_USER: ${EMPLEADO_DB_USER:?Define EMPLEADO_DB_USER in .env}
       Departamentos__BaseUrl: ${DEPARTAMENTO_SERVICE_URL:?Define DEPARTAMENTO_SERVICE_URL in .env}
       # Circuits breaker hacia Departamentos (reto: 3-5 fallos consecutivos, circuito abierto 30-60 s)
       Departamentos__Resilience__FallosConsecutivos: ${CB_FALLOS_CONSECUTIVOS:?Define CB_FALLOS_CONSECUTIVOS in .env}
@@ -102,7 +110,9 @@ services:
       RabbitMQ__Host: ${RABBITMQ_HOST:?Define RABBITMQ_HOST in .env}
       RabbitMQ__Port: ${RABBITMQ_PORT:?Define RABBITMQ_PORT in .env}
       RabbitMQ__Username: ${RABBITMQ_USER:?Define RABBITMQ_USER in .env}
-      RabbitMQ__Password: ${RABBITMQ_PASSWORD:?Define RABBITMQ_PASSWORD in .env}
+    secrets:
+      - db_empleado_password
+      - broker_password
     expose:
       - "${EMPLEADO_SERVICE_PORT}"
     networks:
@@ -137,7 +147,8 @@ services:
       NOTIFICACIONES_SERVICE_URL: ${NOTIFICACIONES_SERVICE_URL:?Define NOTIFICACIONES_SERVICE_URL in .env}
       VACACIONES_SERVICE_URL: ${VACACIONES_SERVICE_URL:?Define VACACIONES_SERVICE_URL in .env}
       AUTH_SERVICE_URL: ${AUTH_SERVICE_URL:?Define AUTH_SERVICE_URL in .env}
-      JWT_SECRET: ${JWT_SECRET_KEY:?Define JWT_SECRET_KEY in .env}
+    secrets:
+      - jwt_secret
     ports:
       - "${HOST_BIND_IP:-127.0.0.1}:${GATEWAY_SERVICE_PORT:?Define GATEWAY_SERVICE_PORT in .env}:${GATEWAY_SERVICE_PORT}"
     expose:
@@ -173,8 +184,15 @@ services:
       - "${HOST_BIND_IP:-127.0.0.1}:${RABBITMQ_MANAGEMENT_PORT:?Define RABBITMQ_MANAGEMENT_PORT in .env}:15672"
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?Define RABBITMQ_USER in .env}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Define RABBITMQ_PASSWORD in .env}
-      RABBITMQ_ERLANG_COOKIE: ${RABBITMQ_ERLANG_COOKIE:?Define RABBITMQ_ERLANG_COOKIE in .env}
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        export RABBITMQ_DEFAULT_PASS="$$(cat /run/secrets/broker_password)"
+        export RABBITMQ_ERLANG_COOKIE="$$(cat /run/secrets/rabbitmq_erlang_cookie)"
+        exec docker-entrypoint.sh rabbitmq-server
+    secrets:
+      - broker_password
+      - rabbitmq_erlang_cookie
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
     networks:
@@ -193,7 +211,9 @@ services:
     environment:
       POSTGRES_DB: ${NOTIFICACIONES_DB_NAME:?Define NOTIFICACIONES_DB_NAME in .env}
       POSTGRES_USER: ${NOTIFICACIONES_DB_USER:?Define NOTIFICACIONES_DB_USER in .env}
-      POSTGRES_PASSWORD: ${NOTIFICACIONES_DB_PASSWORD:?Define NOTIFICACIONES_DB_PASSWORD in .env}
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_notificaciones_password
+    secrets:
+      - db_notificaciones_password
     volumes:
       - notificaciones-data:/var/lib/postgresql/data
     networks:
@@ -218,11 +238,9 @@ services:
       DB_PORT: ${NOTIFICACIONES_DB_PORT:?Define NOTIFICACIONES_DB_PORT in .env}
       DB_NAME: ${NOTIFICACIONES_DB_NAME:?Define NOTIFICACIONES_DB_NAME in .env}
       DB_USER: ${NOTIFICACIONES_DB_USER:?Define NOTIFICACIONES_DB_USER in .env}
-      DB_PASSWORD: ${NOTIFICACIONES_DB_PASSWORD:?Define NOTIFICACIONES_DB_PASSWORD in .env}
       RABBITMQ_HOST: ${RABBITMQ_HOST:?Define RABBITMQ_HOST in .env}
       RABBITMQ_PORT: ${RABBITMQ_PORT:?Define RABBITMQ_PORT in .env}
       RABBITMQ_USER: ${RABBITMQ_USER:?Define RABBITMQ_USER in .env}
-      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Define RABBITMQ_PASSWORD in .env}
       RABBITMQ_EXCHANGE: ${RABBITMQ_EXCHANGE:?Define RABBITMQ_EXCHANGE in .env}
       RABBITMQ_QUEUE: ${NOTIFICACIONES_RABBITMQ_QUEUE:?Define NOTIFICACIONES_RABBITMQ_QUEUE in .env}
       RABBITMQ_DLQ: ${NOTIFICACIONES_RABBITMQ_DLQ:?Define NOTIFICACIONES_RABBITMQ_DLQ in .env}
@@ -230,6 +248,9 @@ services:
       RABBITMQ_AUTH_QUEUE: ${NOTIFICACIONES_RABBITMQ_AUTH_QUEUE:?Define NOTIFICACIONES_RABBITMQ_AUTH_QUEUE in .env}
       RABBITMQ_AUTH_DLQ: ${NOTIFICACIONES_RABBITMQ_AUTH_DLQ:?Define NOTIFICACIONES_RABBITMQ_AUTH_DLQ in .env}
       RABBITMQ_RECONEXION_MS: ${RABBITMQ_RECONEXION_MS:?Define RABBITMQ_RECONEXION_MS in .env}
+    secrets:
+      - db_notificaciones_password
+      - broker_password
     expose:
       - "${NOTIFICACIONES_SERVICE_PORT}"
     networks:
@@ -253,7 +274,9 @@ services:
     environment:
       POSTGRES_DB: ${PERFILES_DB_NAME:?Define PERFILES_DB_NAME in .env}
       POSTGRES_USER: ${PERFILES_DB_USER:?Define PERFILES_DB_USER in .env}
-      POSTGRES_PASSWORD: ${PERFILES_DB_PASSWORD:?Define PERFILES_DB_PASSWORD in .env}
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_perfiles_password
+    secrets:
+      - db_perfiles_password
     volumes:
       - perfiles-data:/var/lib/postgresql/data
     networks:
@@ -277,13 +300,14 @@ services:
       DB_PORT: ${PERFILES_DB_PORT:?Define PERFILES_DB_PORT in .env}
       DB_NAME: ${PERFILES_DB_NAME:?Define PERFILES_DB_NAME in .env}
       DB_USER: ${PERFILES_DB_USER:?Define PERFILES_DB_USER in .env}
-      DB_PASSWORD: ${PERFILES_DB_PASSWORD:?Define PERFILES_DB_PASSWORD in .env}
       RABBITMQ_HOST: ${RABBITMQ_HOST:?Define RABBITMQ_HOST in .env}
       RABBITMQ_PORT: ${RABBITMQ_PORT:?Define RABBITMQ_PORT in .env}
       RABBITMQ_USER: ${RABBITMQ_USER:?Define RABBITMQ_USER in .env}
-      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Define RABBITMQ_PASSWORD in .env}
       RABBITMQ_EXCHANGE: ${RABBITMQ_EXCHANGE:?Define RABBITMQ_EXCHANGE in .env}
       RABBITMQ_QUEUE: ${PERFILES_RABBITMQ_QUEUE:?Define PERFILES_RABBITMQ_QUEUE in .env}
+    secrets:
+      - db_perfiles_password
+      - broker_password
     expose:
       - "${PERFILES_SERVICE_PORT}"
     networks:
@@ -307,7 +331,9 @@ services:
     environment:
       POSTGRES_DB: ${VACACIONES_DB_NAME:?Define VACACIONES_DB_NAME in .env}
       POSTGRES_USER: ${VACACIONES_DB_USER:?Define VACACIONES_DB_USER in .env}
-      POSTGRES_PASSWORD: ${VACACIONES_DB_PASSWORD:?Define VACACIONES_DB_PASSWORD in .env}
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_vacaciones_password
+    secrets:
+      - db_vacaciones_password
     volumes:
       - vacaciones-data:/var/lib/postgresql/data
     networks:
@@ -331,15 +357,16 @@ services:
       DB_PORT: ${VACACIONES_DB_PORT:?Define VACACIONES_DB_PORT in .env}
       DB_NAME: ${VACACIONES_DB_NAME:?Define VACACIONES_DB_NAME in .env}
       DB_USER: ${VACACIONES_DB_USER:?Define VACACIONES_DB_USER in .env}
-      DB_PASSWORD: ${VACACIONES_DB_PASSWORD:?Define VACACIONES_DB_PASSWORD in .env}
       RABBITMQ_HOST: ${RABBITMQ_HOST:?Define RABBITMQ_HOST in .env}
       RABBITMQ_PORT: ${RABBITMQ_PORT:?Define RABBITMQ_PORT in .env}
       RABBITMQ_USER: ${RABBITMQ_USER:?Define RABBITMQ_USER in .env}
-      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Define RABBITMQ_PASSWORD in .env}
       RABBITMQ_EXCHANGE: ${RABBITMQ_EXCHANGE:?Define RABBITMQ_EXCHANGE in .env}
       RABBITMQ_QUEUE: ${VACACIONES_RABBITMQ_QUEUE:?Define VACACIONES_RABBITMQ_QUEUE in .env}
       VACACIONES_CRON: ${VACACIONES_CRON:-0 * * * * *}
       VACACIONES_MANUAL_ENABLED: ${VACACIONES_MANUAL_ENABLED:-false}
+    secrets:
+      - db_vacaciones_password
+      - broker_password
     expose:
       - "${VACACIONES_SERVICE_PORT}"
     networks:
@@ -364,7 +391,9 @@ services:
     environment:
       POSTGRES_DB: ${AUTH_DB_NAME:?Define AUTH_DB_NAME in .env}
       POSTGRES_USER: ${AUTH_DB_USER:?Define AUTH_DB_USER in .env}
-      POSTGRES_PASSWORD: ${AUTH_DB_PASSWORD:?Define AUTH_DB_PASSWORD in .env}
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_auth_password
+    secrets:
+      - db_auth_password
     volumes:
       - auth_db_data:/var/lib/postgresql/data
     networks:
@@ -393,14 +422,20 @@ services:
       DB_PORT: ${AUTH_DB_PORT:?Define AUTH_DB_PORT in .env}
       DB_NAME: ${AUTH_DB_NAME:?Define AUTH_DB_NAME in .env}
       DB_USER: ${AUTH_DB_USER:?Define AUTH_DB_USER in .env}
-      DB_PASSWORD: ${AUTH_DB_PASSWORD:?Define AUTH_DB_PASSWORD in .env}
       RABBITMQ_HOST: ${RABBITMQ_HOST:?Define RABBITMQ_HOST in .env}
       RABBITMQ_PORT: ${RABBITMQ_PORT:?Define RABBITMQ_PORT in .env}
       RABBITMQ_USER: ${RABBITMQ_USER:?Define RABBITMQ_USER in .env}
-      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Define RABBITMQ_PASSWORD in .env}
-      JWT_SECRET: ${JWT_SECRET_KEY:?Define JWT_SECRET_KEY in .env}
       ADMIN_EMAIL: ${ADMIN_EMAIL:?Define ADMIN_EMAIL in .env}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Define ADMIN_PASSWORD in .env}
+      VAULT_ADDR: ${VAULT_ADDR:-}
+      VAULT_APPROLE_DIR: /vault/approle
+      VAULT_STARTUP_TIMEOUT_SECONDS: ${VAULT_STARTUP_TIMEOUT_SECONDS:-60}
+    secrets:
+      - db_auth_password
+      - broker_password
+      - jwt_secret
+      - auth_admin_password
+    volumes:
+      - vault-approle:/vault/approle:ro
     depends_on:
       auth-db:
         condition: service_healthy
@@ -415,6 +450,59 @@ services:
       retries: 5
       start_period: 20s
     restart: unless-stopped
+
+  vault:
+    image: hashicorp/vault:2.2.2
+    profiles:
+      - vault
+    container_name: vault
+    environment:
+      VAULT_ADDR: http://127.0.0.1:8200
+    entrypoint: ["/bin/sh"]
+    command: ["/vault/config/server-dev.sh"]
+    secrets:
+      - vault_root_token
+    volumes:
+      - ./vault/server-dev.sh:/vault/config/server-dev.sh:ro,z
+    ports:
+      - "${HOST_BIND_IP:-127.0.0.1}:${VAULT_HOST_PORT:-8200}:8200"
+    networks:
+      - microservicios-network
+    healthcheck:
+      test: ["CMD", "vault", "status"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+      start_period: 5s
+    restart: unless-stopped
+
+  vault-bootstrap:
+    image: hashicorp/vault:2.2.2
+    profiles:
+      - vault
+    container_name: vault-bootstrap
+    user: "0:0"
+    environment:
+      VAULT_ADDR: http://vault:8200
+      VAULT_APPROLE_DIR: /vault/approle
+    entrypoint: ["/bin/sh"]
+    command: ["/vault/config/bootstrap.sh"]
+    secrets:
+      - vault_root_token
+      - db_auth_password
+      - broker_password
+      - jwt_secret
+      - auth_admin_password
+    volumes:
+      - ./vault/bootstrap.sh:/vault/config/bootstrap.sh:ro,z
+      - ./vault/policies:/vault/policies:ro,z
+      - vault-approle:/vault/approle
+    depends_on:
+      vault:
+        condition: service_healthy
+    networks:
+      - microservicios-network
+    restart: "no"
 
   prometheus:
     image: prom/prometheus:latest
@@ -435,11 +523,18 @@ services:
       - "${HOST_BIND_IP:-127.0.0.1}:${GRAFANA_HOST_PORT:?Define GRAFANA_HOST_PORT in .env}:3000"
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:?Define GRAFANA_ADMIN_USER in .env}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Define GRAFANA_ADMIN_PASSWORD in .env}
+      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/grafana_admin_password
       PROMETHEUS_DATASOURCE_URL: ${PROMETHEUS_DATASOURCE_URL:?Define PROMETHEUS_DATASOURCE_URL in .env}
       LOKI_DATASOURCE_URL: ${LOKI_DATASOURCE_URL:?Define LOKI_DATASOURCE_URL in .env}
       ZIPKIN_EXTERNAL_URL: ${ZIPKIN_EXTERNAL_URL:?Define ZIPKIN_EXTERNAL_URL in .env}
-      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-https://discord.com/api/webhooks/0/placeholder}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        export DISCORD_WEBHOOK_URL="$$(cat /run/secrets/discord_webhook_url)"
+        exec /run.sh
+    secrets:
+      - grafana_admin_password
+      - discord_webhook_url
     volumes:
       - grafana-data:/var/lib/grafana
       - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro,z
@@ -502,7 +597,9 @@ services:
     environment:
       POSTGRES_DB: ${SONAR_DB_NAME:?Define SONAR_DB_NAME en .env}
       POSTGRES_USER: ${SONAR_DB_USER:?Define SONAR_DB_USER en .env}
-      POSTGRES_PASSWORD: ${SONAR_DB_PASSWORD:?Define SONAR_DB_PASSWORD en .env}
+      POSTGRES_PASSWORD_FILE: /run/secrets/sonar_db_password
+    secrets:
+      - sonar_db_password
     volumes:
       - sonar_db_data:/var/lib/postgresql/data
     networks:
@@ -523,7 +620,13 @@ services:
     environment:
       SONAR_JDBC_URL: jdbc:postgresql://${SONAR_DB_HOST:?Define SONAR_DB_HOST in .env}:${SONAR_DB_PORT:?Define SONAR_DB_PORT in .env}/${SONAR_DB_NAME:?Define SONAR_DB_NAME en .env}
       SONAR_JDBC_USERNAME: ${SONAR_DB_USER:?Define SONAR_DB_USER en .env}
-      SONAR_JDBC_PASSWORD: ${SONAR_DB_PASSWORD:?Define SONAR_DB_PASSWORD en .env}
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        export SONAR_JDBC_PASSWORD="$$(cat /run/secrets/sonar_db_password)"
+        exec /opt/sonarqube/docker/entrypoint.sh
+    secrets:
+      - sonar_db_password
     volumes:
       - sonarqube_data:/opt/sonarqube/data
       - sonarqube_logs:/opt/sonarqube/logs
@@ -568,14 +671,26 @@ services:
       JENKINS_SONARQUBE_URL: ${JENKINS_SONARQUBE_URL:?define JENKINS_SONARQUBE_URL en .env}
       GITHUB_REPOSITORY_URL: ${GITHUB_REPOSITORY_URL:?define GITHUB_REPOSITORY_URL en .env}
       JENKINS_ADMIN_USERNAME: ${JENKINS_ADMIN_USERNAME:?define JENKINS_ADMIN_USERNAME en .env}
-      JENKINS_ADMIN_PASSWORD: ${JENKINS_ADMIN_PASSWORD:?define JENKINS_ADMIN_PASSWORD en .env}
-      SONAR_TOKEN: ${SONAR_TOKEN:?Define SONAR_TOKEN en .env después de generarlo en SonarQube}
       SONAR_TOKEN_USER: ${SONAR_TOKEN_USER:?Define SONAR_TOKEN_USER en .env}
+      SECRETS_DIR: /run/secrets
+    secrets:
+      - db_empleado_password
+      - db_departamento_password
+      - db_notificaciones_password
+      - db_perfiles_password
+      - db_vacaciones_password
+      - db_auth_password
+      - broker_password
+      - rabbitmq_erlang_cookie
+      - jwt_secret
+      - auth_admin_password
+      - jenkins_admin_password
+      - sonar_token
     volumes:
       - jenkins_data:/var/jenkins_home
       - /var/run/docker.sock:/var/run/docker.sock:rw # Acceso al Docker daemon del host
       - ./jenkins/casc.yaml:/var/jenkins_home/casc_configs/jenkins.yaml:ro,z
-      - ./.env:/run/secrets/microservicios.env:ro,z
+      - ./.env:/run/config/microservicios.env:ro,z
     networks:
       - microservicios-network
     restart: unless-stopped
@@ -602,3 +717,38 @@ volumes:
   grafana-data:
   loki-data:
   promtail-positions:
+  vault-approle:
+
+secrets:
+  db_empleado_password:
+    file: ${SECRETS_DIR:-./secrets}/db_empleado_password.txt
+  db_departamento_password:
+    file: ${SECRETS_DIR:-./secrets}/db_departamento_password.txt
+  db_notificaciones_password:
+    file: ${SECRETS_DIR:-./secrets}/db_notificaciones_password.txt
+  db_perfiles_password:
+    file: ${SECRETS_DIR:-./secrets}/db_perfiles_password.txt
+  db_vacaciones_password:
+    file: ${SECRETS_DIR:-./secrets}/db_vacaciones_password.txt
+  db_auth_password:
+    file: ${SECRETS_DIR:-./secrets}/db_auth_password.txt
+  broker_password:
+    file: ${SECRETS_DIR:-./secrets}/broker_password.txt
+  rabbitmq_erlang_cookie:
+    file: ${SECRETS_DIR:-./secrets}/rabbitmq_erlang_cookie.txt
+  jwt_secret:
+    file: ${SECRETS_DIR:-./secrets}/jwt_secret.txt
+  auth_admin_password:
+    file: ${SECRETS_DIR:-./secrets}/auth_admin_password.txt
+  jenkins_admin_password:
+    file: ${SECRETS_DIR:-./secrets}/jenkins_admin_password.txt
+  sonar_db_password:
+    file: ${SECRETS_DIR:-./secrets}/sonar_db_password.txt
+  sonar_token:
+    file: ${SECRETS_DIR:-./secrets}/sonar_token.txt
+  grafana_admin_password:
+    file: ${SECRETS_DIR:-./secrets}/grafana_admin_password.txt
+  discord_webhook_url:
+    file: ${SECRETS_DIR:-./secrets}/discord_webhook_url.txt
+  vault_root_token:
+    file: ${SECRETS_DIR:-./secrets}/vault_root_token.txt

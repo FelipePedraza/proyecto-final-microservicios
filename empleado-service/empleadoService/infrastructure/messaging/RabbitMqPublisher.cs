@@ -35,7 +35,8 @@ public class RabbitMqPublisher : IEventPublisher, IDisposable
                 HostName = configuration["RabbitMQ:Host"] ?? "localhost",
                 Port = int.Parse(configuration["RabbitMQ:Port"] ?? "5672"),
                 UserName = configuration["RabbitMQ:Username"] ?? "admin",
-                Password = configuration["RabbitMQ:Password"] ?? "admin"
+                Password = configuration["RabbitMQ:Password"]
+                    ?? throw new InvalidOperationException("Falta RabbitMQ:Password.")
             };
             
             _connection = factory.CreateConnection();

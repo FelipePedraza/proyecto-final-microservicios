@@ -13,7 +13,7 @@ jenkins:
     - envVars:
         env:
           - key: "DOTENV_FILE"
-            value: "/run/secrets/microservicios.env"
+            value: "/run/config/microservicios.env"
 
 credentials:
   system:

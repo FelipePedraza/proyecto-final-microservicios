@@ -121,14 +121,14 @@ pipeline {
                     def config = readProperties(file: env.DOTENV_FILE)
                     def appServices = config.APP_SERVICES?.trim()
                     def e2eBaseUrl = config.JENKINS_E2E_BASE_URL ?: config.E2E_BASE_URL
-                    def jwtSecret = config.JWT_SECRET_KEY
+                    def jwtSecret = readFile(file: '/run/secrets/jwt_secret').trim()
                     if (!appServices || !e2eBaseUrl?.trim() || !jwtSecret?.trim()) {
                         error 'El archivo de entorno debe definir APP_SERVICES, E2E_BASE_URL y JWT_SECRET_KEY'
                     }
                     env.APP_SERVICES = appServices
                     env.E2E_BASE_URL = e2eBaseUrl
                     env.E2E_ADMIN_EMAIL = config.E2E_ADMIN_EMAIL ?: config.ADMIN_EMAIL ?: ''
-                    env.E2E_ADMIN_PASSWORD = config.E2E_ADMIN_PASSWORD ?: config.ADMIN_PASSWORD ?: ''
+                    env.E2E_ADMIN_PASSWORD = readFile(file: '/run/secrets/auth_admin_password').trim()
                     env.E2E_USER_EMAIL = config.E2E_USER_EMAIL ?: ''
                     env.E2E_USER_PASSWORD = config.E2E_USER_PASSWORD ?: ''
                     env.E2E_JWT_SECRET = jwtSecret

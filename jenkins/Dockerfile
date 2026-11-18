@@ -28,4 +28,8 @@ RUN apt-get update && \
 # 3. Configurar permisos del usuario jenkins para el grupo docker
 RUN groupadd -f docker && usermod -aG docker jenkins
 
+COPY --chmod=755 entrypoint-secrets.sh /usr/local/bin/jenkins-secrets-entrypoint.sh
+
 USER jenkins
+
+ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/jenkins-secrets-entrypoint.sh"]

@@ -75,15 +75,14 @@ PostgreSQL responda.
 
 ### Local, sin Docker (para desarrollar)
 
-Requiere Node 20+, un Postgres y un RabbitMQ accesibles (por ejemplo, levantando solo
-esas dos piezas con Compose: `docker compose up -d notificaciones-db message-broker`,
-que sí publican sus puertos al host).
+Requiere Node 20+, un Postgres y un RabbitMQ accesibles.
 
 ```bash
 cd notificaciones-service
 npm install
 DB_HOST=localhost DB_NAME=notificaciones_db DB_USER=notificaciones_user \
-DB_PASSWORD=notificaciones_password RABBITMQ_HOST=localhost \
+DB_PASSWORD='<contraseña-local>' RABBITMQ_HOST=localhost \
+RABBITMQ_PASSWORD='<contraseña-local-del-broker>' \
 npm run dev
 ```
 
@@ -97,7 +96,7 @@ cd notificaciones-service
 npm test
 ```
 
-26 pruebas con Jest y Supertest, todas sobre lógica y HTTP en memoria (sin Postgres ni
+47 pruebas con Jest y Supertest, todas sobre lógica y HTTP en memoria (sin Postgres ni
 RabbitMQ reales, así que corren igual de rápido en cualquier máquina):
 
 - `test/eventoParser.test.js`: extracción de campos del *envelope* (tolerante a
