@@ -39,35 +39,35 @@ pipeline {
                     args '--network microservicios-network'
                 }
             }
+            environment {
+                DB_DEPARTAMENTO_HOST = 'departamento-test-db'
+                DB_DEPARTAMENTO_PORT = '5432'
+                DB_DEPARTAMENTO_NAME = 'departamento_db'
+                DB_DEPARTAMENTO_USER = 'postgres'
+                DB_DEPARTAMENTO_PASSWORD = 'postgres'
+            }
             steps {
                 script {
-                    docker.image('postgres:16-alpine').withRun('--network microservicios-network --network-alias departamento-test-db -e POSTGRES_DB=departamento_db -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres') {
-                        withEnv([
-                            'DB_DEPARTAMENTO_HOST=departamento-test-db',
-                            'DB_DEPARTAMENTO_PORT=5432',
-                            'DB_DEPARTAMENTO_NAME=departamento_db',
-                            'DB_DEPARTAMENTO_USER=postgres',
-                            'DB_DEPARTAMENTO_PASSWORD=postgres'
-                        ]) {
-                            dir('departamento-service') {
-                                sh 'python -m pip install --no-cache-dir --target=/tmp/python-deps -r requirements-dev.txt'
-                                sh '''
-                                    export PYTHONPATH="/tmp/python-deps${PYTHONPATH:+:$PYTHONPATH}"
-                                    ready=false
-                                    for attempt in $(seq 1 60); do
-                                        if python -c 'import socket; socket.create_connection(("departamento-test-db", 5432), timeout=1).close()'; then
-                                            ready=true
-                                            break
-                                        fi
-                                        sleep 1
-                                    done
-                                    if [ "$ready" != true ]; then
-                                        echo "ERROR: PostgreSQL no estuvo disponible después de 60 segundos." >&2
-                                        exit 1
+                    def postgresArgs = "--network microservicios-network --network-alias ${env.DB_DEPARTAMENTO_HOST} -e POSTGRES_DB=${env.DB_DEPARTAMENTO_NAME} -e POSTGRES_USER=${env.DB_DEPARTAMENTO_USER} -e POSTGRES_PASSWORD=${env.DB_DEPARTAMENTO_PASSWORD}"
+                    docker.image('postgres:16-alpine').withRun(postgresArgs) {
+                        dir('departamento-service') {
+                            sh 'python -m pip install --no-cache-dir --target=/tmp/python-deps -r requirements-dev.txt'
+                            sh '''
+                                export PYTHONPATH="/tmp/python-deps${PYTHONPATH:+:$PYTHONPATH}"
+                                ready=false
+                                for attempt in $(seq 1 60); do
+                                    if python -c 'import os, socket; socket.create_connection((os.environ["DB_DEPARTAMENTO_HOST"], int(os.environ["DB_DEPARTAMENTO_PORT"])), timeout=1).close()'; then
+                                        ready=true
+                                        break
                                     fi
-                                    python -m pytest tests -q --junitxml=test-results.xml --cov=app --cov-report=xml:coverage.xml
-                                '''
-                            }
+                                    sleep 1
+                                done
+                                if [ "$ready" != true ]; then
+                                    echo "ERROR: PostgreSQL no estuvo disponible después de 60 segundos." >&2
+                                    exit 1
+                                fi
+                                python -m pytest tests -q --junitxml=test-results.xml --cov=app --cov-report=xml:coverage.xml
+                            '''
                         }
                     }
                 }
