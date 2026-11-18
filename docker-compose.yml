@@ -13,7 +13,7 @@ x-otel-environment: &otel-environment
 # Configuracion comun de los exporters. Cada instancia usa el usuario de su
 # base y lee la contrasena desde el mismo Docker Secret que el servicio.
 x-postgres-exporter: &postgres-exporter
-  image: quay.io/prometheuscommunity/postgres-exporter:v0.21.0
+  image: quay.io/prometheuscommunity/postgres-exporter:v0.20.1
   expose:
     - "9187"
   networks:
