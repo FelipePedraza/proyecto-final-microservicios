@@ -159,7 +159,7 @@ se genera el valor localmente.
 
 - **Plan del reto 9:** creado.
 - **Auditoría manual:** completada como inventario inicial.
-- **Baseline `detect-secrets`:** generado y clasificado, con 15 hallazgos en 8 archivos: 3 verdaderos positivos y 12 falsos positivos.
+- **Baseline `detect-secrets`:** generado y clasificado, con 13 hallazgos en 7 archivos: 1 verdadero positivo y 12 falsos positivos.
 - **Historial:** no se encontraron archivos `.env` reales ni `secrets/*.txt` versionados.
 - **TruffleHog:** ejecutado sobre todo el historial con Docker; encontró 0 secretos verificados y 0 no verificados.
 - **Responsabilidad de Punto 1:** definida.

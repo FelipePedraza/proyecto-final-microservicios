@@ -23,6 +23,32 @@ using EmpleadoDomainService = EmpleadoService.Domain.Services.EmpleadoService;
 
 var builder = WebApplication.CreateBuilder(args);
 
+string ReadSecret(string secretName, string envFallback)
+{
+    var secretPath = Path.Combine("/run/secrets", secretName);
+    if (File.Exists(secretPath))
+    {
+        var value = File.ReadAllText(secretPath).Trim();
+        if (!string.IsNullOrWhiteSpace(value))
+            return value;
+    }
+    var envValue = Environment.GetEnvironmentVariable(envFallback);
+    if (!string.IsNullOrWhiteSpace(envValue))
+        return envValue;
+    throw new InvalidOperationException(
+        $"Secreto '{secretName}' no configurado. Montar {secretPath} o definir {envFallback}.");
+}
+
+var empleadoDbPassword = ReadSecret("db_empleado_password", "EMPLEADO_DB_PASSWORD");
+var rabbitPassword = ReadSecret("broker_password", "RABBITMQ_PASSWORD");
+var dbHost = builder.Configuration["EMPLEADO_DB_HOST"] ?? "empleado-db";
+var dbPort = builder.Configuration["EMPLEADO_DB_PORT"] ?? "5432";
+var dbName = builder.Configuration["EMPLEADO_DB_NAME"] ?? "empleado_db";
+var dbUser = builder.Configuration["EMPLEADO_DB_USER"] ?? "empleado_user";
+builder.Configuration["ConnectionStrings:EmpleadoService"] =
+    $"Host={dbHost};Port={dbPort};Database={dbName};Username={dbUser};Password={empleadoDbPassword}";
+builder.Configuration["RabbitMQ:Password"] = rabbitPassword;
+
 // Una línea JSON por evento. El proveedor agrega TraceId/SpanId desde Activity.Current.
 builder.Logging.ClearProviders();
 builder.Logging.AddJsonConsole(options =>

@@ -9,6 +9,8 @@ FROM eclipse-temurin:21-jre-alpine
 RUN addgroup -S -g 10001 app && adduser -S -D -u 10001 -G app app
 WORKDIR /app
 COPY --from=build /build/target/vacaciones-service-1.0.0.jar app.jar
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod 500 /docker-entrypoint.sh
 USER 10001:10001
 EXPOSE 8085
-ENTRYPOINT ["java","-jar","app.jar"]
+ENTRYPOINT ["/docker-entrypoint.sh"]

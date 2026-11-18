@@ -118,25 +118,25 @@ pipeline {
             agent any
             steps {
                 script {
-                    def config = readProperties(file: env.DOTENV_FILE)
-                    def appServices = config.APP_SERVICES?.trim()
-                    def e2eBaseUrl = config.JENKINS_E2E_BASE_URL ?: config.E2E_BASE_URL
-                    def jwtSecret = config.JWT_SECRET_KEY
+                    def appServices = env.APP_SERVICES?.trim()
+                    def e2eBaseUrl = (env.JENKINS_E2E_BASE_URL ?: env.E2E_BASE_URL)?.trim()
+                    def jwtSecret = sh(script: 'tr -d "\\r\\n" < /run/secrets/jwt_secret', returnStdout: true).trim()
+                    def adminPassword = sh(script: 'tr -d "\\r\\n" < /run/secrets/auth_admin_password', returnStdout: true).trim()
                     if (!appServices || !e2eBaseUrl?.trim() || !jwtSecret?.trim()) {
-                        error 'El archivo de entorno debe definir APP_SERVICES, E2E_BASE_URL y JWT_SECRET_KEY'
+                        error 'Debe definir APP_SERVICES y una URL E2E; jwt_secret debe estar montado'
                     }
                     env.APP_SERVICES = appServices
                     env.E2E_BASE_URL = e2eBaseUrl
-                    env.E2E_ADMIN_EMAIL = config.E2E_ADMIN_EMAIL ?: config.ADMIN_EMAIL ?: ''
-                    env.E2E_ADMIN_PASSWORD = config.E2E_ADMIN_PASSWORD ?: config.ADMIN_PASSWORD ?: ''
-                    env.E2E_USER_EMAIL = config.E2E_USER_EMAIL ?: ''
-                    env.E2E_USER_PASSWORD = config.E2E_USER_PASSWORD ?: ''
+                    env.E2E_ADMIN_EMAIL = env.E2E_ADMIN_EMAIL ?: 'admin@empresa.com'
+                    env.E2E_ADMIN_PASSWORD = adminPassword
+                    env.E2E_USER_EMAIL = env.E2E_USER_EMAIL ?: ''
+                    env.E2E_USER_PASSWORD = env.E2E_USER_PASSWORD ?: ''
                     env.E2E_JWT_SECRET = jwtSecret
-                    env.E2E_STARTUP_TIMEOUT_SECONDS = config.E2E_STARTUP_TIMEOUT_SECONDS ?: '120'
-                    env.E2E_REQUEST_TIMEOUT_MS = config.E2E_REQUEST_TIMEOUT_MS ?: '30000'
-                    env.E2E_POLLING_MAX_ATTEMPTS = config.E2E_POLLING_MAX_ATTEMPTS ?: '15'
-                    env.E2E_POLLING_INTERVAL_MS = config.E2E_POLLING_INTERVAL_MS ?: '2000'
-                    env.E2E_POLLING_TIMEOUT_SECONDS = config.E2E_POLLING_TIMEOUT_SECONDS ?: '90'
+                    env.E2E_STARTUP_TIMEOUT_SECONDS = env.E2E_STARTUP_TIMEOUT_SECONDS ?: '120'
+                    env.E2E_REQUEST_TIMEOUT_MS = env.E2E_REQUEST_TIMEOUT_MS ?: '30000'
+                    env.E2E_POLLING_MAX_ATTEMPTS = env.E2E_POLLING_MAX_ATTEMPTS ?: '15'
+                    env.E2E_POLLING_INTERVAL_MS = env.E2E_POLLING_INTERVAL_MS ?: '2000'
+                    env.E2E_POLLING_TIMEOUT_SECONDS = env.E2E_POLLING_TIMEOUT_SECONDS ?: '90'
                     env.EMPLEADO_SERVICE_IMAGE_TAG = env.BUILD_NUMBER
                     env.VACACIONES_MANUAL_ENABLED = 'true'
                 }

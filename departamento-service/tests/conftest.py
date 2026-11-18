@@ -5,6 +5,10 @@ permitiendo ejecutar la API con FastAPI TestClient sin depender de PostgreSQL
 ni de Docker.
 """
 
+import os
+
+os.environ.setdefault("DB_DEPARTAMENTO_PASSWORD", "test-only-secret")
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine

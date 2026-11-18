@@ -29,3 +29,9 @@ RUN apt-get update && \
 RUN groupadd -f docker && usermod -aG docker jenkins
 
 USER jenkins
+
+USER root
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod 500 /usr/local/bin/docker-entrypoint.sh
+USER jenkins
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]

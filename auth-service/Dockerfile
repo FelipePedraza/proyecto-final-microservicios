@@ -8,5 +8,7 @@ RUN mvn clean package -DskipTests
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 COPY --from=build /app/target/auth-service-0.0.1-SNAPSHOT.jar app.jar
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod 500 /docker-entrypoint.sh
 EXPOSE 8089
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENTRYPOINT ["/docker-entrypoint.sh"]

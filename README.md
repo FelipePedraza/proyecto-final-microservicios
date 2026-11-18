@@ -355,8 +355,8 @@ python -m detect_secrets scan \
   . > .secrets.baseline
 ```
 
-Evidencia: `.secrets.baseline` contiene 15 hallazgos clasificados en 8 archivos.
-El análisis distingue 3 verdaderos positivos y 12 falsos positivos de fixtures o
+Evidencia: `.secrets.baseline` contiene 13 hallazgos clasificados en 7 archivos.
+El análisis distingue 1 verdadero positivo y 12 falsos positivos de fixtures o
 documentación. Los 12 falsos positivos no representan secretos reales ni deben
 convertirse en credenciales nuevas. Se mantienen como datos controlados de prueba
 o ejemplos, mientras se evita que parezcan credenciales válidas de producción.
@@ -378,7 +378,7 @@ detect-secrets audit --stats --json .secrets.baseline
 | `application.yml` / configuración de un servicio | Eliminar fallbacks conocidos como `postgres` o `guest` | Debe leer el secreto desde `/run/secrets/` y fallar explícitamente si no está disponible. |
 | `Jenkinsfile` de pruebas | Sustituir la contraseña fija del contenedor PostgreSQL temporal | Es una credencial de prueba conocida, no una credencial real; puede usarse una variable temporal controlada o un valor aleatorio creado solo para ese contenedor. |
 
-Para los 3 verdaderos positivos, no es correcto escribir nuevas contraseñas reales
+Para el verdadero positivo, no es correcto escribir nuevas contraseñas reales
 en `.env.example`, ni copiar secretos locales a este README o al repositorio.
 La corrección será:
 
@@ -395,12 +395,35 @@ también se ejecutó sobre el historial con Docker Desktop y encontró
 
 ### Remediación pendiente
 
-- Retirar fallbacks de producción con contraseñas conocidas.
-- Sustituir variables sensibles de `docker-compose.yml` por `secrets:`.
-- Leer primero `/run/secrets/...` y fallar con un mensaje explícito si falta el secreto.
-- Mantener `.env.example` completo y limitar `.env` a la máquina local.
-- Rotar inmediatamente todos los valores que alguna vez hayan estado versionados.
+- Completar la recreación completa del stack y confirmar que ningún servicio falla por secretos ausentes.
+- Rotar credenciales reales si fueron versionadas o compartidas históricamente.
 - Ejecutar la auditoría automatizada en CI para prevenir nuevas fugas.
+
+### Configuración inicial y rotación implementada
+
+```bash
+cp .env.example .env
+bash scripts/setup-secrets.sh
+docker compose up --build
+```
+
+El script crea `secrets/`, genera valores locales criptográficamente aleatorios,
+conserva secretos existentes y establece permisos `700` para la carpeta y `600`
+para `.env` y los archivos individuales. `secrets/` y `.env` están excluidos de Git;
+`secrets.example/` contiene únicamente marcadores.
+
+Docker Compose monta los secretos con mínimo privilegio. Los microservicios consultan
+primero `/run/secrets/<nombre>` y conservan fallback a variable de entorno solo para
+desarrollo local. Si falta un secreto requerido, arrancan con un error descriptivo.
+
+Procedimiento de rotación:
+
+1. Generar el nuevo valor en `secrets/<nombre>.txt` o volver a ejecutar el script.
+2. Reiniciar únicamente los servicios que reciben ese secreto.
+3. Revisar `docker compose logs <servicio>` y el healthcheck.
+4. Rotar JWT invalida sesiones activas; confirmar que login vuelve a funcionar.
+5. Contraseñas de PostgreSQL requieren actualizar el contenedor de BD y sus clientes.
+6. RabbitMQ requiere actualizar broker y todos los productores/consumidores.
 
 ## Puesta en marcha
 

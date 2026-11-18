@@ -1,5 +1,23 @@
 'use strict';
 
+const fs = require('fs');
+
+function readSecret(secretName, envName) {
+  const secretPath = `/run/secrets/${secretName}`;
+  if (fs.existsSync(secretPath)) {
+    return fs.readFileSync(secretPath, 'utf8').trim();
+  }
+  if (process.env[envName]) {
+    return process.env[envName];
+  }
+  if (process.env.NODE_ENV === 'test') {
+    return 'test-only-secret';
+  }
+  throw new Error(
+    `Secreto '${secretName}' no configurado. Montar ${secretPath} o definir ${envName}.`
+  );
+}
+
 /**
  * Configuración del servicio, leída de variables de entorno.
  *
@@ -17,7 +35,7 @@ const env = {
     port: parseInt(process.env.DB_PORT || '5432', 10),
     database: process.env.DB_NAME || 'notificaciones_db',
     user: process.env.DB_USER || 'notificaciones_user',
-    password: process.env.DB_PASSWORD || 'notificaciones_password',
+    password: readSecret('db_notificaciones_password', 'DB_PASSWORD'),
   },
 
   rabbit: {
@@ -26,7 +44,7 @@ const env = {
     host: process.env.RABBITMQ_HOST || 'localhost',
     port: parseInt(process.env.RABBITMQ_PORT || '5672', 10),
     user: process.env.RABBITMQ_USER || 'admin',
-    password: process.env.RABBITMQ_PASSWORD || 'admin',
+    password: readSecret('broker_password', 'RABBITMQ_PASSWORD'),
     // Exchange declarado por empleados-service (RabbitMqPublisher.cs): fanout, durable.
     // Debe declararse aquí con los MISMOS parámetros, o RabbitMQ rechaza la declaración
     // con un error de canal (PRECONDITION_FAILED) si el exchange ya existe distinto.

@@ -13,8 +13,8 @@ El arranque actual depende de variables de entorno y aún no usa Docker Compose
 Secrets.
 
 Se generó y clasificó un baseline con `detect-secrets` sin incluir valores
-detectados en el reporte documental. El baseline contiene 15 hallazgos en 8
-archivos: 3 verdaderos positivos y 12 falsos positivos de fixtures o documentación.
+detectados en el reporte documental. El baseline contiene 13 hallazgos en 7
+archivos: 1 verdadero positivo y 12 falsos positivos de fixtures o documentación.
 
 ## 2. Investigación aplicada
 
@@ -73,9 +73,9 @@ Resultado resumido:
 
 | Métrica | Resultado |
 |---|---:|
-| Hallazgos | 15 |
-| Archivos afectados | 8 |
-| `Secret Keyword` | 14 |
+| Hallazgos | 13 |
+| Archivos afectados | 7 |
+| `Secret Keyword` | 12 |
 | `Base64 High Entropy String` | 1 |
 
 Ubicaciones resumidas:
@@ -98,7 +98,7 @@ Clasificación resumida:
 
 | Clasificación | Cantidad | Ubicaciones |
 |---|---:|---|
-| Verdadero positivo | 3 | Pipeline temporal de PostgreSQL y dos fallbacks del servicio de vacaciones |
+| Verdadero positivo | 1 | Pipeline temporal de PostgreSQL |
 | Falso positivo | 12 | Ejemplos y contraseñas de documentación, fixtures E2E y claves JWT exclusivas de pruebas |
 
 Interpretación práctica:
@@ -161,3 +161,20 @@ también confirmó que no existen objetos versionados `.env` reales ni
 - `.env` real o `secrets/*.txt` versionados en el historial: no encontrados.
 
 Resultado: **Punto 1 cerrado a nivel de auditoría y diagnóstico**.
+
+## 8. Implementación de los Niveles 1 y 2
+
+Estado: implementación realizada en la rama `reto9-niveles-1-2`.
+
+- Añadidos `.env.example`, `.gitignore`, `scripts/setup-secrets.sh` y
+  `secrets.example/`.
+- Añadida la sección global `secrets:` en `docker-compose.yml`.
+- PostgreSQL, RabbitMQ, Grafana, Sonar y Jenkins usan archivos de secretos o
+  `_FILE` cuando la imagen lo permite.
+- Auth, gateway y vacaciones leen secretos desde entrypoints que consultan
+  `/run/secrets/` y luego hacen fallback a entorno local.
+- Empleado, departamento, notificaciones y perfiles leen o reciben sus secretos
+  antes de construir conexiones reales.
+- La validación de Compose y el diff están correctas.
+- El build completo quedó bloqueado por resolución DNS/descargas externas en
+  Maven, NuGet, pip y Docker Hub durante esta sesión.

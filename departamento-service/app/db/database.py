@@ -1,10 +1,23 @@
 
 import os
+from pathlib import Path
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
+def read_secret(secret_name: str, env_name: str) -> str:
+    secret_path = Path(f"/run/secrets/{secret_name}")
+    if secret_path.exists():
+        return secret_path.read_text(encoding="utf-8").strip()
+    value = os.getenv(env_name)
+    if value:
+        return value
+    raise RuntimeError(
+        f"Secreto '{secret_name}' no configurado. "
+        f"Montar /run/secrets/{secret_name} o definir {env_name}."
+    )
+
 DB_USER = os.getenv("DB_DEPARTAMENTO_USER", "postgres")
-DB_PASSWORD = os.getenv("DB_DEPARTAMENTO_PASSWORD", "postgres")
+DB_PASSWORD = read_secret("db_departamentos_password", "DB_DEPARTAMENTO_PASSWORD")
 DB_HOST = os.getenv("DB_DEPARTAMENTO_HOST", "localhost")
 DB_PORT = os.getenv("DB_DEPARTAMENTO_PORT", "5432")
 DB_NAME = os.getenv("DB_DEPARTAMENTO_NAME", "departamento_db")

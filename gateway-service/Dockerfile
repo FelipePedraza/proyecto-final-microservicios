@@ -13,6 +13,8 @@ RUN apt-get update \
     && groupadd --gid 10001 appgroup \
     && useradd --uid 10001 --gid appgroup --home-dir /app --shell /usr/sbin/nologin --no-create-home appuser
 COPY --from=build --chown=appuser:appgroup /build/target/gateway-service-1.0.0.jar app.jar
+COPY --chown=appuser:appgroup docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod 500 /docker-entrypoint.sh
 USER appuser
 EXPOSE 8088
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENTRYPOINT ["/docker-entrypoint.sh"]

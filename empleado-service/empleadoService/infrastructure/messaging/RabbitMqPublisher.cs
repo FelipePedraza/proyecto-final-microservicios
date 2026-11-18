@@ -35,7 +35,9 @@ public class RabbitMqPublisher : IEventPublisher, IDisposable
                 HostName = configuration["RabbitMQ:Host"] ?? "localhost",
                 Port = int.Parse(configuration["RabbitMQ:Port"] ?? "5672"),
                 UserName = configuration["RabbitMQ:Username"] ?? "admin",
-                Password = configuration["RabbitMQ:Password"] ?? "admin"
+                Password = configuration["RabbitMQ:Password"]
+                    ?? throw new InvalidOperationException(
+                        "Secreto 'broker_password' no configurado. Montar /run/secrets/broker_password o definir RABBITMQ_PASSWORD.")
             };
             
             _connection = factory.CreateConnection();
