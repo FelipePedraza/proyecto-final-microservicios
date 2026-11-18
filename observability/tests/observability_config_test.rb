@@ -82,6 +82,32 @@ class ObservabilityConfigTest < Minitest::Test
     end
   end
 
+  def test_postgres_exporters_use_supported_environment_configuration
+    services = yaml("docker-compose.yml").fetch("services")
+    exporters = {
+      "empleado-db-exporter" => "db_empleado_password",
+      "departamento-db-exporter" => "db_departamento_password",
+      "notificaciones-db-exporter" => "db_notificaciones_password",
+      "perfiles-db-exporter" => "db_perfiles_password",
+      "vacaciones-db-exporter" => "db_vacaciones_password",
+      "auth-db-exporter" => "db_auth_password",
+      "sonar-db-exporter" => "sonar_db_password"
+    }
+
+    exporters.each do |name, secret|
+      exporter = services.fetch(name)
+      environment = exporter.fetch("environment")
+
+      assert_equal "quay.io/prometheuscommunity/postgres-exporter:v0.20.1",
+        exporter.fetch("image")
+      assert environment.key?("DATA_SOURCE_URI")
+      assert environment.key?("DATA_SOURCE_USER")
+      assert_equal "/run/secrets/#{secret}", environment["DATA_SOURCE_PASS_FILE"]
+      assert_includes exporter.fetch("secrets"), secret
+      refute exporter.key?("command")
+    end
+  end
+
   def test_database_alerts_cover_database_and_exporter_failures
     config = yaml("observability/prometheus/rules/database-alerts.yml")
     rules = config.fetch("groups").first.fetch("rules")

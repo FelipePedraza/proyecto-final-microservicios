@@ -1255,11 +1255,12 @@ implementaciones del ecosistema políglota.
 ### 3.1 Monitoreo continuo de PostgreSQL
 
 Cada una de las seis bases de negocio y la base de SonarQube tiene una instancia
-de `postgres_exporter` fijada en la versión `v0.21.0`. Los exporters no publican
+de `postgres_exporter` fijada en la versión `v0.20.1`. Los exporters no publican
 puertos al host: Prometheus los consulta por la red privada cada 10 segundos en
-el job `postgresql-databases`. La contraseña se lee directamente del Docker
-Secret correspondiente con `--datasource.pass-file`; no se copia al Compose ni
-a una variable de entorno.
+el job `postgresql-databases`. La conexión se configura con `DATA_SOURCE_URI` y
+`DATA_SOURCE_USER`; `DATA_SOURCE_PASS_FILE` indica el Docker Secret que contiene
+la contraseña. El valor secreto no se copia al Compose ni a una variable de
+entorno.
 
 | Base | Target de Prometheus | Servicio propietario |
 |---|---|---|

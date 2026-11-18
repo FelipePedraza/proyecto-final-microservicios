@@ -517,70 +517,63 @@ services:
   empleado-db-exporter:
     <<: *postgres-exporter
     environment:
+      DATA_SOURCE_URI: empleado-db:5432/${EMPLEADO_DB_NAME:?Define EMPLEADO_DB_NAME in .env}?sslmode=disable
       DATA_SOURCE_USER: ${EMPLEADO_DB_USER:?Define EMPLEADO_DB_USER in .env}
-    command:
-      - --datasource.uri=empleado-db:5432/${EMPLEADO_DB_NAME:?Define EMPLEADO_DB_NAME in .env}?sslmode=disable
-      - --datasource.pass-file=/run/secrets/db_empleado_password
+      DATA_SOURCE_PASS_FILE: /run/secrets/db_empleado_password
     secrets:
       - db_empleado_password
 
   departamento-db-exporter:
     <<: *postgres-exporter
     environment:
+      DATA_SOURCE_URI: departamento-db:5432/${DEPARTAMENTO_DB_NAME:?Define DEPARTAMENTO_DB_NAME in .env}?sslmode=disable
       DATA_SOURCE_USER: ${DEPARTAMENTO_DB_USER:?Define DEPARTAMENTO_DB_USER in .env}
-    command:
-      - --datasource.uri=departamento-db:5432/${DEPARTAMENTO_DB_NAME:?Define DEPARTAMENTO_DB_NAME in .env}?sslmode=disable
-      - --datasource.pass-file=/run/secrets/db_departamento_password
+      DATA_SOURCE_PASS_FILE: /run/secrets/db_departamento_password
     secrets:
       - db_departamento_password
 
   notificaciones-db-exporter:
     <<: *postgres-exporter
     environment:
+      DATA_SOURCE_URI: notificaciones-db:5432/${NOTIFICACIONES_DB_NAME:?Define NOTIFICACIONES_DB_NAME in .env}?sslmode=disable
       DATA_SOURCE_USER: ${NOTIFICACIONES_DB_USER:?Define NOTIFICACIONES_DB_USER in .env}
-    command:
-      - --datasource.uri=notificaciones-db:5432/${NOTIFICACIONES_DB_NAME:?Define NOTIFICACIONES_DB_NAME in .env}?sslmode=disable
-      - --datasource.pass-file=/run/secrets/db_notificaciones_password
+      DATA_SOURCE_PASS_FILE: /run/secrets/db_notificaciones_password
     secrets:
       - db_notificaciones_password
 
   perfiles-db-exporter:
     <<: *postgres-exporter
     environment:
+      DATA_SOURCE_URI: perfiles-db:5432/${PERFILES_DB_NAME:?Define PERFILES_DB_NAME in .env}?sslmode=disable
       DATA_SOURCE_USER: ${PERFILES_DB_USER:?Define PERFILES_DB_USER in .env}
-    command:
-      - --datasource.uri=perfiles-db:5432/${PERFILES_DB_NAME:?Define PERFILES_DB_NAME in .env}?sslmode=disable
-      - --datasource.pass-file=/run/secrets/db_perfiles_password
+      DATA_SOURCE_PASS_FILE: /run/secrets/db_perfiles_password
     secrets:
       - db_perfiles_password
 
   vacaciones-db-exporter:
     <<: *postgres-exporter
     environment:
+      DATA_SOURCE_URI: vacaciones-db:5432/${VACACIONES_DB_NAME:?Define VACACIONES_DB_NAME in .env}?sslmode=disable
       DATA_SOURCE_USER: ${VACACIONES_DB_USER:?Define VACACIONES_DB_USER in .env}
-    command:
-      - --datasource.uri=vacaciones-db:5432/${VACACIONES_DB_NAME:?Define VACACIONES_DB_NAME in .env}?sslmode=disable
-      - --datasource.pass-file=/run/secrets/db_vacaciones_password
+      DATA_SOURCE_PASS_FILE: /run/secrets/db_vacaciones_password
     secrets:
       - db_vacaciones_password
 
   auth-db-exporter:
     <<: *postgres-exporter
     environment:
+      DATA_SOURCE_URI: auth-db:5432/${AUTH_DB_NAME:?Define AUTH_DB_NAME in .env}?sslmode=disable
       DATA_SOURCE_USER: ${AUTH_DB_USER:?Define AUTH_DB_USER in .env}
-    command:
-      - --datasource.uri=auth-db:5432/${AUTH_DB_NAME:?Define AUTH_DB_NAME in .env}?sslmode=disable
-      - --datasource.pass-file=/run/secrets/db_auth_password
+      DATA_SOURCE_PASS_FILE: /run/secrets/db_auth_password
     secrets:
       - db_auth_password
 
   sonar-db-exporter:
     <<: *postgres-exporter
     environment:
+      DATA_SOURCE_URI: sonar-db:5432/${SONAR_DB_NAME:?Define SONAR_DB_NAME in .env}?sslmode=disable
       DATA_SOURCE_USER: ${SONAR_DB_USER:?Define SONAR_DB_USER in .env}
-    command:
-      - --datasource.uri=sonar-db:5432/${SONAR_DB_NAME:?Define SONAR_DB_NAME in .env}?sslmode=disable
-      - --datasource.pass-file=/run/secrets/sonar_db_password
+      DATA_SOURCE_PASS_FILE: /run/secrets/sonar_db_password
     secrets:
       - sonar_db_password
 
