@@ -408,6 +408,20 @@ conserva marcadores `REEMPLAZAR_*`, mientras el `.env` local contiene únicament
 configuración no sensible y referencias `GESTIONADO_EN_SECRETS_*`. El script aplica
 permisos `600` al `.env` y no imprime ningún valor sensible.
 
+En Windows se usa la implementación equivalente de PowerShell, que restringe las
+ACL al usuario actual y utiliza el generador criptográfico de .NET:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\scripts\setup-secrets.ps1
+```
+
+Desde `cmd.exe` puede utilizarse el lanzador incluido:
+
+```bat
+scripts\setup-secrets.cmd
+```
+
 ### Nivel 2: Docker Compose Secrets
 
 El mismo script crea `secrets/` con permisos `700` y dieciséis archivos con permisos
