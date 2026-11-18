@@ -1237,6 +1237,33 @@ Prometheus consulta los siete destinos cada 15 segundos. La etiqueta `service`
 identifica el microservicio y la etiqueta `lenguaje` permite comparar las
 implementaciones del ecosistema políglota.
 
+### 3.1 Monitoreo continuo de PostgreSQL
+
+Cada una de las seis bases de negocio y la base de SonarQube tiene una instancia
+de `postgres_exporter` fijada en la versión `v0.21.0`. Los exporters no publican
+puertos al host: Prometheus los consulta por la red privada cada 10 segundos en
+el job `postgresql-databases`. La contraseña se lee directamente del Docker
+Secret correspondiente con `--datasource.pass-file`; no se copia al Compose ni
+a una variable de entorno.
+
+| Base | Target de Prometheus | Servicio propietario |
+|---|---|---|
+| Empleados | `empleado-db-exporter:9187` | `empleado-service` |
+| Departamentos | `departamento-db-exporter:9187` | `departamento-service` |
+| Notificaciones | `notificaciones-db-exporter:9187` | `notificaciones-service` |
+| Perfiles | `perfiles-db-exporter:9187` | `perfiles-service` |
+| Vacaciones | `vacaciones-db-exporter:9187` | `vacaciones-service` |
+| Autenticación | `auth-db-exporter:9187` | `auth-service` |
+| SonarQube | `sonar-db-exporter:9187` | `sonarqube` |
+
+La métrica `pg_up` vale `0` cuando el exporter funciona pero no puede conectarse
+a PostgreSQL. La métrica nativa `up` vale `0` si Prometheus no puede consultar
+el exporter. La regla de grabación `database:postgresql_available` combina ambas
+señales y conserva las etiquetas `database`, `db_service` y `owner_service`.
+Las reglas `PostgreSQLDatabaseDown` y `PostgreSQLExporterDown` se activan después
+de 30 segundos, por lo que una caída queda registrada en la serie temporal y en
+la vista de alertas de Prometheus.
+
 ## 4. Instrumentación de los Microservicios
 
 ### 4.1 Exposición de métricas Prometheus
@@ -1394,10 +1421,11 @@ usar **Ver traza en Zipkin** sin copiar manualmente el identificador.
 
 ## 5. Dashboard en Grafana
 
-El dashboard **Microservicios - Observabilidad** se aprovisiona solo al levantar
-Grafana (`observability/grafana/provisioning/dashboards/`: `provider.yml` +
-`microservicios.json`), sin configuración manual. Está en la carpeta
-*Microservicios* y tiene dos filas:
+Los dashboards **Microservicios - Observabilidad** y **PostgreSQL - Disponibilidad**
+se aprovisionan al levantar Grafana (`observability/grafana/provisioning/dashboards/`),
+sin configuración manual. El segundo se actualiza cada 10 segundos y muestra el
+estado en vivo, el historial de disponibilidad y las conexiones activas de cada
+base. Ambos están en la carpeta *Microservicios*.
 
 | Fila | Panel | Consulta (resumen) |
 |---|---|---|
@@ -1419,6 +1447,7 @@ Las reglas y el canal se aprovisionan desde
 | Regla | Condición | Duración |
 |---|---|---|
 | Servicio Caído | `up{job=~".+-service"} < 1` | 1 minuto |
+| Base de Datos Caída | `database:postgresql_available < 1` | 30 segundos |
 | Alta Latencia | latencia promedio > 2 s | 2 minutos |
 
 **Canal elegido: Webhook de Discord** (baja complejidad y soporte nativo en
@@ -1434,11 +1463,12 @@ La política de notificaciones envía todas las alertas a `discord-equipo`.
 ## 7. Pruebas del sistema: simulación del caos
 
 1. Levantar el ecosistema: `docker compose up -d --build`.
-2. Prometheus (`http://localhost:9091/targets`): los 7 targets en UP.
+2. Prometheus (`http://localhost:9091/targets`): los 7 microservicios y los 7 exporters PostgreSQL en UP.
 3. Login y tráfico: `POST /auth/login` y consultas repetidas a `/departamentos` y `/empleados` vía el gateway (`:8088`).
 4. Trazas: Zipkin (`http://localhost:9411`) → cascada del gateway a los servicios.
 5. **Caos 1 - servicio caído:** `docker compose stop departamento-service`. Tras ~2 min el target pasa a DOWN, el panel de estado se pone rojo y llega "Servicio Caído" a Discord. Recuperación: `docker compose start departamento-service`.
 6. **Caos 2 - latencia:** retardo artificial temporal en un endpoint, reconstruir el servicio y observar el panel de latencia y la alerta "Alta Latencia".
+7. **Caos 3 - base caída:** detener una base, por ejemplo `docker compose stop departamento-db`. En un máximo aproximado de 40 segundos `pg_up` cambia a `0`, el panel PostgreSQL se pone rojo y se activa "Base de Datos Caída". Recuperación: `docker compose start departamento-db`.
 
 ### Evidencias
 

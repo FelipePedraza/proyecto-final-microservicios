@@ -1,0 +1,54 @@
+{
+  "uid": "postgresql-databases",
+  "title": "PostgreSQL - Disponibilidad",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": {"from": "now-30m", "to": "now"},
+  "tags": ["postgresql", "prometheus", "reto9"],
+  "panels": [
+    {
+      "id": 1,
+      "title": "Estado en vivo de las bases de datos",
+      "description": "Combina la conexion a PostgreSQL (pg_up) y la disponibilidad del exporter (up).",
+      "type": "stat",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"x": 0, "y": 0, "w": 24, "h": 6},
+      "targets": [
+        {"refId": "A", "expr": "database:postgresql_available", "legendFormat": "{{database}}"}
+      ],
+      "options": {"colorMode": "background", "graphMode": "area", "justifyMode": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "values": false}},
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [{"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}, "1": {"text": "UP", "color": "green"}}}],
+          "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]},
+          "min": 0,
+          "max": 1
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 2,
+      "title": "Historial de disponibilidad",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"x": 0, "y": 6, "w": 14, "h": 9},
+      "targets": [
+        {"refId": "A", "expr": "database:postgresql_available", "legendFormat": "{{database}}"}
+      ],
+      "fieldConfig": {"defaults": {"min": 0, "max": 1, "custom": {"drawStyle": "line", "lineInterpolation": "stepAfter", "lineWidth": 2, "fillOpacity": 15}}, "overrides": []}
+    },
+    {
+      "id": 3,
+      "title": "Conexiones por base de datos",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"x": 14, "y": 6, "w": 10, "h": 9},
+      "targets": [
+        {"refId": "A", "expr": "pg_stat_database_numbackends{job=\"postgresql-databases\",datname!~\"template.*\"}", "legendFormat": "{{database}} / {{datname}}"}
+      ],
+      "fieldConfig": {"defaults": {"min": 0}, "overrides": []}
+    }
+  ]
+}

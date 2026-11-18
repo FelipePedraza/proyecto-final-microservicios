@@ -1,6 +1,7 @@
 require "date"
 require "minitest/autorun"
 require "yaml"
+require "json"
 
 class ObservabilityConfigTest < Minitest::Test
   ROOT = File.expand_path("../..", __dir__)
@@ -59,5 +60,47 @@ class ObservabilityConfigTest < Minitest::Test
     assert_equal "168h", config.dig("limits_config", "retention_period")
     assert_equal true, config.dig("compactor", "retention_enabled")
     assert_equal "filesystem", config.dig("compactor", "delete_request_store")
+  end
+
+  def test_prometheus_continuously_scrapes_every_postgresql_database
+    config = yaml("observability/prometheus/prometheus.yml")
+    job = config.fetch("scrape_configs")
+      .find { |scrape| scrape["job_name"] == "postgresql-databases" }
+
+    refute_nil job
+    assert_equal "10s", job["scrape_interval"]
+    assert_equal "8s", job["scrape_timeout"]
+
+    targets = job.fetch("static_configs")
+    assert_equal 7, targets.length
+    assert_equal %w[auth departamento empleado notificaciones perfiles sonar vacaciones],
+      targets.map { |target| target.dig("labels", "database") }.sort
+    targets.each do |target|
+      assert_match(/-db-exporter:9187\z/, target.fetch("targets").first)
+      refute_empty target.dig("labels", "db_service")
+      refute_empty target.dig("labels", "owner_service")
+    end
+  end
+
+  def test_database_alerts_cover_database_and_exporter_failures
+    config = yaml("observability/prometheus/rules/database-alerts.yml")
+    rules = config.fetch("groups").first.fetch("rules")
+
+    assert_includes config.fetch("groups").first["name"], "postgresql"
+    assert rules.any? { |rule| rule["record"] == "database:postgresql_available" }
+    assert rules.any? { |rule| rule["alert"] == "PostgreSQLDatabaseDown" && rule["expr"].include?("pg_up") }
+    assert rules.any? { |rule| rule["alert"] == "PostgreSQLExporterDown" && rule["expr"].include?("up{") }
+  end
+
+  def test_postgresql_dashboard_displays_live_availability
+    dashboard = JSON.parse(File.read(File.join(ROOT,
+      "observability/grafana/provisioning/dashboards/postgresql.json")))
+    expressions = dashboard.fetch("panels").flat_map do |panel|
+      panel.fetch("targets", []).map { |target| target["expr"] }
+    end
+
+    assert_equal "10s", dashboard["refresh"]
+    assert_includes expressions, "database:postgresql_available"
+    assert expressions.any? { |expression| expression.include?("pg_stat_database_numbackends") }
   end
 end

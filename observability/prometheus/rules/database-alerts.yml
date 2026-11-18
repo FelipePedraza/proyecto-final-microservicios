@@ -1,0 +1,24 @@
+groups:
+  - name: postgresql-databases
+    interval: 15s
+    rules:
+      - record: database:postgresql_available
+        expr: pg_up{job="postgresql-databases"} * on(instance, job) up{job="postgresql-databases"}
+
+      - alert: PostgreSQLDatabaseDown
+        expr: pg_up{job="postgresql-databases"} == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Base de datos PostgreSQL {{ $labels.database }} caida"
+          description: "El exporter responde, pero no puede conectarse a {{ $labels.db_service }} (servicio propietario: {{ $labels.owner_service }})."
+
+      - alert: PostgreSQLExporterDown
+        expr: up{job="postgresql-databases"} == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Monitoreo de PostgreSQL {{ $labels.database }} no disponible"
+          description: "Prometheus no puede consultar el exporter de {{ $labels.db_service }}; se perdio visibilidad de esa base de datos."

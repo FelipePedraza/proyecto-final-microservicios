@@ -2,6 +2,9 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
 
+rule_files:
+  - /etc/prometheus/rules/*.yml
+
 scrape_configs:
   - job_name: 'gateway-service'
     metrics_path: '/actuator/prometheus'
@@ -58,3 +61,45 @@ scrape_configs:
         labels:
           service: 'auth-service'
           lenguaje: 'java-spring'
+
+  # Una instancia del exporter por servidor conserva la identidad de la base y
+  # permite que pg_up cambie a 0 aunque PostgreSQL deje de responder.
+  - job_name: 'postgresql-databases'
+    scrape_interval: 10s
+    scrape_timeout: 8s
+    static_configs:
+      - targets: ['empleado-db-exporter:9187']
+        labels:
+          database: 'empleado'
+          db_service: 'empleado-db'
+          owner_service: 'empleado-service'
+      - targets: ['departamento-db-exporter:9187']
+        labels:
+          database: 'departamento'
+          db_service: 'departamento-db'
+          owner_service: 'departamento-service'
+      - targets: ['notificaciones-db-exporter:9187']
+        labels:
+          database: 'notificaciones'
+          db_service: 'notificaciones-db'
+          owner_service: 'notificaciones-service'
+      - targets: ['perfiles-db-exporter:9187']
+        labels:
+          database: 'perfiles'
+          db_service: 'perfiles-db'
+          owner_service: 'perfiles-service'
+      - targets: ['vacaciones-db-exporter:9187']
+        labels:
+          database: 'vacaciones'
+          db_service: 'vacaciones-db'
+          owner_service: 'vacaciones-service'
+      - targets: ['auth-db-exporter:9187']
+        labels:
+          database: 'auth'
+          db_service: 'auth-db'
+          owner_service: 'auth-service'
+      - targets: ['sonar-db-exporter:9187']
+        labels:
+          database: 'sonar'
+          db_service: 'sonar-db'
+          owner_service: 'sonarqube'
