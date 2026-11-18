@@ -7,6 +7,7 @@ síncrona (HTTP, a través de un API Gateway) y asíncrona (eventos sobre Rabbit
 
 ## Índice
 
+- [Guía de ejecución y entrega del Reto 9](docs/evidencias/reto9/GUIA_EJECUCION_Y_CAMBIOS.md)
 - [Servicios del sistema](#servicios-del-sistema)
 - [Arquitectura](#arquitectura)
 - [Comunicación asíncrona (RabbitMQ)](#comunicación-asíncrona-rabbitmq)
@@ -817,7 +818,7 @@ añadir controles de acceso.
 ## 2. Cumplimiento de Especificaciones (Punto por Punto)
 
 ### Punto 1: Infraestructura Jenkins como Código (JCasC) y CLI
-* **Servicio en Docker Compose:** Jenkins es opt-in mediante el perfil `ci`; no se inicia con la pila normal. Al activarlo, sus puertos web y de agentes se enlazan por defecto a `127.0.0.1` (`JENKINS_HOST_PORT` y `JENKINS_AGENT_PORT`).
+* **Servicio en Docker Compose:** Jenkins no tiene un perfil asignado en el Compose actual, por lo que `docker compose up` sin una lista de servicios también lo inicia. Para una ejecución ligera usa `docker compose up -d --build gateway-service`; para CI inicia explícitamente `jenkins`, `sonar-db` y `sonarqube`. Sus puertos web y de agentes se enlazan por defecto a `127.0.0.1` (`JENKINS_HOST_PORT` y `JENKINS_AGENT_PORT`).
 * **Construcción con Plugins Preinstalados:** Se utiliza [`jenkins/Dockerfile`](./jenkins/Dockerfile), basado en `jenkins/jenkins:lts-jdk21`, que instala el cliente Docker/Compose y los plugins requeridos:
   * `docker-workflow`, `workflow-aggregator`, `pipeline-stage-view`, `git`
   * `configuration-as-code` (JCasC), `job-dsl`, `credentials-binding`, `pipeline-utility-steps`
