@@ -104,8 +104,12 @@ class ObservabilityConfigTest < Minitest::Test
       assert environment.key?("DATA_SOURCE_USER")
       assert_equal "/run/secrets/#{secret}", environment["DATA_SOURCE_PASS_FILE"]
       assert_includes exporter.fetch("secrets"), secret
-      refute exporter.key?("command")
+      assert_equal ["--config.file=/etc/postgres_exporter.yml"], exporter.fetch("command")
+      assert_includes exporter.fetch("volumes"),
+        "./observability/postgres-exporter.yml:/etc/postgres_exporter.yml:ro,z"
     end
+
+    assert_equal({ "auth_modules" => {} }, yaml("observability/postgres-exporter.yml"))
   end
 
   def test_database_alerts_cover_database_and_exporter_failures

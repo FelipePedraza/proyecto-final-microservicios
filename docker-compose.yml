@@ -14,8 +14,12 @@ x-otel-environment: &otel-environment
 # base y lee la contrasena desde el mismo Docker Secret que el servicio.
 x-postgres-exporter: &postgres-exporter
   image: quay.io/prometheuscommunity/postgres-exporter:v0.20.1
+  command:
+    - --config.file=/etc/postgres_exporter.yml
   expose:
     - "9187"
+  volumes:
+    - ./observability/postgres-exporter.yml:/etc/postgres_exporter.yml:ro,z
   networks:
     - microservicios-network
   restart: unless-stopped

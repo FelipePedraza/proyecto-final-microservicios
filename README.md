@@ -1260,7 +1260,9 @@ puertos al host: Prometheus los consulta por la red privada cada 10 segundos en
 el job `postgresql-databases`. La conexión se configura con `DATA_SOURCE_URI` y
 `DATA_SOURCE_USER`; `DATA_SOURCE_PASS_FILE` indica el Docker Secret que contiene
 la contraseña. El valor secreto no se copia al Compose ni a una variable de
-entorno.
+entorno. El archivo [`observability/postgres-exporter.yml`](./observability/postgres-exporter.yml)
+define los módulos de autenticación vacíos para evitar que el exporter intente
+cargar una configuración predeterminada inexistente.
 
 | Base | Target de Prometheus | Servicio propietario |
 |---|---|---|
