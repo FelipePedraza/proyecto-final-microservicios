@@ -54,17 +54,41 @@ No copiar el `.env` ni la carpeta `secrets/` de otro integrante.
 
 ### 3.2 Generar configuración y secretos locales
 
+En Linux, macOS o Git Bash:
+
 ```bash
 chmod +x scripts/setup-secrets.sh scripts/rotate-secret.sh
 ./scripts/setup-secrets.sh
 ```
+
+En Windows PowerShell, desde la raíz del repositorio:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\scripts\setup-secrets.ps1
+```
+
+En el Símbolo del sistema de Windows (`cmd.exe`):
+
+```bat
+scripts\setup-secrets.cmd
+```
+
+El archivo `.cmd` localiza automáticamente `powershell.exe` o `pwsh.exe`, ejecuta
+la misma implementación segura y devuelve un código distinto de cero si ocurre
+algún error.
+
+El cambio de política aplica únicamente a la ventana actual y no necesita
+permisos de administrador. El script es compatible con Windows PowerShell 5.1 y
+PowerShell 7. No requiere instalar OpenSSL porque usa el generador criptográfico
+de .NET.
 
 El script:
 
 - crea `.env` desde `.env.example` si todavía no existe;
 - crea la carpeta local `secrets/`;
 - genera valores aleatorios sin mostrarlos en pantalla;
-- aplica permisos `600` a los archivos;
+- aplica permisos `600` en Unix o ACL restringida al usuario actual en Windows;
 - conserva un secreto existente válido y no lo rota silenciosamente;
 - reemplaza las antiguas contraseñas del `.env` por marcadores
   `GESTIONADO_EN_SECRETS_*`.
