@@ -49,9 +49,9 @@ set_env_value() {
       next
     }
     { print }
-    END { if (!found) exit 42 }
+    END { if (!found) print key "=" value }
   ' "${ENV_FILE}" > "${TEMP_FILE}"; then
-    fail "La plantilla no contiene la variable ${key}."
+    fail "No se pudo actualizar la variable ${key}."
   fi
   mv "${TEMP_FILE}" "${ENV_FILE}"
   chmod 600 "${ENV_FILE}"
